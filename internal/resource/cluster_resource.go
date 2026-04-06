@@ -324,10 +324,29 @@ func (r *ClusterResource) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 
+	// Preserve config-only fields that the API doesn't return
+	priorComputeVcpu := state.ComputeVcpu
+	priorCacheGb := state.CacheGb
+	priorBillingMethod := state.BillingMethod
+	priorAutoPause := state.AutoPause
+	priorAutoRenewEnabled := state.AutoRenewEnabled
+	priorPeriod := state.Period
+	priorPeriodUnit := state.PeriodUnit
+	priorTimeouts := state.Timeouts
+
 	r.readClusterIntoState(ctx, state.WarehouseID.ValueString(), state.ID.ValueString(), &state, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	state.ComputeVcpu = priorComputeVcpu
+	state.CacheGb = priorCacheGb
+	state.BillingMethod = priorBillingMethod
+	state.AutoPause = priorAutoPause
+	state.AutoRenewEnabled = priorAutoRenewEnabled
+	state.Period = priorPeriod
+	state.PeriodUnit = priorPeriodUnit
+	state.Timeouts = priorTimeouts
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
@@ -374,8 +393,12 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 
 	// Handle compute_vcpu and cache_gb separately — API does not allow both in one call
-	vcpuChanged := !plan.ComputeVcpu.Equal(state.ComputeVcpu)
-	cacheChanged := !plan.CacheGb.Equal(state.CacheGb)
+	// Only resize when the prior state had a real value (skip on first apply after import
+	// where state values are null/zero because the API doesn't return them)
+	vcpuChanged := !plan.ComputeVcpu.Equal(state.ComputeVcpu) &&
+		!state.ComputeVcpu.IsNull() && state.ComputeVcpu.ValueInt64() > 0
+	cacheChanged := !plan.CacheGb.Equal(state.CacheGb) &&
+		!state.CacheGb.IsNull() && state.CacheGb.ValueInt64() > 0
 
 	if vcpuChanged {
 		v := int(plan.ComputeVcpu.ValueInt64())
