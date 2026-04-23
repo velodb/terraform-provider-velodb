@@ -655,8 +655,12 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 			}
 			r.waitStable(ctx, warehouseID, clusterID, updateTimeout, &resp.Diagnostics)
 		}
-		// Period or auto_renew change
-		if !planSub.Period.Equal(stateSub.Period) || !planSub.AutoRenew.Equal(stateSub.AutoRenew) {
+		// Period or auto_renew change — skip if state is stale (period=0 indicates API didn't return it)
+		stateStalePeriod := stateSub.Period.IsNull() || stateSub.Period.ValueInt64() == 0
+		periodChanged := !stateStalePeriod && !planSub.Period.Equal(stateSub.Period)
+		autoRenewChanged := !planSub.AutoRenew.IsNull() && !planSub.AutoRenew.IsUnknown() &&
+			!stateSub.AutoRenew.IsNull() && !planSub.AutoRenew.Equal(stateSub.AutoRenew)
+		if periodChanged || autoRenewChanged {
 			p := int(planSub.Period.ValueInt64())
 			pu := planSub.PeriodUnit.ValueString()
 			req := &client.UpdateClusterRequest{
