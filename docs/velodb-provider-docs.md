@@ -359,6 +359,52 @@ resource "velodb_warehouse" "example" {
 }
 ```
 
+### Example: Manage / delete the initial cluster
+
+The API requires `initial_cluster` at creation time, but you may want to delete or resize it later. Import it as a `velodb_cluster` resource using the computed `initial_cluster_id`:
+
+```terraform
+resource "velodb_warehouse" "main" {
+  name            = "analytics"
+  deployment_mode = "SaaS"
+  cloud_provider  = "aws"
+  region          = "us-east-1"
+  admin_password  = var.admin_password
+
+  initial_cluster {
+    name         = "bootstrap"
+    compute_vcpu = 4
+    cache_gb     = 100
+  }
+}
+
+# Add a second cluster first (API won't let you delete the last cluster)
+resource "velodb_cluster" "etl" {
+  warehouse_id = velodb_warehouse.main.id
+  name         = "etl"
+  cluster_type = "COMPUTE"
+  on_demand { compute_vcpu = 16, cache_gb = 100 }
+}
+
+# Import the initial cluster for management
+import {
+  to = velodb_cluster.initial
+  id = "${velodb_warehouse.main.id}/${velodb_warehouse.main.initial_cluster_id}"
+}
+
+resource "velodb_cluster" "initial" {
+  warehouse_id = velodb_warehouse.main.id
+  name         = "bootstrap"
+  cluster_type = "COMPUTE"
+  on_demand { compute_vcpu = 4, cache_gb = 100 }
+}
+
+# To destroy the initial cluster: remove the resource + import blocks, then apply.
+# Constraints:
+#   - The warehouse must still have at least one other cluster.
+#   - Prepaid (subscription) clusters can't be deleted until expiration.
+```
+
 ### Schema
 
 #### Required
@@ -395,6 +441,7 @@ resource "velodb_warehouse" "example" {
 - `created_at` (String) Creation time in RFC 3339 format.
 - `expire_time` (String) Expiration time when available.
 - `id` (String) Warehouse identifier (e.g., `ALBJ07YE`).
+- `initial_cluster_id` (String) ID of the initial cluster. Use with an `import {}` block to manage or delete the initial cluster as a `velodb_cluster` resource (see example above).
 - `pay_type` (String) Billing type: `PostPaid` or `PrePaid`.
 - `status` (String) Current status: `Creating`, `Running`, `Resizing`, `Adjusting`, `Upgrading`, `Suspending`, `Resuming`, `Stopping`, `Starting`, `Restarting`, `Deleting`, `Suspended`, `Stopped`, `Deleted`, `CreateFailed`.
 - `zone` (String) Primary availability zone.
