@@ -9,6 +9,48 @@ description: |-
 
 The VeloDB provider allows you to manage [VeloDB Cloud](https://www.selectdb.com/) warehouses, clusters, and infrastructure using Terraform.
 
+## Resources and Data Sources
+
+**Resources** (manage lifecycle):
+
+| Resource | Purpose |
+|---|---|
+| [`velodb_warehouse`](./resources/warehouse.md) | SaaS or BYOC warehouse lifecycle (password, version, maintenance window) |
+| [`velodb_cluster`](./resources/cluster.md) | Cluster with `subscription{}` / `on_demand{}` pool blocks, mixed billing, pause/resume/reboot |
+| [`velodb_warehouse_public_access_policy`](./resources/warehouse_public_access_policy.md) | IP allowlist for public access |
+| [`velodb_warehouse_private_endpoint`](./resources/warehouse_private_endpoint.md) | Custom DNS on inbound PrivateLink endpoints |
+| [`velodb_private_link_endpoint_service`](./resources/private_link_endpoint_service.md) | Outbound PrivateLink service registration (⚠️ sandbox API broken) |
+
+**Data Sources** (read existing state):
+
+| Data Source | Purpose |
+|---|---|
+| [`velodb_warehouses`](./data-sources/warehouses.md) | List warehouses with filters |
+| [`velodb_clusters`](./data-sources/clusters.md) | List clusters in a warehouse |
+| [`velodb_warehouse_connections`](./data-sources/warehouse_connections.md) | Public host/ports + PrivateLink inbound/outbound info |
+
+## Supported / not supported features
+
+| Feature | Status |
+|---|---|
+| SaaS warehouse lifecycle | ✅ Supported |
+| BYOC `guided` mode (CloudFormation) | ⚠️ Works but not IaC-friendly |
+| BYOC `advanced` mode | ❌ Sandbox API broken (awaiting fix) |
+| Cluster pool blocks (subscription + on_demand) | ✅ Supported |
+| Mixed-billing cluster (both pools) | ✅ Supported |
+| Pool add / remove / independent resize | ✅ Supported |
+| Pause / resume / reboot | ✅ Supported |
+| Password rotation | ✅ Supported |
+| Version upgrade (`core_version`) | ✅ Supported |
+| Import all resources | ✅ Supported |
+| IP allowlist | ✅ Supported |
+| PrivateLink inbound custom DNS | ✅ Supported |
+| PrivateLink outbound service | ❌ Sandbox API broken |
+| Delete prepaid (subscription) cluster | ❌ API billing semantics — wait for expiration |
+| Delete warehouse's last cluster | ❌ API restriction — delete warehouse instead |
+| Billing / audit / consumption data sources | ❌ Out of scope (use dashboards) |
+| User / role / API key management | ❌ Out of scope |
+
 ## Authentication
 
 The provider authenticates using an API key passed via the `api_key` attribute or the `VELODB_API_KEY` environment variable.

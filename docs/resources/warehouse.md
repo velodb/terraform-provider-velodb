@@ -2,7 +2,7 @@
 page_title: "velodb_warehouse Resource - velodb"
 subcategory: ""
 description: |-
-  Manages a VeloDB Cloud warehouse. A warehouse is the top-level compute and storage unit that contains one or more clusters. The resource supports both SAAS and BYOC deployment modes, initial cluster provisioning, password management, version upgrades, and maintenance window configuration.
+  Manages a VeloDB Cloud warehouse. A warehouse is the top-level compute and storage unit that contains one or more clusters. The resource supports both SaaS and BYOC deployment modes, initial cluster provisioning, password management, version upgrades, and maintenance window configuration.
 ---
 
 # velodb_warehouse (Resource)
@@ -13,12 +13,27 @@ A warehouse is the primary unit of deployment. It belongs to an organization, ru
 
 Key capabilities:
 
-- **SAAS and BYOC** deployment modes with full BYOC template/wizard support
+- **SaaS and BYOC** deployment modes
 - **Initial cluster** created atomically with the warehouse
-- **Password rotation** via the write-only `admin_password` + `admin_password_version` pattern
+- **Password rotation** — change `admin_password` and apply (no version bump needed)
 - **Version upgrades** triggered declaratively by changing `core_version`
 - **Maintenance windows** and **advanced settings** updatable in-place
-- **BYOC setup** guidance (shell commands, template URLs) exposed as computed attributes
+- **BYOC setup guidance** (shell commands, template URLs) exposed as computed `byoc_setup` block
+
+## Supported / not supported features
+
+| Feature | Status | Notes |
+|---|---|---|
+| SaaS warehouse | ✅ Supported | `deployment_mode = "SaaS"` |
+| BYOC `guided` mode | ⚠️ API works but not IaC-friendly | Returns CFN template URL; customer must click-through in AWS console to finish. Terraform apply completes, but warehouse stays in `Creating` until CFN runs. |
+| BYOC `advanced` mode | ❌ Not supported by sandbox API | Spec documents it, but `POST /v1/warehouses` with `setupMode=advanced` returns `400 InvalidParameter` in the current sandbox. Provider code is correct per spec — awaiting API fix. |
+| Delete stuck BYOC `Creating` warehouse | ❌ Not supported by API | If guided-mode CFN is never executed, `DELETE` returns 500 "unfinished operations". Requires VeloDB admin intervention. |
+| Password rotation | ✅ Supported | Change `admin_password` — provider calls `POST /settings/password` automatically |
+| Version upgrade | ✅ Supported | Change `core_version` — provider calls `POST /settings/upgrade` and polls for completion |
+| Maintenance window update | ✅ Supported | |
+| Advanced settings update | ✅ Supported | `advanced_settings = jsonencode({...})` |
+| Delete initial cluster | ✅ Supported | Import via `initial_cluster_id` and manage as `velodb_cluster`. See [Managing the Initial Cluster](#managing-the-initial-cluster). |
+| Delete warehouse with pre-paid clusters | ❌ Not supported until clusters expire | API billing semantics |
 
 ## Example Usage
 
@@ -27,12 +42,11 @@ Key capabilities:
 ```terraform
 resource "velodb_warehouse" "analytics" {
   name            = "analytics-saas"
-  deployment_mode = "SAAS"
+  deployment_mode = "SaaS"
   cloud_provider  = "aliyun"
   region          = "cn-beijing"
 
   admin_password         = var.admin_password
-  admin_password_version = 1
 
   advanced_settings = jsonencode({
     enableTde = 0
@@ -57,7 +71,7 @@ resource "velodb_warehouse" "analytics" {
 }
 ```
 
-### BYOC Warehouse with Template Mode
+### BYOC Warehouse with Guided Mode (CloudFormation)
 
 ```terraform
 resource "velodb_warehouse" "production" {
@@ -70,7 +84,6 @@ resource "velodb_warehouse" "production" {
   vpc_id          = "vpc-2ze1234567890abcdef"
 
   admin_password         = var.admin_password
-  admin_password_version = 1
 
   core_version = "3.0.3"
 
@@ -82,7 +95,7 @@ resource "velodb_warehouse" "production" {
     zone           = "cn-beijing-k"
     compute_vcpu   = 8
     cache_gb       = 400
-    billing_method = "monthly"
+    billing_model = "monthly"
 
     auto_pause {
       enabled              = true
@@ -108,7 +121,7 @@ output "byoc_shell_command" {
 }
 ```
 
-### BYOC Warehouse with Wizard Mode (AWS)
+### BYOC Warehouse with Advanced Mode (AWS)
 
 ```terraform
 resource "velodb_warehouse" "aws_byoc" {
@@ -127,7 +140,6 @@ resource "velodb_warehouse" "aws_byoc" {
   security_group_id        = "sg-0abc123def456"
 
   admin_password         = var.admin_password
-  admin_password_version = 1
 
   initial_cluster {
     name         = "sql-primary"
@@ -144,25 +156,16 @@ resource "velodb_warehouse" "aws_byoc" {
 
 ### Password Rotation
 
-To rotate the warehouse admin password, change `admin_password` and increment `admin_password_version`:
+To rotate the warehouse admin password, just change `admin_password`. The provider detects the value change and calls the password-change API.
 
 ```terraform
 resource "velodb_warehouse" "example" {
-  name            = "my-warehouse"
-  deployment_mode = "SAAS"
-  cloud_provider  = "aliyun"
-  region          = "cn-beijing"
-
-  admin_password         = var.new_admin_password  # changed
-  admin_password_version = 2                        # was 1, now 2
-
-  initial_cluster {
-    name         = "default"
-    compute_vcpu = 4
-    cache_gb     = 1000
-  }
+  # ...
+  admin_password = var.new_admin_password  # change to rotate
 }
 ```
+
+~> The `admin_password_version` attribute exists on the schema for backwards compatibility but is **not required** to trigger rotation. The provider detects changes to `admin_password` directly.
 
 ### Version Upgrade
 
@@ -300,7 +303,7 @@ Required:
 Optional:
 
 - `auto_pause` (Block List, Max: 1) Auto-pause configuration. (see [below for nested schema](#nestedblock--initial_cluster--auto_pause))
-- `billing_method` (String) Billing method (e.g., `monthly`, `on_demand`).
+- `billing_model` (String) Billing method (e.g., `monthly`, `on_demand`).
 - `period` (Number) Prepaid subscription length.
 - `period_unit` (String) Period unit: `Month`, `Year`, or `Week`.
 - `zone` (String) Availability zone for the initial cluster.
