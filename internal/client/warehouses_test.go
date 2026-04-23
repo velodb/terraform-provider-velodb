@@ -13,7 +13,7 @@ func TestCreateWarehouse(t *testing.T) {
 	defer ts.Close()
 	client := newTestClient(t, ts)
 
-	mux.HandleFunc("/api/v1/warehouses", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses", func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(t, w, r, http.MethodPost) {
 			return
 		}
@@ -86,7 +86,7 @@ func TestCreateWarehouseBYOC(t *testing.T) {
 	defer ts.Close()
 	client := newTestClient(t, ts)
 
-	mux.HandleFunc("/api/v1/warehouses", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses", func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(t, w, r, http.MethodPost) {
 			return
 		}
@@ -160,7 +160,7 @@ func TestGetWarehouse(t *testing.T) {
 	defer ts.Close()
 	client := newTestClient(t, ts)
 
-	mux.HandleFunc("/api/v1/warehouses/WH-001", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses/WH-001", func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(t, w, r, http.MethodGet) {
 			return
 		}
@@ -197,7 +197,7 @@ func TestGetWarehouseNotFound(t *testing.T) {
 	defer ts.Close()
 	client := newTestClient(t, ts)
 
-	mux.HandleFunc("/api/v1/warehouses/WH-MISSING", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses/WH-MISSING", func(w http.ResponseWriter, r *http.Request) {
 		jsonResponse(w, 404, map[string]any{
 			"code":      "WarehouseNotFound",
 			"message":   "The warehouse [WH-MISSING] not found",
@@ -224,7 +224,7 @@ func TestListWarehouses(t *testing.T) {
 	defer ts.Close()
 	client := newTestClient(t, ts)
 
-	mux.HandleFunc("/api/v1/warehouses", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses", func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(t, w, r, http.MethodGet) {
 			return
 		}
@@ -278,7 +278,7 @@ func TestUpdateWarehouse(t *testing.T) {
 	defer ts.Close()
 	client := newTestClient(t, ts)
 
-	mux.HandleFunc("/api/v1/warehouses/WH-001", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses/WH-001", func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(t, w, r, http.MethodPatch) {
 			return
 		}
@@ -316,7 +316,7 @@ func TestDeleteWarehouse(t *testing.T) {
 	defer ts.Close()
 	client := newTestClient(t, ts)
 
-	mux.HandleFunc("/api/v1/warehouses/WH-001", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses/WH-001", func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(t, w, r, http.MethodDelete) {
 			return
 		}
@@ -340,7 +340,7 @@ func TestUpdateWarehouseSettings(t *testing.T) {
 	defer ts.Close()
 	client := newTestClient(t, ts)
 
-	mux.HandleFunc("/api/v1/warehouses/WH-001/settings", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses/WH-001/settings", func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(t, w, r, http.MethodPatch) {
 			return
 		}
@@ -373,7 +373,7 @@ func TestGetWarehouseSettings(t *testing.T) {
 	defer ts.Close()
 	client := newTestClient(t, ts)
 
-	mux.HandleFunc("/api/v1/warehouses/WH-001/settings", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses/WH-001/settings", func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(t, w, r, http.MethodGet) {
 			return
 		}
@@ -405,7 +405,7 @@ func TestUpgradeWarehouse(t *testing.T) {
 	defer ts.Close()
 	client := newTestClient(t, ts)
 
-	mux.HandleFunc("/api/v1/warehouses/WH-001/settings/upgrade", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses/WH-001/settings/upgrade", func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(t, w, r, http.MethodPost) {
 			return
 		}
@@ -431,7 +431,7 @@ func TestChangeWarehousePassword(t *testing.T) {
 	defer ts.Close()
 	client := newTestClient(t, ts)
 
-	mux.HandleFunc("/api/v1/warehouses/WH-001/settings/password", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses/WH-001/settings/password", func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(t, w, r, http.MethodPost) {
 			return
 		}
@@ -457,7 +457,7 @@ func TestGetWarehouseByocSetup(t *testing.T) {
 	defer ts.Close()
 	client := newTestClient(t, ts)
 
-	mux.HandleFunc("/api/v1/warehouses/WH-BYOC/byoc-setup", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses/WH-BYOC/byoc-setup", func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(t, w, r, http.MethodGet) {
 			return
 		}
@@ -491,7 +491,7 @@ func TestGetWarehouseConnections(t *testing.T) {
 	defer ts.Close()
 	client := newTestClient(t, ts)
 
-	mux.HandleFunc("/api/v1/warehouses/WH-001/connections", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses/WH-001/connections", func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(t, w, r, http.MethodGet) {
 			return
 		}
@@ -549,7 +549,7 @@ func TestUnauthorizedError(t *testing.T) {
 	host := ts.URL[len("http://"):]
 	c := NewFormationClient(host, "", 0, 10*time.Second)
 
-	mux.HandleFunc("/api/v1/warehouses", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses", func(w http.ResponseWriter, r *http.Request) {
 		jsonResponse(w, 401, map[string]any{
 			"code":      "Unauthorized.InvalidApiKey",
 			"message":   "API Key not found or invalid",

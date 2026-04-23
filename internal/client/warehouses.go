@@ -6,7 +6,7 @@ import (
 	"net/url"
 )
 
-const warehousesBasePath = "/api/v1/warehouses"
+const warehousesBasePath = "/v1/warehouses"
 
 // CreateWarehouse creates a new warehouse.
 func (c *FormationClient) CreateWarehouse(ctx context.Context, req *CreateWarehouseRequest) (*CreateWarehouseResult, error) {

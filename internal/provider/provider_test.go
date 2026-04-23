@@ -24,7 +24,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 	clDeleted := false
 
 	// -- Warehouse endpoints --
-	mux.HandleFunc("/api/v1/warehouses", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.Method {
 		case http.MethodGet:
@@ -52,7 +52,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 		}
 	})
 
-	mux.HandleFunc("/api/v1/warehouses/WH-MOCK-001", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses/WH-MOCK-001", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if whDeleted && r.Method == http.MethodGet {
 			w.WriteHeader(404)
@@ -80,18 +80,18 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 		}
 	})
 
-	mux.HandleFunc("/api/v1/warehouses/WH-MOCK-001/settings", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses/WH-MOCK-001/settings", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{"success": true, "requestId": "mock-settings", "data": map[string]any{}})
 	})
 
-	mux.HandleFunc("/api/v1/warehouses/WH-MOCK-001/byoc-setup", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses/WH-MOCK-001/byoc-setup", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(404)
 		json.NewEncoder(w).Encode(map[string]any{"code": "NotFound", "message": "Not BYOC", "success": false})
 	})
 
-	mux.HandleFunc("/api/v1/warehouses/WH-MOCK-001/connections", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses/WH-MOCK-001/connections", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
 			"success":   true,
@@ -127,7 +127,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 		}
 	}
 
-	mux.HandleFunc("/api/v1/warehouses/WH-MOCK-001/clusters", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses/WH-MOCK-001/clusters", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.Method {
 		case http.MethodGet:
@@ -148,7 +148,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 		}
 	})
 
-	mux.HandleFunc("/api/v1/warehouses/WH-MOCK-001/clusters/CL-MOCK-001", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses/WH-MOCK-001/clusters/CL-MOCK-001", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if clDeleted && r.Method == http.MethodGet {
 			w.WriteHeader(404)
@@ -170,10 +170,12 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 		}
 	})
 
-	mux.HandleFunc("/api/v1/warehouses/WH-MOCK-001/clusters/CL-MOCK-001/actions", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"success": true, "requestId": "mock-action-cl", "data": map[string]any{}})
-	})
+	for _, action := range []string{"pause", "resume", "reboot"} {
+		mux.HandleFunc("/v1/warehouses/WH-MOCK-001/clusters/CL-MOCK-001/"+action, func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]any{"success": true, "requestId": "mock-action-cl", "data": map[string]any{}})
+		})
+	}
 
 	return httptest.NewServer(mux)
 }

@@ -84,6 +84,8 @@ func (p *VeloDBProvider) Resources(_ context.Context) []func() resource.Resource
 	return []func() resource.Resource{
 		velodb_resource.NewWarehouseResource,
 		velodb_resource.NewClusterResource,
+		velodb_resource.NewPublicAccessPolicyResource,
+		velodb_resource.NewPrivateLinkEndpointServiceResource,
 	}
 }
 

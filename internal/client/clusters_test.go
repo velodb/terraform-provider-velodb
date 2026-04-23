@@ -12,7 +12,7 @@ func TestCreateCluster(t *testing.T) {
 	defer ts.Close()
 	client := newTestClient(t, ts)
 
-	mux.HandleFunc("/api/v1/warehouses/WH-001/clusters", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses/WH-001/clusters", func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(t, w, r, http.MethodPost) {
 			return
 		}
@@ -57,7 +57,7 @@ func TestCreateCluster(t *testing.T) {
 		Zone:          &zone,
 		ComputeVcpu:   4,
 		CacheGb:       100,
-		BillingMethod: &billingMethod,
+		BillingModel: &billingMethod,
 		AutoPause: &AutoPauseConfig{
 			Enabled:            false,
 			IdleTimeoutMinutes: &timeout,
@@ -76,7 +76,7 @@ func TestGetCluster(t *testing.T) {
 	defer ts.Close()
 	client := newTestClient(t, ts)
 
-	mux.HandleFunc("/api/v1/warehouses/WH-001/clusters/CL-001", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses/WH-001/clusters/CL-001", func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(t, w, r, http.MethodGet) {
 			return
 		}
@@ -110,7 +110,7 @@ func TestGetClusterNotFound(t *testing.T) {
 	defer ts.Close()
 	client := newTestClient(t, ts)
 
-	mux.HandleFunc("/api/v1/warehouses/WH-001/clusters/CL-MISSING", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses/WH-001/clusters/CL-MISSING", func(w http.ResponseWriter, r *http.Request) {
 		jsonResponse(w, 404, map[string]any{
 			"code":      "ClusterNotFound",
 			"message":   "The cluster [CL-MISSING] not found",
@@ -137,7 +137,7 @@ func TestListClusters(t *testing.T) {
 	defer ts.Close()
 	client := newTestClient(t, ts)
 
-	mux.HandleFunc("/api/v1/warehouses/WH-001/clusters", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses/WH-001/clusters", func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(t, w, r, http.MethodGet) {
 			return
 		}
@@ -185,7 +185,7 @@ func TestUpdateCluster(t *testing.T) {
 	defer ts.Close()
 	client := newTestClient(t, ts)
 
-	mux.HandleFunc("/api/v1/warehouses/WH-001/clusters/CL-001", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses/WH-001/clusters/CL-001", func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(t, w, r, http.MethodPatch) {
 			return
 		}
@@ -234,7 +234,7 @@ func TestDeleteCluster(t *testing.T) {
 	defer ts.Close()
 	client := newTestClient(t, ts)
 
-	mux.HandleFunc("/api/v1/warehouses/WH-001/clusters/CL-001", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses/WH-001/clusters/CL-001", func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(t, w, r, http.MethodDelete) {
 			return
 		}
@@ -250,14 +250,15 @@ func TestDeleteCluster(t *testing.T) {
 	}
 }
 
-func TestOperateCluster(t *testing.T) {
+func TestClusterActions(t *testing.T) {
 	tests := []struct {
-		name   string
-		action string
+		name     string
+		action   string
+		endpoint string
 	}{
-		{"pause", "pause"},
-		{"resume", "resume"},
-		{"reboot", "reboot"},
+		{"pause", "pause", "/v1/warehouses/WH-001/clusters/CL-001/pause"},
+		{"resume", "resume", "/v1/warehouses/WH-001/clusters/CL-001/resume"},
+		{"reboot", "reboot", "/v1/warehouses/WH-001/clusters/CL-001/reboot"},
 	}
 
 	for _, tc := range tests {
@@ -266,17 +267,10 @@ func TestOperateCluster(t *testing.T) {
 			defer ts.Close()
 			client := newTestClient(t, ts)
 
-			mux.HandleFunc("/api/v1/warehouses/WH-001/clusters/CL-001/actions", func(w http.ResponseWriter, r *http.Request) {
+			mux.HandleFunc(tc.endpoint, func(w http.ResponseWriter, r *http.Request) {
 				if !requireMethod(t, w, r, http.MethodPost) {
 					return
 				}
-				var req ClusterActionRequest
-				json.NewDecoder(r.Body).Decode(&req)
-
-				if req.Action != tc.action {
-					t.Errorf("expected action %q, got %q", tc.action, req.Action)
-				}
-
 				jsonResponse(w, 200, APIResponse[struct{}]{
 					Success:   true,
 					RequestID: "req-026",
@@ -296,7 +290,7 @@ func TestRenewCluster(t *testing.T) {
 	defer ts.Close()
 	client := newTestClient(t, ts)
 
-	mux.HandleFunc("/api/v1/warehouses/WH-001/clusters/CL-001/renew", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses/WH-001/clusters/CL-001/renew", func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(t, w, r, http.MethodPost) {
 			return
 		}
@@ -325,16 +319,16 @@ func TestRenewCluster(t *testing.T) {
 	}
 }
 
-func TestTransferClusterPrepaid(t *testing.T) {
+func TestConvertClusterToSubscription(t *testing.T) {
 	ts, mux := newTestServer(t)
 	defer ts.Close()
 	client := newTestClient(t, ts)
 
-	mux.HandleFunc("/api/v1/warehouses/WH-001/clusters/CL-001/transfer-prepaid", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses/WH-001/clusters/CL-001/convert-to-subscription", func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(t, w, r, http.MethodPost) {
 			return
 		}
-		var req TransferPrepaidRequest
+		var req ConvertToSubscriptionRequest
 		json.NewDecoder(r.Body).Decode(&req)
 
 		if req.Period != 1 {
@@ -347,12 +341,12 @@ func TestTransferClusterPrepaid(t *testing.T) {
 		})
 	})
 
-	err := client.TransferClusterPrepaid(context.Background(), "WH-001", "CL-001", &TransferPrepaidRequest{
+	err := client.ConvertClusterToSubscription(context.Background(), "WH-001", "CL-001", &ConvertToSubscriptionRequest{
 		Period:     1,
 		PeriodUnit: "Month",
 	})
 	if err != nil {
-		t.Fatalf("TransferClusterPrepaid: %v", err)
+		t.Fatalf("ConvertClusterToSubscription: %v", err)
 	}
 }
 
@@ -361,7 +355,7 @@ func TestConflictError(t *testing.T) {
 	defer ts.Close()
 	client := newTestClient(t, ts)
 
-	mux.HandleFunc("/api/v1/warehouses/WH-001/clusters", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses/WH-001/clusters", func(w http.ResponseWriter, r *http.Request) {
 		jsonResponse(w, 409, map[string]any{
 			"code":      "IdempotencyConflict",
 			"message":   "The request conflicts with an existing idempotent request",
@@ -393,7 +387,7 @@ func TestRateLimitError(t *testing.T) {
 	defer ts.Close()
 	client := newTestClient(t, ts)
 
-	mux.HandleFunc("/api/v1/warehouses/WH-001/clusters/CL-001", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses/WH-001/clusters/CL-001", func(w http.ResponseWriter, r *http.Request) {
 		jsonResponse(w, 429, map[string]any{
 			"code":      "RateLimitExceeded",
 			"message":   "Request rate limit exceeded",

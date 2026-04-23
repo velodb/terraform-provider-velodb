@@ -53,7 +53,7 @@ type InitialClusterRequest struct {
 	Zone           *string         `json:"zone,omitempty"`
 	ComputeVcpu    int             `json:"computeVcpu"`
 	CacheGb        int             `json:"cacheGb"`
-	BillingMethod  *string         `json:"billingMethod,omitempty"`
+	BillingModel   *string         `json:"billingModel,omitempty"`
 	Period         *int            `json:"period,omitempty"`
 	PeriodUnit     *string         `json:"periodUnit,omitempty"`
 	AutoPause      *AutoPauseConfig `json:"autoPause,omitempty"`
@@ -149,26 +149,22 @@ type CreateClusterRequest struct {
 	Zone           *string          `json:"zone,omitempty"`
 	ComputeVcpu    int              `json:"computeVcpu"`
 	CacheGb        int              `json:"cacheGb"`
-	BillingMethod  *string          `json:"billingMethod,omitempty"`
-	Period         *int             `json:"period,omitempty"`
-	PeriodUnit     *string          `json:"periodUnit,omitempty"`
-	AutoRenewEnabled *int           `json:"autoRenewEnabled,omitempty"`
-	AutoPause      *AutoPauseConfig `json:"autoPause,omitempty"`
-}
-
-type UpdateClusterRequest struct {
-	Name             *string          `json:"name,omitempty"`
-	ComputeVcpu      *int             `json:"computeVcpu,omitempty"`
-	CacheGb          *int             `json:"cacheGb,omitempty"`
-	BillingMethod    *string          `json:"billingMethod,omitempty"`
+	BillingModel     *string          `json:"billingModel,omitempty"`
 	Period           *int             `json:"period,omitempty"`
 	PeriodUnit       *string          `json:"periodUnit,omitempty"`
 	AutoRenewEnabled *int             `json:"autoRenewEnabled,omitempty"`
 	AutoPause        *AutoPauseConfig `json:"autoPause,omitempty"`
 }
 
-type ClusterActionRequest struct {
-	Action string `json:"action"`
+type UpdateClusterRequest struct {
+	Name             *string          `json:"name,omitempty"`
+	ComputeVcpu      *int             `json:"computeVcpu,omitempty"`
+	CacheGb          *int             `json:"cacheGb,omitempty"`
+	BillingModel     *string          `json:"billingModel,omitempty"`
+	Period           *int             `json:"period,omitempty"`
+	PeriodUnit       *string          `json:"periodUnit,omitempty"`
+	AutoRenewEnabled *int             `json:"autoRenewEnabled,omitempty"`
+	AutoPause        *AutoPauseConfig `json:"autoPause,omitempty"`
 }
 
 type RenewClusterRequest struct {
@@ -177,11 +173,11 @@ type RenewClusterRequest struct {
 	AutoRenewEnabled *int   `json:"autoRenewEnabled,omitempty"`
 }
 
-type TransferPrepaidRequest struct {
-	Period           int    `json:"period"`
-	PeriodUnit       string `json:"periodUnit"`
-	AutoRenewEnabled *int   `json:"autoRenewEnabled,omitempty"`
-	OdNodeCount      *int   `json:"odNodeCount,omitempty"`
+type ConvertToSubscriptionRequest struct {
+	Period            int    `json:"period"`
+	PeriodUnit        string `json:"periodUnit"`
+	AutoRenewEnabled  *int   `json:"autoRenewEnabled,omitempty"`
+	OnDemandNodeCount *int   `json:"onDemandNodeCount,omitempty"`
 }
 
 type ClusterConnectionInfo struct {

@@ -11,7 +11,7 @@ func TestTransportInjectsAPIKey(t *testing.T) {
 	defer ts.Close()
 	client := newTestClient(t, ts)
 
-	mux.HandleFunc("/api/v1/warehouses", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses", func(w http.ResponseWriter, r *http.Request) {
 		key := r.Header.Get("X-API-Key")
 		if key != "test-api-key" {
 			t.Errorf("expected X-API-Key 'test-api-key', got %q", key)
@@ -38,7 +38,7 @@ func TestTransportGeneratesRequestIdForWrites(t *testing.T) {
 	client := newTestClient(t, ts)
 
 	var capturedRequestID string
-	mux.HandleFunc("/api/v1/warehouses/WH-001", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses/WH-001", func(w http.ResponseWriter, r *http.Request) {
 		capturedRequestID = r.Header.Get("RequestId")
 		jsonResponse(w, 200, APIResponse[struct{}]{Success: true, RequestID: "req-t2"})
 	})
@@ -55,7 +55,7 @@ func TestTransportNoRequestIdForReads(t *testing.T) {
 	client := newTestClient(t, ts)
 
 	var capturedRequestID string
-	mux.HandleFunc("/api/v1/warehouses/WH-001", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses/WH-001", func(w http.ResponseWriter, r *http.Request) {
 		capturedRequestID = r.Header.Get("RequestId")
 		jsonResponse(w, 200, APIResponse[WarehouseItem]{
 			Success:   true,
@@ -89,7 +89,7 @@ func TestTransportRetryOn503(t *testing.T) {
 	_ = host
 
 	attempt := 0
-	mux.HandleFunc("/api/v1/warehouses/WH-001", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/v1/warehouses/WH-001", func(w http.ResponseWriter, r *http.Request) {
 		attempt++
 		if attempt == 1 {
 			jsonResponse(w, 503, map[string]any{

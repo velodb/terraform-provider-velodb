@@ -75,7 +75,7 @@ type InitialClusterModel struct {
 	Zone          types.String `tfsdk:"zone"`
 	ComputeVcpu   types.Int64  `tfsdk:"compute_vcpu"`
 	CacheGb       types.Int64  `tfsdk:"cache_gb"`
-	BillingMethod types.String `tfsdk:"billing_method"`
+	BillingModel types.String `tfsdk:"billing_model"`
 	Period        types.Int64  `tfsdk:"period"`
 	PeriodUnit    types.String `tfsdk:"period_unit"`
 	AutoPause     types.List   `tfsdk:"auto_pause"`
@@ -296,7 +296,7 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 							Description: "Cache capacity in GB.",
 							Required:    true,
 						},
-						"billing_method": schema.StringAttribute{
+						"billing_model": schema.StringAttribute{
 							Description: "Billing method (e.g., monthly, on_demand).",
 							Optional:    true,
 						},
@@ -436,7 +436,7 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 				CacheGb:     int(ic.CacheGb.ValueInt64()),
 			}
 			setOptionalString(&clReq.Zone, ic.Zone)
-			setOptionalString(&clReq.BillingMethod, ic.BillingMethod)
+			setOptionalString(&clReq.BillingModel, ic.BillingModel)
 			setOptionalIntFromInt64(&clReq.Period, ic.Period)
 			setOptionalString(&clReq.PeriodUnit, ic.PeriodUnit)
 

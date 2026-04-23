@@ -43,7 +43,7 @@ type ClusterResourceModel struct {
 	CacheGb          types.Int64    `tfsdk:"cache_gb"`
 	Zone             types.String   `tfsdk:"zone"`
 	DesiredState     types.String   `tfsdk:"desired_state"`
-	BillingMethod    types.String   `tfsdk:"billing_method"`
+	BillingModel    types.String   `tfsdk:"billing_model"`
 	Period           types.Int64    `tfsdk:"period"`
 	PeriodUnit       types.String   `tfsdk:"period_unit"`
 	AutoRenewEnabled types.Int64    `tfsdk:"auto_renew_enabled"`
@@ -126,7 +126,7 @@ func (r *ClusterResource) Schema(ctx context.Context, _ resource.SchemaRequest, 
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"billing_method": schema.StringAttribute{
+			"billing_model": schema.StringAttribute{
 				Description: "Billing method (e.g., on_demand, monthly).",
 				Optional:    true,
 			},
@@ -262,7 +262,7 @@ func (r *ClusterResource) Create(ctx context.Context, req resource.CreateRequest
 		CacheGb:     int(plan.CacheGb.ValueInt64()),
 	}
 	setOptionalString(&createReq.Zone, plan.Zone)
-	setOptionalString(&createReq.BillingMethod, plan.BillingMethod)
+	setOptionalString(&createReq.BillingModel, plan.BillingModel)
 	setOptionalIntFromInt64(&createReq.Period, plan.Period)
 	setOptionalString(&createReq.PeriodUnit, plan.PeriodUnit)
 
@@ -327,7 +327,7 @@ func (r *ClusterResource) Read(ctx context.Context, req resource.ReadRequest, re
 	// Preserve config-only fields that the API doesn't return
 	priorComputeVcpu := state.ComputeVcpu
 	priorCacheGb := state.CacheGb
-	priorBillingMethod := state.BillingMethod
+	priorBillingModel := state.BillingModel
 	priorAutoPause := state.AutoPause
 	priorAutoRenewEnabled := state.AutoRenewEnabled
 	priorPeriod := state.Period
@@ -341,7 +341,7 @@ func (r *ClusterResource) Read(ctx context.Context, req resource.ReadRequest, re
 
 	state.ComputeVcpu = priorComputeVcpu
 	state.CacheGb = priorCacheGb
-	state.BillingMethod = priorBillingMethod
+	state.BillingModel = priorBillingModel
 	state.AutoPause = priorAutoPause
 	state.AutoRenewEnabled = priorAutoRenewEnabled
 	state.Period = priorPeriod
@@ -438,7 +438,7 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 
 	// Handle other attribute updates (name, billing, auto_pause)
 	needsUpdate := !plan.Name.Equal(state.Name) ||
-		!plan.BillingMethod.Equal(state.BillingMethod) ||
+		!plan.BillingModel.Equal(state.BillingModel) ||
 		!plan.Period.Equal(state.Period) ||
 		!plan.PeriodUnit.Equal(state.PeriodUnit) ||
 		!plan.AutoRenewEnabled.Equal(state.AutoRenewEnabled) ||
@@ -450,7 +450,7 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 			s := plan.Name.ValueString()
 			updateReq.Name = &s
 		}
-		setOptionalString(&updateReq.BillingMethod, plan.BillingMethod)
+		setOptionalString(&updateReq.BillingModel, plan.BillingModel)
 		setOptionalIntFromInt64(&updateReq.Period, plan.Period)
 		setOptionalString(&updateReq.PeriodUnit, plan.PeriodUnit)
 		if !plan.AutoRenewEnabled.IsNull() && !plan.AutoRenewEnabled.IsUnknown() {
