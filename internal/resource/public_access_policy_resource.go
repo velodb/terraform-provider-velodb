@@ -33,7 +33,7 @@ type PublicAccessPolicyModel struct {
 	ID          types.String `tfsdk:"id"`
 	WarehouseID types.String `tfsdk:"warehouse_id"`
 	Policy      types.String `tfsdk:"policy"`
-	Rules       types.List   `tfsdk:"rules"`
+	Rules       types.Set    `tfsdk:"rules"`
 }
 
 type AllowlistRuleModel struct {
@@ -67,8 +67,8 @@ func (r *PublicAccessPolicyResource) Schema(_ context.Context, _ resource.Schema
 				Description: "Public access policy: DENY_ALL, ALLOW_ALL, or ALLOWLIST_ONLY.",
 				Required:    true,
 			},
-			"rules": schema.ListNestedAttribute{
-				Description: "Allowlist CIDR rules. Only valid when policy is ALLOWLIST_ONLY.",
+			"rules": schema.SetNestedAttribute{
+				Description: "Allowlist CIDR rules. Only valid when policy is ALLOWLIST_ONLY. Order is not significant.",
 				Optional:    true,
 				Computed:    true,
 				NestedObject: schema.NestedAttributeObject{
@@ -225,7 +225,7 @@ func (r *PublicAccessPolicyResource) readIntoState(ctx context.Context, state *P
 		diags.Append(d...)
 		rules = append(rules, obj)
 	}
-	list, d := types.ListValue(types.ObjectType{AttrTypes: allowlistRuleAttrTypes()}, rules)
+	list, d := types.SetValue(types.ObjectType{AttrTypes: allowlistRuleAttrTypes()}, rules)
 	diags.Append(d...)
 	state.Rules = list
 }
