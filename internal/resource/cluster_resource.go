@@ -393,6 +393,20 @@ func (r *ClusterResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	r.readClusterIntoState(ctx, warehouseID, clusterID, &plan, &resp.Diagnostics)
+	// Preserve plan values for subscription.auto_renew and subscription.period
+	if sub != nil && !plan.Subscription.IsNull() {
+		var pools []SubscriptionPoolModel
+		resp.Diagnostics.Append(plan.Subscription.ElementsAs(ctx, &pools, false)...)
+		if len(pools) > 0 {
+			pools[0].AutoRenew = sub.AutoRenew
+			if pools[0].Period.IsNull() || pools[0].Period.ValueInt64() == 0 {
+				pools[0].Period = sub.Period
+			}
+			newList, d := types.ListValueFrom(ctx, plan.Subscription.ElementType(ctx), pools)
+			resp.Diagnostics.Append(d...)
+			plan.Subscription = newList
+		}
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -408,8 +422,10 @@ func (r *ClusterResource) Read(ctx context.Context, req resource.ReadRequest, re
 	priorRebootTrigger := state.RebootTrigger
 	priorTimeouts := state.Timeouts
 	priorSubAutoRenew := types.BoolNull()
+	priorSubPeriod := types.Int64Null()
 	if priorSub := r.extractSubscriptionPool(ctx, state.Subscription, &resp.Diagnostics); priorSub != nil {
 		priorSubAutoRenew = priorSub.AutoRenew
+		priorSubPeriod = priorSub.Period
 	}
 
 	r.readClusterIntoState(ctx, state.WarehouseID.ValueString(), state.ID.ValueString(), &state, &resp.Diagnostics)
@@ -418,12 +434,20 @@ func (r *ClusterResource) Read(ctx context.Context, req resource.ReadRequest, re
 	}
 
 	// readClusterIntoState derives Subscription and OnDemand blocks from billingPools.
-	// We must preserve auto_renew (not returned by API) in the subscription block if it's still present.
-	if !state.Subscription.IsNull() && !state.Subscription.IsUnknown() && !priorSubAutoRenew.IsNull() {
+	// Preserve auto_renew (not returned by API) and period (not always returned by API).
+	if !state.Subscription.IsNull() && !state.Subscription.IsUnknown() {
 		var newPools []SubscriptionPoolModel
 		resp.Diagnostics.Append(state.Subscription.ElementsAs(ctx, &newPools, false)...)
 		if len(newPools) > 0 {
-			newPools[0].AutoRenew = priorSubAutoRenew
+			if !priorSubAutoRenew.IsNull() {
+				newPools[0].AutoRenew = priorSubAutoRenew
+			}
+			// If API didn't return period, use prior value
+			if newPools[0].Period.IsNull() || newPools[0].Period.ValueInt64() == 0 {
+				if !priorSubPeriod.IsNull() {
+					newPools[0].Period = priorSubPeriod
+				}
+			}
 			newList, d := types.ListValueFrom(ctx, state.Subscription.ElementType(ctx), newPools)
 			resp.Diagnostics.Append(d...)
 			state.Subscription = newList
@@ -675,6 +699,21 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 
 	r.readClusterIntoState(ctx, warehouseID, clusterID, &plan, &resp.Diagnostics)
+	// Preserve plan values for subscription.auto_renew and subscription.period
+	// (API doesn't always return them via billingPools)
+	if planSub != nil && !plan.Subscription.IsNull() {
+		var pools []SubscriptionPoolModel
+		resp.Diagnostics.Append(plan.Subscription.ElementsAs(ctx, &pools, false)...)
+		if len(pools) > 0 {
+			pools[0].AutoRenew = planSub.AutoRenew
+			if pools[0].Period.IsNull() || pools[0].Period.ValueInt64() == 0 {
+				pools[0].Period = planSub.Period
+			}
+			newList, d := types.ListValueFrom(ctx, plan.Subscription.ElementType(ctx), pools)
+			resp.Diagnostics.Append(d...)
+			plan.Subscription = newList
+		}
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
