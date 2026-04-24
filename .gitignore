@@ -30,3 +30,6 @@ terraform.rc
 # OS
 .DS_Store
 Thumbs.db
+
+# MkDocs build output
+site/

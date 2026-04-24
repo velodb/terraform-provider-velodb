@@ -1,0 +1,82 @@
+site_name: VeloDB Terraform Provider
+site_description: Terraform provider for VeloDB Cloud (SelectDB Cloud)
+site_url: https://terraform-provider-velodb.pages.dev/
+repo_url: https://github.com/tomz-alt/terraform-provider-velodb
+repo_name: tomz-alt/terraform-provider-velodb
+edit_uri: edit/master/docs/
+
+docs_dir: docs
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - navigation.tracking
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+    - content.action.edit
+  icon:
+    repo: fontawesome/brands/github
+
+nav:
+  - Overview: index.md
+  - Single-page reference: velodb-provider-docs.md
+  - Resources:
+    - velodb_warehouse: resources/warehouse.md
+    - velodb_cluster: resources/cluster.md
+    - velodb_warehouse_public_access_policy: resources/warehouse_public_access_policy.md
+    - velodb_warehouse_private_endpoint: resources/warehouse_private_endpoint.md
+    - velodb_private_link_endpoint_service: resources/private_link_endpoint_service.md
+  - Data Sources:
+    - velodb_warehouses: data-sources/warehouses.md
+    - velodb_clusters: data-sources/clusters.md
+    - velodb_warehouse_connections: data-sources/warehouse_connections.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      toc_depth: 3
+
+plugins:
+  - search
