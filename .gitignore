@@ -1,0 +1,35 @@
+# CLAUDE.md contains credentials — never commit
+CLAUDE.md
+
+# Go
+terraform-provider-velodb
+*.exe
+*.test
+*.out
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# MkDocs build output
+site/
