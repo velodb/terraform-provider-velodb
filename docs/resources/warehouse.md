@@ -1,0 +1,362 @@
+---
+page_title: "velodb_warehouse Resource - velodb"
+subcategory: ""
+description: |-
+  Manages a VeloDB Cloud warehouse. A warehouse is the top-level compute and storage unit that contains one or more clusters. The resource supports both SaaS and BYOC deployment modes, initial cluster provisioning, password management, version upgrades, and maintenance window configuration.
+---
+
+# velodb_warehouse (Resource)
+
+Use the *velodb_warehouse* resource to create and manage warehouses on VeloDB Cloud.
+
+A warehouse is the primary unit of deployment. It belongs to an organization, runs on a specific cloud provider and region, and contains one or more clusters. The resource manages the full warehouse lifecycle including creation, updates, version upgrades, password rotation, and deletion.
+
+Key capabilities:
+
+- **SaaS and BYOC** deployment modes
+- **Initial cluster** created atomically with the warehouse
+- **Password rotation** — change `admin_password` and apply (no version bump needed)
+- **Version upgrades** triggered declaratively by changing `core_version`
+- **Maintenance windows** and **advanced settings** updatable in-place
+- **BYOC setup guidance** (shell commands, template URLs) exposed as computed `byoc_setup` block
+
+## Supported / not supported features
+
+| Feature | Status | Notes |
+|---|---|---|
+| SaaS warehouse | ✅ Supported | `deployment_mode = "SaaS"` |
+| BYOC `guided` mode | ⚠️ API works but not IaC-friendly | Returns CFN template URL; customer must click-through in AWS console to finish. Terraform apply completes, but warehouse stays in `Creating` until CFN runs. |
+| BYOC `advanced` mode | ❌ Not supported by sandbox API | Spec documents it, but `POST /v1/warehouses` with `setupMode=advanced` returns `400 InvalidParameter` in the current sandbox. Provider code is correct per spec — awaiting API fix. |
+| Delete stuck BYOC `Creating` warehouse | ❌ Not supported by API | If guided-mode CFN is never executed, `DELETE` returns 500 "unfinished operations". Requires VeloDB admin intervention. |
+| Password rotation | ✅ Supported | Change `admin_password` — provider calls `POST /settings/password` automatically |
+| Version upgrade | ✅ Supported | Change `core_version` — provider calls `POST /settings/upgrade` and polls for completion |
+| Maintenance window update | ✅ Supported | |
+| Advanced settings update | ✅ Supported | `advanced_settings = jsonencode({...})` |
+| Delete initial cluster | ✅ Supported | Import via `initial_cluster_id` and manage as `velodb_cluster`. See [Managing the Initial Cluster](#managing-the-initial-cluster). |
+| Delete warehouse with pre-paid clusters | ❌ Not supported until clusters expire | API billing semantics |
+
+## Example Usage
+
+### SaaS Warehouse
+
+```terraform
+resource "velodb_warehouse" "analytics" {
+  name            = "analytics-saas"
+  deployment_mode = "SaaS"
+  cloud_provider  = "aliyun"
+  region          = "cn-beijing"
+
+  admin_password         = var.admin_password
+
+  advanced_settings = jsonencode({
+    enableTde = 0
+  })
+
+  initial_cluster {
+    name         = "default"
+    zone         = "cn-beijing-k"
+    compute_vcpu = 4
+    cache_gb     = 1000
+
+    auto_pause {
+      enabled              = false
+      idle_timeout_minutes = 30
+    }
+  }
+
+  timeouts {
+    create = "30m"
+    delete = "20m"
+  }
+}
+```
+
+### BYOC Warehouse with Guided Mode (CloudFormation)
+
+```terraform
+resource "velodb_warehouse" "production" {
+  name            = "production-byoc"
+  deployment_mode = "BYOC"
+  cloud_provider  = "aliyun"
+  region          = "cn-beijing"
+  setup_mode     = "guided"
+  vpc_mode        = "existing"
+  vpc_id          = "vpc-2ze1234567890abcdef"
+
+  admin_password         = var.admin_password
+
+  core_version = "3.0.3"
+
+  maintainability_start_time = "02:00"
+  maintainability_end_time   = "06:00"
+
+  initial_cluster {
+    name           = "default-compute"
+    zone           = "cn-beijing-k"
+    compute_vcpu   = 8
+    cache_gb       = 400
+    billing_model = "monthly"
+
+    auto_pause {
+      enabled              = true
+      idle_timeout_minutes = 30
+    }
+  }
+
+  tags = {
+    environment = "production"
+    team        = "data-platform"
+  }
+
+  timeouts {
+    create = "45m"
+    delete = "20m"
+  }
+}
+
+# Use the BYOC setup shell command to provision cloud resources
+output "byoc_shell_command" {
+  value     = velodb_warehouse.production.byoc_setup[0].shell_command
+  sensitive = true
+}
+```
+
+### BYOC Warehouse with Advanced Mode (AWS)
+
+```terraform
+resource "velodb_warehouse" "aws_byoc" {
+  name            = "aws-byoc-wizard"
+  deployment_mode = "BYOC"
+  cloud_provider  = "aws"
+  region          = "us-east-1"
+  setup_mode     = "advanced"
+
+  credential_id            = 12345
+  network_config_id        = 67890
+  bucket_name              = "my-velodb-bucket"
+  data_credential_arn      = "arn:aws:iam::123456789012:role/velodb-data"
+  deployment_credential_arn = "arn:aws:iam::123456789012:role/velodb-deploy"
+  subnet_id                = "subnet-0abc123def456"
+  security_group_id        = "sg-0abc123def456"
+
+  admin_password         = var.admin_password
+
+  initial_cluster {
+    name         = "sql-primary"
+    zone         = "us-east-1a"
+    compute_vcpu = 16
+    cache_gb     = 800
+  }
+
+  timeouts {
+    create = "45m"
+  }
+}
+```
+
+### Password Rotation
+
+To rotate the warehouse admin password, just change `admin_password`. The provider detects the value change and calls the password-change API.
+
+```terraform
+resource "velodb_warehouse" "example" {
+  # ...
+  admin_password = var.new_admin_password  # change to rotate
+}
+```
+
+~> The `admin_password_version` attribute exists on the schema for backwards compatibility but is **not required** to trigger rotation. The provider detects changes to `admin_password` directly.
+
+### Version Upgrade
+
+To upgrade the warehouse core version, change `core_version`. The provider will call the upgrade API and wait for completion:
+
+```terraform
+resource "velodb_warehouse" "example" {
+  # ...
+  core_version = "3.1.0"  # was "3.0.3"
+  # ...
+}
+```
+
+### Managing the Initial Cluster
+
+The VeloDB API requires an `initial_cluster` block at warehouse creation — a warehouse cannot exist without at least one cluster. The `initial_cluster` block is **create-only** (changes to it after creation are ignored). To manage or delete the initial cluster later (resize, pause, destroy), import it into a separate `velodb_cluster` resource.
+
+The warehouse exposes `initial_cluster_id` as a computed output to simplify this workflow:
+
+```terraform
+resource "velodb_warehouse" "main" {
+  name            = "analytics"
+  deployment_mode = "SaaS"
+  cloud_provider  = "aws"
+  region          = "us-east-1"
+  admin_password  = var.admin_password
+
+  initial_cluster {
+    name         = "bootstrap"
+    zone         = "us-east-1a"
+    compute_vcpu = 4
+    cache_gb     = 100
+
+    auto_pause {
+      enabled              = true
+      idle_timeout_minutes = 30
+    }
+  }
+}
+
+# Add a second cluster (required before the initial cluster can be deleted)
+resource "velodb_cluster" "etl" {
+  warehouse_id = velodb_warehouse.main.id
+  name         = "etl"
+  cluster_type = "COMPUTE"
+  zone         = "us-east-1a"
+  on_demand {
+    compute_vcpu = 16
+    cache_gb     = 100
+  }
+}
+
+# Import the initial cluster so it becomes a first-class managed resource
+import {
+  to = velodb_cluster.initial
+  id = "${velodb_warehouse.main.id}/${velodb_warehouse.main.initial_cluster_id}"
+}
+
+resource "velodb_cluster" "initial" {
+  warehouse_id = velodb_warehouse.main.id
+  name         = "bootstrap"
+  cluster_type = "COMPUTE"
+  zone         = "us-east-1a"
+  on_demand {
+    compute_vcpu = 4
+    cache_gb     = 100
+  }
+}
+```
+
+To **destroy the initial cluster later**:
+
+1. Confirm the warehouse has at least one other cluster (e.g. `velodb_cluster.etl` in the example above).
+2. Remove both the `resource "velodb_cluster" "initial" { ... }` block and the `import {}` block from your configuration.
+3. `terraform apply` — the initial cluster is deleted via the API.
+
+~> **Important constraints on initial cluster deletion:**
+> - The warehouse's **last cluster cannot be deleted** — add another cluster first, or destroy the whole warehouse.
+> - **Prepaid (subscription) clusters cannot be deleted until they expire** — this is an API billing constraint, not a Terraform limitation.
+> - The initial cluster is created with `billing_model = "on_demand"` by default, so it's normally deletable.
+
+<!-- schema generated by tfplugindocs -->
+## Schema
+
+### Required
+
+- `cloud_provider` (String) Cloud provider for the warehouse (e.g., `aws`, `aliyun`). Changing this forces a new resource.
+- `deployment_mode` (String) Deployment mode: `BYOC` or `SAAS`. Changing this forces a new resource.
+- `name` (String) Warehouse display name.
+- `region` (String) Cloud region (e.g., `us-east-1`, `cn-beijing`). Changing this forces a new resource.
+
+### Optional
+
+- `admin_password` (String, Sensitive) Administrator password. Set on creation and used for password rotation. The password is stored in state since it cannot be read back from the API.
+- `admin_password_version` (Number) Increment this value to trigger a password change. Must be used together with `admin_password`.
+- `advanced_settings` (String) Advanced settings as a JSON string. Use `jsonencode()` to construct the value. Updated via the warehouse settings API.
+- `bucket_name` (String) Existing object storage bucket name for Wizard mode. Changing this forces a new resource.
+- `core_version` (String) Core version string. Changing this triggers a warehouse upgrade workflow. Computed from the API if not set.
+- `setup_mode` (String) BYOC creation mode: `Template` or `Wizard`. `Wizard` is only supported for `aws`. Changing this forces a new resource.
+- `credential_id` (Number) Credential identifier for Wizard mode. Changing this forces a new resource.
+- `data_credential_arn` (String) Data plane credential ARN for direct cloud-resource flows. Changing this forces a new resource.
+- `deployment_credential_arn` (String) Deployment credential ARN for direct cloud-resource flows. Changing this forces a new resource.
+- `endpoint_id` (String) Existing private endpoint identifier. Changing this forces a new resource.
+- `initial_cluster` (Block List, Max: 1) Initial cluster created together with the warehouse. This is a create-only configuration — after creation, manage the cluster lifecycle by importing it as a `velodb_cluster` resource. (see [below for nested schema](#nestedblock--initial_cluster))
+- `maintainability_end_time` (String) Maintenance window end time (e.g., `06:00`).
+- `maintainability_start_time` (String) Maintenance window start time (e.g., `02:00`).
+- `network_config_id` (Number) Existing network configuration identifier for Wizard mode. Changing this forces a new resource.
+- `security_group_id` (String) Existing security group identifier. Changing this forces a new resource.
+- `subnet_id` (String) Existing subnet identifier. Changing this forces a new resource.
+- `tags` (Map of String) Warehouse tags as key-value pairs. Set at creation time.
+- `timeouts` (Block, Optional) (see [below for nested schema](#nestedblock--timeouts))
+- `vpc_id` (String) Existing VPC identifier for Template mode. Changing this forces a new resource.
+- `vpc_mode` (String) VPC consistency hint for Template mode: `existing` or `new`. Changing this forces a new resource.
+
+### Read-Only
+
+- `byoc_setup` (Block List) BYOC setup guidance returned for BYOC warehouses. (see [below for nested schema](#nestedatt--byoc_setup))
+- `created_at` (String) Warehouse creation time in ISO 8601 / RFC 3339 format.
+- `expire_time` (String) Warehouse expiration time when available.
+- `id` (String) Warehouse identifier (e.g., `ALBJ07YE`).
+- `initial_cluster_id` (String) ID of the initial cluster created with the warehouse. Use this with an `import {}` block to manage the initial cluster as a `velodb_cluster` resource. See [Managing the Initial Cluster](#managing-the-initial-cluster).
+- `pay_type` (String) Billing type: `PostPaid` or `PrePaid`.
+- `status` (String) Current warehouse status. One of: `Creating`, `Running`, `Resizing`, `Adjusting`, `Upgrading`, `Suspending`, `Resuming`, `Stopping`, `Starting`, `Restarting`, `Deleting`, `Suspended`, `Stopped`, `Deleted`, `CreateFailed`.
+- `zone` (String) Primary availability zone derived from the SQL cluster.
+
+<a id="nestedblock--initial_cluster"></a>
+### Nested Schema for `initial_cluster`
+
+Required:
+
+- `cache_gb` (Number) Cache capacity in GB.
+- `compute_vcpu` (Number) Compute capacity in vCPUs.
+- `name` (String) Cluster name.
+
+Optional:
+
+- `auto_pause` (Block List, Max: 1) Auto-pause configuration. (see [below for nested schema](#nestedblock--initial_cluster--auto_pause))
+- `billing_model` (String) Billing method (e.g., `monthly`, `on_demand`).
+- `period` (Number) Prepaid subscription length.
+- `period_unit` (String) Period unit: `Month`, `Year`, or `Week`.
+- `zone` (String) Availability zone for the initial cluster.
+
+<a id="nestedblock--initial_cluster--auto_pause"></a>
+### Nested Schema for `initial_cluster.auto_pause`
+
+Required:
+
+- `enabled` (Boolean) Whether auto-pause is enabled.
+
+Optional:
+
+- `idle_timeout_minutes` (Number) Idle timeout in minutes before the cluster can be paused automatically.
+
+<a id="nestedatt--byoc_setup"></a>
+### Nested Schema for `byoc_setup`
+
+Read-Only:
+
+- `doc_url` (String) Documentation URL for the standard BYOC path.
+- `doc_url_for_new_vpc` (String) Documentation URL for the new-VPC BYOC path.
+- `shell_command` (String) Shell command for provider-side BYOC setup.
+- `shell_command_for_new_vpc` (String) Shell command for the new-VPC setup path.
+- `token` (String) Short-lived token used by the downstream BYOC setup flow.
+- `url` (String) Guided setup URL for the standard BYOC path.
+- `url_for_new_vpc` (String) Guided setup URL for the new-VPC BYOC path.
+
+<a id="nestedblock--timeouts"></a>
+### Nested Schema for `timeouts`
+
+Optional:
+
+- `create` (String) Timeout for warehouse creation. Default: `45m`.
+- `delete` (String) Timeout for warehouse deletion. Default: `20m`.
+- `update` (String) Timeout for warehouse updates (including upgrades). Default: `15m`.
+
+## Import
+
+Import is supported using the following syntax:
+
+```shell
+# Warehouses can be imported by specifying the warehouse ID.
+terraform import velodb_warehouse.example ALBJ07YE
+```
+
+Or using the Terraform 1.5+ import block:
+
+```terraform
+import {
+  to = velodb_warehouse.example
+  id = "ALBJ07YE"
+}
+```
+
+~> **Note:** The `admin_password`, `admin_password_version`, `initial_cluster`, and `advanced_settings` attributes cannot be read from the API and will not be populated after import. You must add them to your configuration manually.
