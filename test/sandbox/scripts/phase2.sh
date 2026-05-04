@@ -85,8 +85,45 @@ assert_apply_succeeds "2.5" -var="warehouse_name_override=tfmig-${RANDOM}"
 assert_apply_succeeds "2.5 restore name"
 
 # 2.6 — password rotation
-echo "=== 2.6: rotate admin_password ==="
-assert_apply_succeeds "2.6" -var="warehouse_password=Tf@Rotated9876"
+# The resource fires POST /settings/password when EITHER the admin_password
+# value differs from state OR admin_password_version is bumped. Exercise both
+# triggers and assert each apply actually produced a "1 changed" modification
+# (an update with no real change would say "0 changed").
+
+assert_apply_changed_one() {
+  local label="$1"
+  shift
+  if ! terraform apply -auto-approve -no-color "$@" > /tmp/p2.log 2>&1; then
+    echo "FAIL: $label — apply errored"
+    cat /tmp/p2.log
+    exit 1
+  fi
+  if ! grep -q "1 changed, 0 destroyed" /tmp/p2.log; then
+    echo "FAIL: $label — apply did not modify the warehouse"
+    grep -E "Apply complete" /tmp/p2.log || true
+    exit 1
+  fi
+  echo "OK: $label — apply modified the warehouse"
+}
+
+# 2.6a — change password string
+echo "=== 2.6a: rotate admin_password by changing the value ==="
+assert_apply_changed_one "2.6a" -var="warehouse_password=Tf@Rotated9876"
+assert_clean "2.6a drift" -var="warehouse_password=Tf@Rotated9876"
+
+# 2.6b — bump admin_password_version with the same value
+echo "=== 2.6b: rotate via admin_password_version bump ==="
+assert_apply_changed_one "2.6b" \
+  -var="warehouse_password=Tf@Rotated9876" \
+  -var="admin_password_version=1"
+assert_clean "2.6b drift" \
+  -var="warehouse_password=Tf@Rotated9876" \
+  -var="admin_password_version=1"
+
+# 2.6c — restore default password so phases 3-7 don't carry rotation state
+echo "=== 2.6c: restore default admin_password ==="
+terraform apply -auto-approve -no-color > /dev/null 2>&1
+assert_clean "2.6c restored"
 
 # 2.7 — empty upgrade_policy must be rejected by validator
 echo "=== 2.7: validator rejects empty upgrade_policy ==="

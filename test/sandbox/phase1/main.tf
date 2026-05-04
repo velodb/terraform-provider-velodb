@@ -33,6 +33,11 @@ variable "warehouse_password" {
   default   = "Tf@Migration123"
 }
 
+variable "admin_password_version" {
+  type    = number
+  default = 0
+}
+
 variable "include_upgrade_policy" {
   type    = bool
   default = true
@@ -99,7 +104,8 @@ resource "velodb_warehouse" "t" {
   deployment_mode = "SaaS"
   cloud_provider  = "aws"
   region          = "us-east-1"
-  admin_password  = var.warehouse_password
+  admin_password         = var.warehouse_password
+  admin_password_version = var.admin_password_version > 0 ? var.admin_password_version : null
 
   upgrade_policy  = var.include_upgrade_policy ? var.upgrade_policy : null
   core_version_id = var.core_version_id > 0 ? var.core_version_id : null
