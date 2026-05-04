@@ -1,0 +1,82 @@
+name: Sandbox tests
+
+# Manually triggered only — these tests provision real warehouses and clusters
+# in the VeloDB sandbox and incur cost. Do not run on push or PR.
+on:
+  workflow_dispatch:
+    inputs:
+      phases:
+        description: 'Phases to run (comma-separated): 0,1,2,3,3-actions,full'
+        required: false
+        default: '0,1,2,3-actions'
+      sandbox_host:
+        description: 'Sandbox host'
+        required: false
+        default: 'sandbox.velodb.io'
+
+jobs:
+  sandbox:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      VELODB_HOST: ${{ inputs.sandbox_host }}
+      TF_VAR_api_key: ${{ secrets.VELODB_SANDBOX_API_KEY }}
+      VELODB_API_KEY: ${{ secrets.VELODB_SANDBOX_API_KEY }}
+      PHASES: ${{ inputs.phases }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.15.1'
+
+      - name: Phase 0 — local build, vet, unit tests
+        if: contains(env.PHASES, '0') || contains(env.PHASES, 'full')
+        run: |
+          go build ./...
+          go vet ./...
+          go test ./...
+
+      - name: Install provider for dev_overrides
+        run: |
+          go install .
+          mkdir -p ~/.terraform.d
+          cat > ~/.terraformrc <<EOF
+          provider_installation {
+            dev_overrides {
+              "velodb/velodb" = "$(go env GOPATH)/bin"
+            }
+            direct {}
+          }
+          EOF
+
+      - name: Phase 1 — warehouse new HCL shape
+        if: contains(env.PHASES, '1') || contains(env.PHASES, 'full')
+        working-directory: test/sandbox/phase1
+        run: |
+          terraform init -input=false || true
+          terraform apply -auto-approve -input=false
+          terraform plan -detailed-exitcode -no-color    # exit 0 = no drift
+
+      - name: Phase 2 — warehouse mutations
+        if: contains(env.PHASES, '2') || contains(env.PHASES, 'full')
+        working-directory: test/sandbox/phase1
+        run: bash ../scripts/phase2.sh
+
+      - name: Phase 3 — cluster regressions (pause/resume/reboot)
+        if: contains(env.PHASES, '3-actions') || contains(env.PHASES, '3') || contains(env.PHASES, 'full')
+        working-directory: test/sandbox/phase1
+        run: bash ../scripts/phase3.sh
+
+      - name: Cleanup
+        if: always()
+        working-directory: test/sandbox/phase1
+        run: |
+          terraform destroy -auto-approve -input=false || true
+        continue-on-error: true
