@@ -288,9 +288,6 @@ func TestUpdateWarehouse(t *testing.T) {
 		if req.Name == nil || *req.Name != "renamed-warehouse" {
 			t.Errorf("expected name 'renamed-warehouse'")
 		}
-		if req.MaintainabilityStartTime == nil || *req.MaintainabilityStartTime != "02:00" {
-			t.Error("expected maintainabilityStartTime '02:00'")
-		}
 
 		jsonResponse(w, 200, APIResponse[struct{}]{
 			Success:   true,
@@ -299,12 +296,8 @@ func TestUpdateWarehouse(t *testing.T) {
 	})
 
 	name := "renamed-warehouse"
-	start := "02:00"
-	end := "06:00"
 	err := client.UpdateWarehouse(context.Background(), "WH-001", &UpdateWarehouseRequest{
-		Name:                     &name,
-		MaintainabilityStartTime: &start,
-		MaintainabilityEndTime:   &end,
+		Name: &name,
 	})
 	if err != nil {
 		t.Fatalf("UpdateWarehouse: %v", err)
@@ -347,11 +340,14 @@ func TestUpdateWarehouseSettings(t *testing.T) {
 		var req UpdateWarehouseSettingsRequest
 		json.NewDecoder(r.Body).Decode(&req)
 
-		if req.AdvancedSettings == nil {
-			t.Fatal("expected advancedSettings")
+		if req.MaintenanceWindow == nil {
+			t.Fatal("expected maintenanceWindow")
 		}
-		if val, ok := req.AdvancedSettings["enableTde"]; !ok || val != float64(1) {
-			t.Errorf("expected enableTde=1, got %v", val)
+		if req.MaintenanceWindow.StartHourUtc != 2 || req.MaintenanceWindow.EndHourUtc != 4 {
+			t.Errorf("expected start=2 end=4, got %+v", req.MaintenanceWindow)
+		}
+		if req.UpgradePolicy == nil || *req.UpgradePolicy != "automatic" {
+			t.Errorf("expected upgradePolicy 'automatic'")
 		}
 
 		jsonResponse(w, 200, APIResponse[struct{}]{
@@ -360,8 +356,10 @@ func TestUpdateWarehouseSettings(t *testing.T) {
 		})
 	})
 
+	policy := "automatic"
 	err := client.UpdateWarehouseSettings(context.Background(), "WH-001", &UpdateWarehouseSettingsRequest{
-		AdvancedSettings: map[string]any{"enableTde": 1},
+		UpgradePolicy:     &policy,
+		MaintenanceWindow: &MaintenanceWindow{StartHourUtc: 2, EndHourUtc: 4},
 	})
 	if err != nil {
 		t.Fatalf("UpdateWarehouseSettings: %v", err)
@@ -377,16 +375,12 @@ func TestGetWarehouseSettings(t *testing.T) {
 		if !requireMethod(t, w, r, http.MethodGet) {
 			return
 		}
-		jsonResponse(w, 200, APIResponse[WarehouseSettings]{
+		jsonResponse(w, 200, APIResponse[WarehouseSettingsResponse]{
 			Success:   true,
 			RequestID: "req-009",
-			Data: WarehouseSettings{
-				WarehouseID:   "WH-001",
-				StorageBucket: "s3://velodb-wh-001",
-				Region:        "cn-beijing",
-				CloudProvider: "aliyun",
-				VpcID:         "vpc-xxxxxx",
-				Config:        map[string]any{"enableTde": float64(0)},
+			Data: WarehouseSettingsResponse{
+				UpgradePolicy:     "automatic",
+				MaintenanceWindow: &MaintenanceWindow{StartHourUtc: 2, EndHourUtc: 4},
 			},
 		})
 	})
@@ -395,8 +389,11 @@ func TestGetWarehouseSettings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetWarehouseSettings: %v", err)
 	}
-	if settings.StorageBucket != "s3://velodb-wh-001" {
-		t.Errorf("expected bucket 's3://velodb-wh-001', got %q", settings.StorageBucket)
+	if settings.UpgradePolicy != "automatic" {
+		t.Errorf("expected upgradePolicy 'automatic', got %q", settings.UpgradePolicy)
+	}
+	if settings.MaintenanceWindow == nil || settings.MaintenanceWindow.StartHourUtc != 2 {
+		t.Errorf("expected startHourUtc=2, got %+v", settings.MaintenanceWindow)
 	}
 }
 
@@ -411,8 +408,8 @@ func TestUpgradeWarehouse(t *testing.T) {
 		}
 		var req UpgradeWarehouseRequest
 		json.NewDecoder(r.Body).Decode(&req)
-		if req.TargetVersion != "3.1.0" {
-			t.Errorf("expected targetVersion '3.1.0', got %q", req.TargetVersion)
+		if req.TargetVersionID != 42 {
+			t.Errorf("expected targetVersionId 42, got %d", req.TargetVersionID)
 		}
 		jsonResponse(w, 200, APIResponse[struct{}]{
 			Success:   true,
@@ -420,7 +417,7 @@ func TestUpgradeWarehouse(t *testing.T) {
 		})
 	})
 
-	err := client.UpgradeWarehouse(context.Background(), "WH-001", "3.1.0")
+	err := client.UpgradeWarehouse(context.Background(), "WH-001", 42)
 	if err != nil {
 		t.Fatalf("UpgradeWarehouse: %v", err)
 	}

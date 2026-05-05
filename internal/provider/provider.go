@@ -95,6 +95,7 @@ func (p *VeloDBProvider) DataSources(_ context.Context) []func() datasource.Data
 		velodb_datasource.NewWarehousesDataSource,
 		velodb_datasource.NewClustersDataSource,
 		velodb_datasource.NewWarehouseConnectionsDataSource,
+		velodb_datasource.NewWarehouseVersionsDataSource,
 	}
 }
 

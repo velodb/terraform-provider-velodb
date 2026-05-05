@@ -12,6 +12,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -140,16 +143,33 @@ func (r *ClusterResource) Schema(ctx context.Context, _ resource.SchemaRequest, 
 			"status": schema.StringAttribute{
 				Description: "Observed cluster status.",
 				Computed:    true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
-			"cloud_provider": schema.StringAttribute{Computed: true, Description: "Cloud provider."},
-			"region":         schema.StringAttribute{Computed: true, Description: "Cloud region."},
+			"cloud_provider": schema.StringAttribute{
+				Computed: true, Description: "Cloud provider.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"region": schema.StringAttribute{
+				Computed: true, Description: "Cloud region.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			// Pool-derived computed fields: these change whenever vcpu/cache_gb/pool composition
+			// changes, so we cannot use UseStateForUnknown — the framework would lie about the
+			// expected value and reject the apply with "inconsistent result". They show
+			// "(known after apply)" on every update plan, which is a cosmetic diff but correct.
 			"is_mixed_billing": schema.BoolAttribute{
 				Description: "True when the cluster has both on_demand and subscription pools.",
 				Computed:    true,
 			},
-			"total_cpu":     schema.Int64Attribute{Computed: true, Description: "Total CPU across all pools."},
-			"total_disk_gb": schema.Int64Attribute{Computed: true, Description: "Total disk GB across all pools."},
-			"node_count":    schema.Int64Attribute{Computed: true, Description: "Total node count."},
+			"total_cpu": schema.Int64Attribute{
+				Computed: true, Description: "Total CPU across all pools.",
+			},
+			"total_disk_gb": schema.Int64Attribute{
+				Computed: true, Description: "Total disk GB across all pools.",
+			},
+			"node_count": schema.Int64Attribute{
+				Computed: true, Description: "Total node count.",
+			},
 			"on_demand_node_count": schema.Int64Attribute{
 				Description: "Node count in the on-demand pool.",
 				Computed:    true,
@@ -162,8 +182,14 @@ func (r *ClusterResource) Schema(ctx context.Context, _ resource.SchemaRequest, 
 				Computed: true, Description: "Creation time in RFC 3339 format.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
-			"started_at":  schema.StringAttribute{Computed: true, Description: "Start time in RFC 3339 format."},
-			"expire_time": schema.StringAttribute{Computed: true, Description: "Expiration time when applicable."},
+			"started_at": schema.StringAttribute{
+				Computed: true, Description: "Start time in RFC 3339 format.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"expire_time": schema.StringAttribute{
+				Computed: true, Description: "Expiration time when applicable.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
 			"connection_info": schema.ListNestedAttribute{
 				Description: "Cluster connection endpoints.",
 				Computed:    true,
@@ -182,13 +208,18 @@ func (r *ClusterResource) Schema(ctx context.Context, _ resource.SchemaRequest, 
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"compute_vcpu": schema.Int64Attribute{
-							Description: "vCPU capacity of the subscription pool.",
+							Description: "vCPU capacity of the subscription pool. Minimum 4. Valid values are 4, 8, 16, and multiples of 16 above that.",
 							Required:    true,
+							Validators:  []validator.Int64{int64validator.AtLeast(4)},
 						},
 						"cache_gb": schema.Int64Attribute{
-							Description:   "Cache GB of the subscription pool. Auto-scales when compute_vcpu changes.",
-							Required:      true,
-							PlanModifiers: []planmodifier.Int64{cacheGbAutoScaleOnVcpuChange{}},
+							Description: "Cache GB of the subscription pool. Optional — when omitted, the API auto-scales disk proportionally to compute_vcpu.",
+							Optional:    true,
+							Computed:    true,
+							Validators:  []validator.Int64{int64validator.AtLeast(100)},
+							PlanModifiers: []planmodifier.Int64{
+								int64planmodifier.UseStateForUnknown(),
+							},
 						},
 						"period": schema.Int64Attribute{
 							Description: "Subscription period length.",
@@ -211,13 +242,18 @@ func (r *ClusterResource) Schema(ctx context.Context, _ resource.SchemaRequest, 
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"compute_vcpu": schema.Int64Attribute{
-							Description: "vCPU capacity of the on-demand pool.",
+							Description: "vCPU capacity of the on-demand pool. Minimum 4. Valid values are 4, 8, 16, and multiples of 16 above that.",
 							Required:    true,
+							Validators:  []validator.Int64{int64validator.AtLeast(4)},
 						},
 						"cache_gb": schema.Int64Attribute{
-							Description:   "Cache GB of the on-demand pool. Auto-scales when compute_vcpu changes.",
-							Required:      true,
-							PlanModifiers: []planmodifier.Int64{cacheGbAutoScaleOnVcpuChange{}},
+							Description: "Cache GB of the on-demand pool. Optional — when omitted, the API auto-scales disk proportionally to compute_vcpu.",
+							Optional:    true,
+							Computed:    true,
+							Validators:  []validator.Int64{int64validator.AtLeast(100)},
+							PlanModifiers: []planmodifier.Int64{
+								int64planmodifier.UseStateForUnknown(),
+							},
 						},
 					},
 				},
@@ -347,26 +383,27 @@ func (r *ClusterResource) Create(ctx context.Context, req resource.CreateRequest
 		resp.Diagnostics.AddWarning("Cluster created but not yet Running", err.Error())
 	}
 
-	// Mixed billing: if both pools configured, add the subscription pool via PATCH
-	// Per API spec: PATCH with billingModel=subscription + period/periodUnit
-	// is the main path to add opposite billing pool to an existing cluster.
+	// Mixed billing: if both pools configured, add the subscription pool via PATCH.
+	// API rule: computeVcpu and cacheGb cannot be updated at the same time, so the
+	// "add subscription pool" call splits into two sequential PATCHes — first vcpu
+	// + period (which establishes the subscription pool), then cacheGb.
 	if sub != nil && od != nil {
 		vcpu := int(sub.ComputeVcpu.ValueInt64())
 		cache := int(sub.CacheGb.ValueInt64())
 		period := int(sub.Period.ValueInt64())
 		periodUnit := sub.PeriodUnit.ValueString()
-		req := &client.UpdateClusterRequest{
+		// 1. Establish subscription pool with vcpu (no cacheGb in this call).
+		addReq := &client.UpdateClusterRequest{
 			BillingModel: stringPtr("subscription"),
 			ComputeVcpu:  &vcpu,
-			CacheGb:      &cache,
 			Period:       &period,
 			PeriodUnit:   &periodUnit,
 		}
 		if !sub.AutoRenew.IsNull() && !sub.AutoRenew.IsUnknown() {
 			b := sub.AutoRenew.ValueBool()
-			req.AutoRenew = &b
+			addReq.AutoRenew = &b
 		}
-		if err := r.client.UpdateCluster(ctx, warehouseID, clusterID, req); err != nil {
+		if err := r.client.UpdateCluster(ctx, warehouseID, clusterID, addReq); err != nil {
 			resp.Diagnostics.AddError("Error adding subscription pool after cluster creation", err.Error())
 			return
 		}
@@ -377,6 +414,24 @@ func (r *ClusterResource) Create(ctx context.Context, req resource.CreateRequest
 			}
 			return cl.Status, nil
 		}, client.StableStatuses, client.FailedStatuses, createTimeout, 15*time.Second)
+		// 2. Resize subscription cacheGb in a separate PATCH (skip if already at target).
+		if cache > 0 {
+			diskReq := &client.UpdateClusterRequest{
+				BillingModel: stringPtr("subscription"),
+				CacheGb:      &cache,
+			}
+			if err := r.client.UpdateCluster(ctx, warehouseID, clusterID, diskReq); err != nil {
+				resp.Diagnostics.AddError("Error sizing subscription pool cacheGb after cluster creation", err.Error())
+				return
+			}
+			_, _ = client.WaitForStatus(ctx, func(ctx context.Context) (string, error) {
+				cl, err := r.client.GetCluster(ctx, warehouseID, clusterID)
+				if err != nil {
+					return "", err
+				}
+				return cl.Status, nil
+			}, client.StableStatuses, client.FailedStatuses, createTimeout, 15*time.Second)
+		}
 	}
 
 	// Handle initial desired_state = paused
@@ -584,30 +639,41 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 		r.waitStable(ctx, warehouseID, clusterID, updateTimeout, &resp.Diagnostics)
 	}
 
-	// 3. Add subscription pool to pure on_demand cluster
-	// Per API spec: PATCH /clusters/{id} with billingModel=subscription + period/periodUnit
-	// is the main path to add a subscription pool to an existing on_demand cluster.
+	// 3. Add subscription pool to pure on_demand cluster.
+	// API rule: computeVcpu and cacheGb cannot be updated at the same time, so split
+	// into two sequential PATCHes — first establish the subscription pool with vcpu,
+	// then size cacheGb separately.
 	if subAdded && stateOd != nil {
 		vcpu := int(planSub.ComputeVcpu.ValueInt64())
 		cache := int(planSub.CacheGb.ValueInt64())
 		period := int(planSub.Period.ValueInt64())
 		periodUnit := planSub.PeriodUnit.ValueString()
-		req := &client.UpdateClusterRequest{
+		addReq := &client.UpdateClusterRequest{
 			BillingModel: stringPtr("subscription"),
 			ComputeVcpu:  &vcpu,
-			CacheGb:      &cache,
 			Period:       &period,
 			PeriodUnit:   &periodUnit,
 		}
 		if !planSub.AutoRenew.IsNull() && !planSub.AutoRenew.IsUnknown() {
 			b := planSub.AutoRenew.ValueBool()
-			req.AutoRenew = &b
+			addReq.AutoRenew = &b
 		}
-		if err := r.client.UpdateCluster(ctx, warehouseID, clusterID, req); err != nil {
+		if err := r.client.UpdateCluster(ctx, warehouseID, clusterID, addReq); err != nil {
 			resp.Diagnostics.AddError("Error adding subscription pool", err.Error())
 			return
 		}
 		r.waitStable(ctx, warehouseID, clusterID, updateTimeout, &resp.Diagnostics)
+		if cache > 0 {
+			diskReq := &client.UpdateClusterRequest{
+				BillingModel: stringPtr("subscription"),
+				CacheGb:      &cache,
+			}
+			if err := r.client.UpdateCluster(ctx, warehouseID, clusterID, diskReq); err != nil {
+				resp.Diagnostics.AddError("Error sizing subscription pool cacheGb", err.Error())
+				return
+			}
+			r.waitStable(ctx, warehouseID, clusterID, updateTimeout, &resp.Diagnostics)
+		}
 	}
 
 	// 4. Add on_demand pool to pure subscription cluster
@@ -624,9 +690,14 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 		r.waitStable(ctx, warehouseID, clusterID, updateTimeout, &resp.Diagnostics)
 	}
 
-	// 5. Resize on_demand pool (when both old and new exist)
+	// 5. Resize on_demand pool (when both old and new exist).
+	// API rule: vcpu and cache_gb cannot move in the same PATCH. The API also auto-scales
+	// disk proportionally to a vcpu change, which would clobber a user's pinned cache_gb.
+	// Strategy: if vcpu changes, do the vcpu PATCH first; then if the user pinned cache_gb
+	// to something other than the auto-scaled result, send a second PATCH to enforce it.
 	if stateOd != nil && planOd != nil && !odAdded {
-		if !planOd.ComputeVcpu.Equal(stateOd.ComputeVcpu) {
+		vcpuChanged := !planOd.ComputeVcpu.Equal(stateOd.ComputeVcpu)
+		if vcpuChanged {
 			v := int(planOd.ComputeVcpu.ValueInt64())
 			req := &client.UpdateClusterRequest{
 				BillingModel: stringPtr("on_demand"),
@@ -638,17 +709,25 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 			}
 			r.waitStable(ctx, warehouseID, clusterID, updateTimeout, &resp.Diagnostics)
 		}
-		if !planOd.CacheGb.Equal(stateOd.CacheGb) {
+		// Enforce the user's cache_gb when (a) it changed in config, or (b) vcpu changed and the
+		// user pinned cache_gb (so auto-scale would otherwise clobber it).
+		userPinnedCache := !planOd.CacheGb.IsNull() && !planOd.CacheGb.IsUnknown()
+		cacheChanged := !planOd.CacheGb.Equal(stateOd.CacheGb)
+		if userPinnedCache && (cacheChanged || vcpuChanged) {
 			v := int(planOd.CacheGb.ValueInt64())
 			req := &client.UpdateClusterRequest{
 				BillingModel: stringPtr("on_demand"),
 				CacheGb:      &v,
 			}
 			if err := r.client.UpdateCluster(ctx, warehouseID, clusterID, req); err != nil {
-				resp.Diagnostics.AddError("Error resizing on_demand cache_gb", err.Error())
-				return
+				// "no cluster changes" is normal when auto-scale already arrived at the target value.
+				if apiErr, ok := err.(*client.APIError); !ok || !strings.Contains(apiErr.Message, "no cluster changes") {
+					resp.Diagnostics.AddError("Error resizing on_demand cache_gb", err.Error())
+					return
+				}
+			} else {
+				r.waitStable(ctx, warehouseID, clusterID, updateTimeout, &resp.Diagnostics)
 			}
-			r.waitStable(ctx, warehouseID, clusterID, updateTimeout, &resp.Diagnostics)
 		}
 	}
 

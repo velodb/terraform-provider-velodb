@@ -1,0 +1,111 @@
+name: Sandbox tests
+
+# Manually triggered only — these tests provision real warehouses and
+# clusters in the VeloDB sandbox and incur cost. Do not auto-trigger
+# on push or pull_request.
+on:
+  workflow_dispatch:
+    inputs:
+      phases:
+        description: 'Phases to run, comma-separated. Use "full" for 0,1,2,3,4,5,6,7'
+        required: false
+        default: '0,1,2,3,4,5,6,7'
+      sandbox_host:
+        description: 'Sandbox host'
+        required: false
+        default: 'sandbox.velodb.io'
+
+jobs:
+  sandbox:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      VELODB_HOST: ${{ inputs.sandbox_host }}
+      TF_VAR_api_key: ${{ secrets.VELODB_SANDBOX_API_KEY }}
+      VELODB_API_KEY: ${{ secrets.VELODB_SANDBOX_API_KEY }}
+      PHASES: ${{ inputs.phases }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.15.1'
+          terraform_wrapper: false
+
+      - name: Phase 0 — local build, vet, unit tests
+        if: contains(env.PHASES, '0') || contains(env.PHASES, 'full')
+        run: |
+          go build ./...
+          go vet ./...
+          go test ./...
+
+      - name: Install provider for dev_overrides
+        run: |
+          go install .
+          mkdir -p ~/.terraform.d
+          cat > ~/.terraformrc <<EOF
+          provider_installation {
+            dev_overrides {
+              "velodb/velodb" = "$(go env GOPATH)/bin"
+            }
+            direct {}
+          }
+          EOF
+
+      - name: Phase 1 — warehouse new HCL shape
+        if: contains(env.PHASES, '1') || contains(env.PHASES, 'full')
+        working-directory: test/sandbox/phase1
+        run: |
+          terraform init -input=false || true
+          terraform apply -auto-approve -input=false
+          terraform plan -detailed-exitcode -no-color
+
+      - name: Phase 2 — warehouse mutations
+        if: contains(env.PHASES, '2') || contains(env.PHASES, 'full')
+        working-directory: test/sandbox/phase1
+        run: bash ../scripts/phase2.sh
+
+      - name: Phase 3 — cluster regressions (pause/resume/reboot)
+        if: contains(env.PHASES, '3') || contains(env.PHASES, 'full')
+        working-directory: test/sandbox/phase1
+        run: bash ../scripts/phase3.sh
+
+      - name: Phase 4 — on_demand resize
+        if: contains(env.PHASES, '4') || contains(env.PHASES, 'full')
+        working-directory: test/sandbox/phase1
+        run: bash ../scripts/phase4.sh
+
+      - name: Phase 5 — edge cases
+        if: contains(env.PHASES, '5') || contains(env.PHASES, 'full')
+        working-directory: test/sandbox/phase1
+        run: bash ../scripts/phase5.sh
+
+      - name: Phase 6 — import flow
+        if: contains(env.PHASES, '6') || contains(env.PHASES, 'full')
+        working-directory: test/sandbox/phase1
+        run: bash ../scripts/phase6.sh
+
+      - name: Phase 7 — stale-config canary
+        if: contains(env.PHASES, '7') || contains(env.PHASES, 'full')
+        run: bash test/sandbox/scripts/phase7.sh
+
+      - name: Cleanup
+        if: always()
+        working-directory: test/sandbox/phase1
+        run: |
+          terraform destroy -auto-approve -input=false \
+            -var="include_cluster=true" \
+            -var="cluster_reboot_trigger=1" \
+            -var="cluster_vcpu=8" \
+            -var="cluster_cache_gb_set=true" \
+            -var="cluster_cache_gb=400" || true
+        continue-on-error: true

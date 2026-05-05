@@ -66,19 +66,33 @@ type AutoPauseConfig struct {
 }
 
 type UpdateWarehouseRequest struct {
-	Name                     *string `json:"name,omitempty"`
-	MaintainabilityStartTime *string `json:"maintainabilityStartTime,omitempty"`
-	MaintainabilityEndTime   *string `json:"maintainabilityEndTime,omitempty"`
+	Name *string `json:"name,omitempty"`
+}
+
+type MaintenanceWindow struct {
+	StartHourUtc int `json:"startHourUtc"`
+	EndHourUtc   int `json:"endHourUtc"`
 }
 
 type UpdateWarehouseSettingsRequest struct {
-	MaintainabilityStartTime *string        `json:"maintainabilityStartTime,omitempty"`
-	MaintainabilityEndTime   *string        `json:"maintainabilityEndTime,omitempty"`
-	AdvancedSettings         map[string]any `json:"advancedSettings,omitempty"`
+	UpgradePolicy     *string            `json:"upgradePolicy,omitempty"`
+	MaintenanceWindow *MaintenanceWindow `json:"maintenanceWindow,omitempty"`
+}
+
+type WarehouseSettingsResponse struct {
+	UpgradePolicy     string             `json:"upgradePolicy,omitempty"`
+	MaintenanceWindow *MaintenanceWindow `json:"maintenanceWindow,omitempty"`
 }
 
 type UpgradeWarehouseRequest struct {
-	TargetVersion string `json:"targetVersion"`
+	TargetVersionID int64 `json:"targetVersionId"`
+}
+
+type WarehouseVersion struct {
+	VersionID   int64  `json:"versionId"`
+	Version     string `json:"version,omitempty"`
+	Description string `json:"description,omitempty"`
+	IsDefault   bool   `json:"isDefault,omitempty"`
 }
 
 type ChangePasswordRequest struct {
@@ -113,16 +127,6 @@ type WarehouseByocSetup struct {
 	DocURL                string `json:"docUrl,omitempty"`
 	URLForNewVpc          string `json:"urlForNewVpc,omitempty"`
 	DocURLForNewVpc       string `json:"docUrlForNewVpc,omitempty"`
-}
-
-type WarehouseSettings struct {
-	WarehouseID       string         `json:"warehouseId"`
-	StorageBucket     string         `json:"storageBucket"`
-	Region            string         `json:"region"`
-	CloudProvider     string         `json:"cloudProvider"`
-	VpcID             string         `json:"vpcId,omitempty"`
-	MaintenanceWindow map[string]any `json:"maintenanceWindow,omitempty"`
-	Config            map[string]any `json:"config,omitempty"`
 }
 
 // --- Private connections (new) ---

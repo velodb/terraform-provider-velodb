@@ -16,8 +16,8 @@ Key capabilities:
 - **SaaS and BYOC** deployment modes
 - **Initial cluster** created atomically with the warehouse
 - **Password rotation** — change `admin_password` and apply (no version bump needed)
-- **Version upgrades** triggered declaratively by changing `core_version`
-- **Maintenance windows** and **advanced settings** updatable in-place
+- **Version upgrades** triggered declaratively by changing `core_version_id` (lookup IDs via the [`velodb_warehouse_versions`](../data-sources/warehouse_versions.md) data source)
+- **Maintenance windows** and **upgrade policy** updatable in-place
 - **BYOC setup guidance** (shell commands, template URLs) exposed as computed `byoc_setup` block
 
 ## Supported / not supported features
@@ -29,9 +29,10 @@ Key capabilities:
 | BYOC `advanced` mode | ❌ Not supported by sandbox API | Spec documents it, but `POST /v1/warehouses` with `setupMode=advanced` returns `400 InvalidParameter` in the current sandbox. Provider code is correct per spec — awaiting API fix. |
 | Delete stuck BYOC `Creating` warehouse | ❌ Not supported by API | If guided-mode CFN is never executed, `DELETE` returns 500 "unfinished operations". Requires VeloDB admin intervention. |
 | Password rotation | ✅ Supported | Change `admin_password` — provider calls `POST /settings/password` automatically |
-| Version upgrade | ✅ Supported | Change `core_version` — provider calls `POST /settings/upgrade` and polls for completion |
-| Maintenance window update | ✅ Supported | |
-| Advanced settings update | ✅ Supported | `advanced_settings = jsonencode({...})` |
+| Version upgrade | ✅ Supported | Change `core_version_id` (int64) — provider calls `POST /settings/upgrade` and polls for completion. Use the `velodb_warehouse_versions` data source to discover valid IDs. |
+| Maintenance window update | ✅ Supported | New shape: `maintenance_window = { start_hour_utc = ..., end_hour_utc = ... }` (UTC hour, 0–23). Replaces the previous `maintainability_start_time` / `maintainability_end_time` strings. |
+| Upgrade policy | ✅ Supported | `upgrade_policy = "automatic"` — set alongside `maintenance_window`. |
+| Advanced settings update | ❌ Removed in API | The previous `/settings` `advancedSettings` field was dropped by the upstream Management API. No replacement at the resource level. |
 | Delete initial cluster | ✅ Supported | Import via `initial_cluster_id` and manage as `velodb_cluster`. See [Managing the Initial Cluster](#managing-the-initial-cluster). |
 | Delete warehouse with pre-paid clusters | ❌ Not supported until clusters expire | API billing semantics |
 
@@ -47,10 +48,6 @@ resource "velodb_warehouse" "analytics" {
   region          = "cn-beijing"
 
   admin_password         = var.admin_password
-
-  advanced_settings = jsonencode({
-    enableTde = 0
-  })
 
   initial_cluster {
     name         = "default"
@@ -83,12 +80,13 @@ resource "velodb_warehouse" "production" {
   vpc_mode        = "existing"
   vpc_id          = "vpc-2ze1234567890abcdef"
 
-  admin_password         = var.admin_password
+  admin_password = var.admin_password
 
-  core_version = "3.0.3"
-
-  maintainability_start_time = "02:00"
-  maintainability_end_time   = "06:00"
+  upgrade_policy = "automatic"
+  maintenance_window = {
+    start_hour_utc = 2
+    end_hour_utc   = 6
+  }
 
   initial_cluster {
     name           = "default-compute"
@@ -169,15 +167,23 @@ resource "velodb_warehouse" "example" {
 
 ### Version Upgrade
 
-To upgrade the warehouse core version, change `core_version`. The provider will call the upgrade API and wait for completion:
+The warehouse upgrade API now requires a numeric `targetVersionId` instead of a version string. Use the `velodb_warehouse_versions` data source to discover valid IDs and pass one as `core_version_id`:
 
 ```terraform
+data "velodb_warehouse_versions" "available" {
+  warehouse_id = velodb_warehouse.example.id
+}
+
 resource "velodb_warehouse" "example" {
   # ...
-  core_version = "3.1.0"  # was "3.0.3"
-  # ...
+  core_version_id = data.velodb_warehouse_versions.available.default_id
+  # or pin to a specific version_id from data.velodb_warehouse_versions.available.versions
 }
 ```
+
+The provider will call the upgrade API and wait for completion when `core_version_id` changes.
+
+~> **Migration note:** The previous `core_version` (string) attribute is now read-only. Configurations that set `core_version = "3.1.0"` must switch to `core_version_id` referencing a `version_id` from the `velodb_warehouse_versions` data source. The string-based upgrade endpoint returns `400 InvalidParameter — targetVersionId is required` in the new API.
 
 ### Managing the Initial Cluster
 
@@ -261,17 +267,16 @@ To **destroy the initial cluster later**:
 
 - `admin_password` (String, Sensitive) Administrator password. Set on creation and used for password rotation. The password is stored in state since it cannot be read back from the API.
 - `admin_password_version` (Number) Increment this value to trigger a password change. Must be used together with `admin_password`.
-- `advanced_settings` (String) Advanced settings as a JSON string. Use `jsonencode()` to construct the value. Updated via the warehouse settings API.
 - `bucket_name` (String) Existing object storage bucket name for Wizard mode. Changing this forces a new resource.
-- `core_version` (String) Core version string. Changing this triggers a warehouse upgrade workflow. Computed from the API if not set.
+- `core_version_id` (Number) Target engine version ID. Changing this triggers a warehouse upgrade. Discover valid values via the `velodb_warehouse_versions` data source.
+- `upgrade_policy` (String) Upgrade policy for the warehouse (e.g. `automatic`).
+- `maintenance_window` (Attribute, Single Nested) Maintenance window for automatic upgrades. Attributes: `start_hour_utc` (Number 0–23), `end_hour_utc` (Number 0–23).
 - `setup_mode` (String) BYOC creation mode: `Template` or `Wizard`. `Wizard` is only supported for `aws`. Changing this forces a new resource.
 - `credential_id` (Number) Credential identifier for Wizard mode. Changing this forces a new resource.
 - `data_credential_arn` (String) Data plane credential ARN for direct cloud-resource flows. Changing this forces a new resource.
 - `deployment_credential_arn` (String) Deployment credential ARN for direct cloud-resource flows. Changing this forces a new resource.
 - `endpoint_id` (String) Existing private endpoint identifier. Changing this forces a new resource.
 - `initial_cluster` (Block List, Max: 1) Initial cluster created together with the warehouse. This is a create-only configuration — after creation, manage the cluster lifecycle by importing it as a `velodb_cluster` resource. (see [below for nested schema](#nestedblock--initial_cluster))
-- `maintainability_end_time` (String) Maintenance window end time (e.g., `06:00`).
-- `maintainability_start_time` (String) Maintenance window start time (e.g., `02:00`).
 - `network_config_id` (Number) Existing network configuration identifier for Wizard mode. Changing this forces a new resource.
 - `security_group_id` (String) Existing security group identifier. Changing this forces a new resource.
 - `subnet_id` (String) Existing subnet identifier. Changing this forces a new resource.
@@ -283,6 +288,7 @@ To **destroy the initial cluster later**:
 ### Read-Only
 
 - `byoc_setup` (Block List) BYOC setup guidance returned for BYOC warehouses. (see [below for nested schema](#nestedatt--byoc_setup))
+- `core_version` (String) Current human-readable engine version reported by the API (e.g. `3.0.8`). Read-only — set `core_version_id` to trigger upgrades.
 - `created_at` (String) Warehouse creation time in ISO 8601 / RFC 3339 format.
 - `expire_time` (String) Warehouse expiration time when available.
 - `id` (String) Warehouse identifier (e.g., `ALBJ07YE`).

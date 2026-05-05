@@ -81,20 +81,20 @@ func (c *FormationClient) DeleteWarehouse(ctx context.Context, warehouseID strin
 	return parseResponse[any](resp, nil)
 }
 
-// GetWarehouseSettings returns warehouse settings.
-func (c *FormationClient) GetWarehouseSettings(ctx context.Context, warehouseID string) (*WarehouseSettings, error) {
+// GetWarehouseSettings returns warehouse settings (upgrade policy, maintenance window).
+func (c *FormationClient) GetWarehouseSettings(ctx context.Context, warehouseID string) (*WarehouseSettingsResponse, error) {
 	resp, err := c.get(ctx, fmt.Sprintf("%s/%s/settings", warehousesBasePath, warehouseID), nil)
 	if err != nil {
 		return nil, err
 	}
-	var result APIResponse[WarehouseSettings]
+	var result APIResponse[WarehouseSettingsResponse]
 	if err := parseResponse(resp, &result); err != nil {
 		return nil, err
 	}
 	return &result.Data, nil
 }
 
-// UpdateWarehouseSettings updates warehouse settings (maintenance window, advanced settings).
+// UpdateWarehouseSettings updates warehouse settings (upgrade policy, maintenance window).
 func (c *FormationClient) UpdateWarehouseSettings(ctx context.Context, warehouseID string, req *UpdateWarehouseSettingsRequest) error {
 	resp, err := c.patch(ctx, fmt.Sprintf("%s/%s/settings", warehousesBasePath, warehouseID), req)
 	if err != nil {
@@ -104,14 +104,27 @@ func (c *FormationClient) UpdateWarehouseSettings(ctx context.Context, warehouse
 }
 
 // UpgradeWarehouse triggers a warehouse version upgrade.
-func (c *FormationClient) UpgradeWarehouse(ctx context.Context, warehouseID string, targetVersion string) error {
+func (c *FormationClient) UpgradeWarehouse(ctx context.Context, warehouseID string, targetVersionID int64) error {
 	resp, err := c.post(ctx, fmt.Sprintf("%s/%s/settings/upgrade", warehousesBasePath, warehouseID), &UpgradeWarehouseRequest{
-		TargetVersion: targetVersion,
+		TargetVersionID: targetVersionID,
 	})
 	if err != nil {
 		return err
 	}
 	return parseResponse[any](resp, nil)
+}
+
+// ListWarehouseVersions returns valid upgrade target versions for a warehouse.
+func (c *FormationClient) ListWarehouseVersions(ctx context.Context, warehouseID string) ([]WarehouseVersion, error) {
+	resp, err := c.get(ctx, fmt.Sprintf("%s/%s/versions", warehousesBasePath, warehouseID), nil)
+	if err != nil {
+		return nil, err
+	}
+	var result APIResponse[[]WarehouseVersion]
+	if err := parseResponse(resp, &result); err != nil {
+		return nil, err
+	}
+	return result.Data, nil
 }
 
 // ChangeWarehousePassword changes the warehouse admin password.
