@@ -138,11 +138,3 @@ func (c *FormationClient) RenewCluster(ctx context.Context, warehouseID, cluster
 	return parseResponse[any](resp, nil)
 }
 
-// ConvertClusterToSubscription converts a cluster to subscription billing.
-func (c *FormationClient) ConvertClusterToSubscription(ctx context.Context, warehouseID, clusterID string, req *ConvertToSubscriptionRequest) error {
-	resp, err := c.post(ctx, fmt.Sprintf("%s/convert-to-subscription", clusterPath(warehouseID, clusterID)), req)
-	if err != nil {
-		return err
-	}
-	return parseResponse[any](resp, nil)
-}

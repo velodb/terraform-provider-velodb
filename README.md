@@ -4,10 +4,13 @@ The VeloDB provider manages warehouses, clusters, and related infrastructure on 
 
 - **Resources:**
 
-	| Resource          | Description                          |
-	| ----------------- | ------------------------------------ |
-	| velodb\_warehouse | Manages a warehouse (SAAS or BYOC)   |
-	| velodb\_cluster   | Manages a cluster within a warehouse |
+	| Resource                              | Description                                      |
+	| ------------------------------------- | ------------------------------------------------ |
+	| velodb\_warehouse                     | Manages a SAAS warehouse                         |
+	| velodb\_cluster                       | Manages a COMPUTE cluster within a warehouse     |
+	| velodb\_warehouse\_private\_endpoint  | Manages a private endpoint for a warehouse       |
+	| velodb\_public\_access\_policy        | Manages public access policy for a warehouse     |
+	| velodb\_private\_link\_endpoint\_service | Manages private link endpoint service          |
 
 - **Data Sources:**
 
@@ -252,88 +255,6 @@ resource "velodb_warehouse" "analytics" {
 }
 ```
 
-### Example: BYOC Warehouse with Template Mode
-
-```plaintext
-resource "velodb_warehouse" "production" {
-  name            = "production-byoc"
-  deployment_mode = "BYOC"
-  cloud_provider  = "aws"
-  region          = "us-east-2"
-  setup_mode     = "guided"
-  vpc_mode        = "existing"
-  vpc_id          = "vpc-2ze1234567890abcdef"
-
-  admin_password         = var.admin_password
-  admin_password_version = 1
-
-  core_version = "3.0.3"
-
-  maintainability_start_time = "02:00"
-  maintainability_end_time   = "06:00"
-
-  initial_cluster {
-    name           = "default-compute"
-    zone           = "us-east-2-k"
-    compute_vcpu   = 8
-    cache_gb       = 400
-    billing_method = "monthly"
-    auto_pause {
-      enabled              = true
-      idle_timeout_minutes = 30
-    }
-  }
-
-  tags = {
-    environment = "production"
-    team        = "data-platform"
-  }
-
-  timeouts {
-    create = "45m"
-  }
-}
-
-output "byoc_shell_command" {
-  value     = velodb_warehouse.production.byoc_setup[0].shell_command
-  sensitive = true
-}
-```
-
-### Example: BYOC Warehouse with Wizard Mode (AWS)
-
-```plaintext
-resource "velodb_warehouse" "aws_byoc" {
-  name            = "aws-byoc-wizard"
-  deployment_mode = "BYOC"
-  cloud_provider  = "aws"
-  region          = "us-east-1"
-  setup_mode     = "advanced"
-
-  credential_id             = 12345
-  network_config_id         = 67890
-  bucket_name               = "my-velodb-bucket"
-  data_credential_arn       = "arn:aws:iam::123456789012:role/velodb-data"
-  deployment_credential_arn = "arn:aws:iam::123456789012:role/velodb-deploy"
-  subnet_id                 = "subnet-0abc123def456"
-  security_group_id         = "sg-0abc123def456"
-
-  admin_password         = var.admin_password
-  admin_password_version = 1
-
-  initial_cluster {
-    name         = "sql-primary"
-    zone         = "us-east-1a"
-    compute_vcpu = 16
-    cache_gb     = 800
-  }
-
-  timeouts {
-    create = "45m"
-  }
-}
-```
-
 ### Example: Password Rotation
 
 Change `admin_password` and increment `admin_password_version`:
@@ -381,7 +302,8 @@ resource "velodb_cluster" "etl" {
   warehouse_id = velodb_warehouse.main.id
   name         = "etl"
   cluster_type = "COMPUTE"
-  on_demand { compute_vcpu = 16, cache_gb = 100 }
+  compute_vcpu = 16
+  cache_gb     = 100
 }
 
 # Import the initial cluster for management
@@ -394,7 +316,8 @@ resource "velodb_cluster" "initial" {
   warehouse_id = velodb_warehouse.main.id
   name         = "bootstrap"
   cluster_type = "COMPUTE"
-  on_demand { compute_vcpu = 4, cache_gb = 100 }
+  compute_vcpu = 4
+  cache_gb     = 100
 }
 
 # To destroy the initial cluster: remove the resource + import blocks, then apply.
@@ -409,7 +332,7 @@ resource "velodb_cluster" "initial" {
 
 * `cloud_provider` (String) Cloud provider (e.g., `aws`aws). Changing this forces a new resource.
 
-* `deployment_mode` (String) Deployment mode: `BYOC` or `SAAS`. Changing this forces a new resource.
+* `deployment_mode` (String) Deployment mode. Only `SAAS` is supported. Changing this forces a new resource.
 
 * `name` (String) Warehouse display name.
 
@@ -423,35 +346,13 @@ resource "velodb_cluster" "initial" {
 
 * `advanced_settings` (String) Advanced settings as a JSON string. Use `jsonencode()`.
 
-* `bucket_name` (String) Object storage bucket name for Wizard mode. Forces new resource.
-
 * `core_version` (String) Core version. Changing triggers an upgrade workflow. Computed if not set.
-
-* `setup_mode` (String) BYOC creation mode: `Template` or `Wizard`. Forces new resource.
-
-* `credential_id` (Number) Credential identifier for Wizard mode. Forces new resource.
-
-* `data_credential_arn` (String) Data plane credential ARN. Forces new resource.
-
-* `deployment_credential_arn` (String) Deployment credential ARN. Forces new resource.
-
-* `endpoint_id` (String) Private endpoint identifier. Forces new resource.
 
 * `maintainability_end_time` (String) Maintenance window end time (e.g., `06:00`).
 
 * `maintainability_start_time` (String) Maintenance window start time (e.g., `02:00`).
 
-* `network_config_id` (Number) Network configuration identifier for Wizard mode. Forces new resource.
-
-* `security_group_id` (String) Security group identifier. Forces new resource.
-
-* `subnet_id` (String) Subnet identifier. Forces new resource.
-
 * `tags` (Map of String) Warehouse tags. Set at creation time.
-
-* `vpc_id` (String) VPC identifier for Template mode. Forces new resource.
-
-* `vpc_mode` (String) VPC hint for Template mode: `existing` or `new`. Forces new resource.
 
 #### Read-Only
 
@@ -580,39 +481,18 @@ resource "velodb_cluster" "dev" {
 }
 ```
 
-### Example: Prepaid Monthly Cluster
-
-```plaintext
-resource "velodb_cluster" "prepaid" {
-  warehouse_id       = velodb_warehouse.main.id
-  name               = "sql-primary"
-  cluster_type       = "SQL"
-  zone               = "us-east-2-k"
-  compute_vcpu       = 16
-  cache_gb           = 800
-  billing_method     = "monthly"
-  period             = 1
-  period_unit        = "Month"
-  auto_renew_enabled = 1
-  desired_state      = "running"
-
-  auto_pause {
-    enabled = false
-  }
-}
-```
-
 ### Day-2 Operations
 
-**Resize** — change `compute_vcpu` and/or `cache_gb`:
+**Resize** — change `compute_vcpu` or `cache_gb` (one at a time):
 
 ```plaintext
 resource "velodb_cluster" "etl" {
   # ...
-  compute_vcpu = 8    # was 4
-  cache_gb     = 500  # was 100
+  compute_vcpu = 8    # was 4 — apply this first
 }
 ```
+
+> **Note:** Simultaneous changes to `compute_vcpu` and `cache_gb` are not supported. Apply them in separate steps.
 
 **Pause** — change `desired_state`:
 
@@ -644,11 +524,11 @@ resource "velodb_cluster" "etl" {
 
 #### Required
 
-* `cache_gb` (Number) Cache capacity in GB. Changing triggers resize.
+* `cache_gb` (Number) Cache capacity in GB (minimum 100). Changing triggers resize.
 
-* `cluster_type` (String) `SQL`, `COMPUTE`, or `OBSERVER`. Forces new resource.
+* `cluster_type` (String) Only `COMPUTE` is supported. Forces new resource.
 
-* `compute_vcpu` (Number) Compute vCPUs. Changing triggers resize.
+* `compute_vcpu` (Number) Compute vCPUs (minimum 4). Changing triggers resize. Cannot be changed simultaneously with `cache_gb`.
 
 * `name` (String) Cluster display name.
 
@@ -656,15 +536,11 @@ resource "velodb_cluster" "etl" {
 
 #### Optional
 
-* `auto_renew_enabled` (Number) Auto-renew flag for prepaid billing.
-
-* `billing_method` (String) `on_demand` or `monthly`.
+* `billing_method` (String) Billing method: `on_demand`. Defaults to `on_demand`.
 
 * `desired_state` (String) `running` or `paused`. Changes trigger cluster actions.
 
-* `period` (Number) Prepaid subscription length.
-
-* `period_unit` (String) `Month`, `Year`, or `Week`.
+* `reboot_trigger` (Number) Increment to trigger a cluster reboot.
 
 * `zone` (String) Availability zone. Forces new resource.
 
@@ -676,19 +552,21 @@ resource "velodb_cluster" "etl" {
 
 * `created_at` (String) Creation time in RFC 3339 format.
 
-* `disk_sum_size` (Number) Current disk capacity in GB.
-
 * `expire_time` (String) Expiration time when available.
 
-* `id` (String) Cluster identifier (e.g., `c-1997tallv8chbkdhej`).
+* `id` (String) Cluster identifier.
 
-* `pay_type` (String) `PostPaid` or `PrePaid`.
+* `node_count` (Number) Total node count.
 
 * `region` (String) Inherited from parent warehouse.
 
 * `started_at` (String) Start time in RFC 3339 format.
 
 * `status` (String) Current observed status: `Creating`, `Running`, `Resizing`, `Adjusting`, `Upgrading`, `Suspending`, `Resuming`, `Stopping`, `Starting`, `Restarting`, `Deleting`, `Suspended`, `Stopped`, `Deleted`, `CreateFailed`.
+
+* `total_cpu` (Number) Total CPU.
+
+* `total_disk_gb` (Number) Total disk GB.
 
 #### Nested: `auto_pause`
 
@@ -878,3 +756,112 @@ output "all_endpoints" {
 | `listener_port`       | Number | TCP listener port                            |
 | `endpoint_service_id` | String | Endpoint service identifier for private link |
 
+
+
+## velodb\_warehouse\_private\_endpoint (Resource)
+
+Manages custom DNS name and description on an inbound PrivateLink endpoint connected to a VeloDB warehouse.
+
+### Example
+
+```plaintext
+resource "velodb_warehouse_private_endpoint" "main" {
+  warehouse_id = velodb_warehouse.main.id
+  endpoint_id  = "vpce-0abc123def456"
+  dns_name     = "analytics.internal.example.com"
+  description  = "Analytics warehouse private endpoint"
+}
+
+output "private_endpoint_domain" {
+  value = velodb_warehouse_private_endpoint.main.domain
+}
+```
+
+### Schema
+
+#### Required
+
+* `warehouse_id` (String) Warehouse identifier. Forces new resource.
+* `endpoint_id` (String) Cloud-side PrivateLink endpoint identifier. Forces new resource.
+
+#### Optional
+
+* `dns_name` (String) Custom DNS name to associate with the inbound endpoint.
+* `description` (String) Custom endpoint description.
+
+#### Read-Only
+
+* `id` (String) Composite identifier (`warehouse_id/endpoint_id`).
+* `domain` (String) Cloud-returned endpoint domain/VIP.
+* `status` (String) Cloud-returned endpoint status.
+* `jdbc_port` (Number) JDBC port.
+* `http_port` (Number) HTTP port.
+* `stream_load_port` (Number) Stream Load port.
+* `adbc_port` (Number) Arrow Flight SQL (ADBC) port.
+* `studio_port` (Number) Studio port.
+
+### Import
+
+```shell
+terraform import velodb_warehouse_private_endpoint.main WAREHOUSE_ID/ENDPOINT_ID
+```
+
+
+
+## velodb\_public\_access\_policy (Resource)
+
+Manages the public network access policy for a VeloDB warehouse. Supports `DENY_ALL`, `ALLOW_ALL`, or `ALLOWLIST_ONLY` with CIDR rules.
+
+### Example: Deny all public access
+
+```plaintext
+resource "velodb_public_access_policy" "deny" {
+  warehouse_id = velodb_warehouse.main.id
+  policy       = "DENY_ALL"
+}
+```
+
+### Example: Allowlist specific IPs
+
+```plaintext
+resource "velodb_public_access_policy" "office" {
+  warehouse_id = velodb_warehouse.main.id
+  policy       = "ALLOWLIST_ONLY"
+
+  allowlist_rules {
+    cidr        = "203.0.113.0/24"
+    description = "Office network"
+  }
+
+  allowlist_rules {
+    cidr        = "198.51.100.42/32"
+    description = "VPN exit"
+  }
+}
+```
+
+### Schema
+
+#### Required
+
+* `warehouse_id` (String) Warehouse identifier. Forces new resource.
+* `policy` (String) Public access policy: `DENY_ALL`, `ALLOW_ALL`, or `ALLOWLIST_ONLY`.
+
+#### Optional
+
+* `allowlist_rules` (Block List) CIDR allowlist rules. Only valid when `policy` is `ALLOWLIST_ONLY`.
+
+| Attribute     | Type   | Required | Description            |
+| ------------- | ------ | -------- | ---------------------- |
+| `cidr`        | String | Yes      | CIDR block or single IP |
+| `description` | String | No       | Optional rule description |
+
+#### Read-Only
+
+* `id` (String) Resource identifier (same as `warehouse_id`).
+
+### Import
+
+```shell
+terraform import velodb_public_access_policy.example WAREHOUSE_ID
+```

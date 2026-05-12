@@ -315,37 +315,6 @@ func TestRenewCluster(t *testing.T) {
 	}
 }
 
-func TestConvertClusterToSubscription(t *testing.T) {
-	ts, mux := newTestServer(t)
-	defer ts.Close()
-	client := newTestClient(t, ts)
-
-	mux.HandleFunc("/v1/warehouses/WH-001/clusters/CL-001/convert-to-subscription", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(t, w, r, http.MethodPost) {
-			return
-		}
-		var req ConvertToSubscriptionRequest
-		json.NewDecoder(r.Body).Decode(&req)
-
-		if req.Period != 1 {
-			t.Errorf("expected period 1, got %d", req.Period)
-		}
-
-		jsonResponse(w, 200, APIResponse[struct{}]{
-			Success:   true,
-			RequestID: "req-028",
-		})
-	})
-
-	err := client.ConvertClusterToSubscription(context.Background(), "WH-001", "CL-001", &ConvertToSubscriptionRequest{
-		Period:     1,
-		PeriodUnit: "Month",
-	})
-	if err != nil {
-		t.Fatalf("ConvertClusterToSubscription: %v", err)
-	}
-}
-
 func TestConflictError(t *testing.T) {
 	ts, mux := newTestServer(t)
 	defer ts.Close()

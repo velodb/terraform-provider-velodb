@@ -204,12 +204,6 @@ type RenewClusterRequest struct {
 	AutoRenew *bool `json:"autoRenew,omitempty"`
 }
 
-type ConvertToSubscriptionRequest struct {
-	Period            int    `json:"period"`
-	PeriodUnit        string `json:"periodUnit"`
-	AutoRenew         *bool  `json:"autoRenew,omitempty"`
-	OnDemandNodeCount *int   `json:"onDemandNodeCount,omitempty"`
-}
 
 type ClusterConnectionInfo struct {
 	PublicEndpoint  string `json:"publicEndpoint,omitempty"`

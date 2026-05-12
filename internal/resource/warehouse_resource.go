@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
-	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -15,13 +14,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/objectplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
-
 	"github.com/velodb/terraform-provider-velodb/internal/client"
 )
 
@@ -61,8 +57,6 @@ type WarehouseResourceModel struct {
 	CoreVersionID            types.Int64   `tfsdk:"core_version_id"`
 	AdminPassword            types.String  `tfsdk:"admin_password"`
 	AdminPasswordVersion     types.Int64   `tfsdk:"admin_password_version"`
-	UpgradePolicy            types.String  `tfsdk:"upgrade_policy"`
-	MaintenanceWindow        types.Object  `tfsdk:"maintenance_window"`
 	Tags                     types.Map     `tfsdk:"tags"`
 	InitialCluster           types.List    `tfsdk:"initial_cluster"`
 	Timeouts                 timeouts.Value `tfsdk:"timeouts"`
@@ -90,18 +84,6 @@ type InitialClusterModel struct {
 type AutoPauseModel struct {
 	Enabled            types.Bool  `tfsdk:"enabled"`
 	IdleTimeoutMinutes types.Int64 `tfsdk:"idle_timeout_minutes"`
-}
-
-type MaintenanceWindowModel struct {
-	StartHourUtc types.Int64 `tfsdk:"start_hour_utc"`
-	EndHourUtc   types.Int64 `tfsdk:"end_hour_utc"`
-}
-
-func maintenanceWindowAttrTypes() map[string]attr.Type {
-	return map[string]attr.Type{
-		"start_hour_utc": types.Int64Type,
-		"end_hour_utc":   types.Int64Type,
-	}
 }
 
 type ByocSetupModel struct {
@@ -136,10 +118,13 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				Required:    true,
 			},
 			"deployment_mode": schema.StringAttribute{
-				Description: "Deployment mode: BYOC or SAAS.",
+				Description: "Deployment mode. Only SAAS is supported.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+				},
+				Validators: []validator.String{
+					stringvalidator.OneOf("SAAS"),
 				},
 			},
 			"cloud_provider": schema.StringAttribute{
@@ -252,35 +237,6 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 			"admin_password_version": schema.Int64Attribute{
 				Description: "Increment to trigger a password change.",
 				Optional:    true,
-			},
-			"upgrade_policy": schema.StringAttribute{
-				Description: "Upgrade policy for the warehouse (e.g. \"automatic\"). Once set, removing from configuration retains the API value (the API does not support clearing it).",
-				Optional:    true,
-				Computed:    true,
-				Validators:  []validator.String{stringvalidator.LengthAtLeast(1)},
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
-			},
-			"maintenance_window": schema.SingleNestedAttribute{
-				Description: "Maintenance window for automatic upgrades. Hours are in UTC, 0-23. Once set, removing from configuration retains the API value (the API does not support clearing it).",
-				Optional:    true,
-				Computed:    true,
-				PlanModifiers: []planmodifier.Object{
-					objectplanmodifier.UseStateForUnknown(),
-				},
-				Attributes: map[string]schema.Attribute{
-					"start_hour_utc": schema.Int64Attribute{
-						Description: "Maintenance window start hour in UTC (0-23).",
-						Required:    true,
-						Validators:  []validator.Int64{int64validator.Between(0, 23)},
-					},
-					"end_hour_utc": schema.Int64Attribute{
-						Description: "Maintenance window end hour in UTC (0-23).",
-						Required:    true,
-						Validators:  []validator.Int64{int64validator.Between(0, 23)},
-					},
-				},
 			},
 			"tags": schema.MapAttribute{
 				Description: "Warehouse tags.",
@@ -507,7 +463,7 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 
 	result, err := r.client.CreateWarehouse(ctx, createReq)
 	if err != nil {
-		resp.Diagnostics.AddError("Error creating warehouse", err.Error())
+		resp.Diagnostics.AddError(userError("creating warehouse", err))
 		return
 	}
 
@@ -526,31 +482,6 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 	}, []string{"Running"}, client.FailedStatuses, createTimeout, 15*time.Second)
 	if err != nil {
 		resp.Diagnostics.AddWarning("Warehouse created but not yet Running", err.Error())
-	}
-
-	// CreateWarehouseRequest has no upgradePolicy/maintenanceWindow fields, so apply
-	// the user's settings via PATCH /settings now that the warehouse exists.
-	if (!plan.UpgradePolicy.IsNull() && !plan.UpgradePolicy.IsUnknown()) ||
-		(!plan.MaintenanceWindow.IsNull() && !plan.MaintenanceWindow.IsUnknown()) {
-		settingsReq := &client.UpdateWarehouseSettingsRequest{}
-		if !plan.UpgradePolicy.IsNull() && !plan.UpgradePolicy.IsUnknown() {
-			s := plan.UpgradePolicy.ValueString()
-			settingsReq.UpgradePolicy = &s
-		}
-		if !plan.MaintenanceWindow.IsNull() && !plan.MaintenanceWindow.IsUnknown() {
-			var mw MaintenanceWindowModel
-			resp.Diagnostics.Append(plan.MaintenanceWindow.As(ctx, &mw, basetypes.ObjectAsOptions{})...)
-			if resp.Diagnostics.HasError() {
-				return
-			}
-			settingsReq.MaintenanceWindow = &client.MaintenanceWindow{
-				StartHourUtc: int(mw.StartHourUtc.ValueInt64()),
-				EndHourUtc:   int(mw.EndHourUtc.ValueInt64()),
-			}
-		}
-		if err := r.client.UpdateWarehouseSettings(ctx, result.WarehouseID, settingsReq); err != nil {
-			resp.Diagnostics.AddWarning("Warehouse settings not applied at create", err.Error())
-		}
 	}
 
 	// Read back state
@@ -618,36 +549,6 @@ func (r *WarehouseResource) Update(ctx context.Context, req resource.UpdateReque
 	// Update upgrade policy / maintenance window via PATCH /warehouses/{id}/settings.
 	// API requires at least one of upgradePolicy or maintenanceWindow — skip the call
 	// entirely if both ended up null in the plan, which would otherwise produce a 400.
-	if !plan.UpgradePolicy.Equal(state.UpgradePolicy) || !plan.MaintenanceWindow.Equal(state.MaintenanceWindow) {
-		settingsReq := &client.UpdateWarehouseSettingsRequest{}
-		if !plan.UpgradePolicy.IsNull() && !plan.UpgradePolicy.IsUnknown() {
-			s := plan.UpgradePolicy.ValueString()
-			settingsReq.UpgradePolicy = &s
-		}
-		if !plan.MaintenanceWindow.IsNull() && !plan.MaintenanceWindow.IsUnknown() {
-			var mw MaintenanceWindowModel
-			resp.Diagnostics.Append(plan.MaintenanceWindow.As(ctx, &mw, basetypes.ObjectAsOptions{})...)
-			if resp.Diagnostics.HasError() {
-				return
-			}
-			settingsReq.MaintenanceWindow = &client.MaintenanceWindow{
-				StartHourUtc: int(mw.StartHourUtc.ValueInt64()),
-				EndHourUtc:   int(mw.EndHourUtc.ValueInt64()),
-			}
-		}
-		if settingsReq.UpgradePolicy == nil && settingsReq.MaintenanceWindow == nil {
-			resp.Diagnostics.AddWarning(
-				"Cannot clear both upgrade_policy and maintenance_window",
-				"The Management API requires at least one of upgrade_policy or maintenance_window to be set when calling PATCH /settings. "+
-					"Removing both from configuration would produce a 400 error, so this update was skipped. "+
-					"To change settings, keep at least one of the two fields populated.",
-			)
-		} else if err := r.client.UpdateWarehouseSettings(ctx, warehouseID, settingsReq); err != nil {
-			resp.Diagnostics.AddError("Error updating warehouse settings", err.Error())
-			return
-		}
-	}
-
 	// Trigger version upgrade if core_version_id changed.
 	// Guard against zero IDs (which the velodb_warehouse_versions data source returns
 	// when the API has no available versions) — they would always 409 "targetVersionId not found".
@@ -663,7 +564,7 @@ func (r *WarehouseResource) Update(ctx context.Context, req resource.UpdateReque
 			return
 		}
 		if err := r.client.UpgradeWarehouse(ctx, warehouseID, plan.CoreVersionID.ValueInt64()); err != nil {
-			resp.Diagnostics.AddError("Error upgrading warehouse", err.Error())
+			resp.Diagnostics.AddError(userError("upgrading warehouse", err))
 			return
 		}
 		// Wait for upgrade to complete
@@ -715,7 +616,7 @@ func (r *WarehouseResource) Delete(ctx context.Context, req resource.DeleteReque
 		if apiErr, ok := err.(*client.APIError); ok && apiErr.IsNotFound() {
 			return // already deleted
 		}
-		resp.Diagnostics.AddError("Error deleting warehouse", err.Error())
+		resp.Diagnostics.AddError(userError("deleting warehouse", err))
 		return
 	}
 
@@ -745,7 +646,7 @@ func (r *WarehouseResource) readWarehouseIntoState(ctx context.Context, warehous
 			state.ID = types.StringNull()
 			return
 		}
-		diags.AddError("Error reading warehouse", err.Error())
+		diags.AddError(userError("reading warehouse", err))
 		return
 	}
 
@@ -766,24 +667,6 @@ func (r *WarehouseResource) readWarehouseIntoState(ctx context.Context, warehous
 		state.ExpireTime = types.StringValue(wh.ExpireTime.Format(time.RFC3339))
 	} else {
 		state.ExpireTime = types.StringNull()
-	}
-
-	// Settings (upgrade policy + maintenance window)
-	if settings, err := r.client.GetWarehouseSettings(ctx, warehouseID); err == nil && settings != nil {
-		state.UpgradePolicy = stringOrNull(settings.UpgradePolicy)
-		if settings.MaintenanceWindow != nil {
-			obj, d := types.ObjectValue(maintenanceWindowAttrTypes(), map[string]attr.Value{
-				"start_hour_utc": types.Int64Value(int64(settings.MaintenanceWindow.StartHourUtc)),
-				"end_hour_utc":   types.Int64Value(int64(settings.MaintenanceWindow.EndHourUtc)),
-			})
-			diags.Append(d...)
-			state.MaintenanceWindow = obj
-		} else {
-			state.MaintenanceWindow = types.ObjectNull(maintenanceWindowAttrTypes())
-		}
-	} else {
-		state.UpgradePolicy = types.StringNull()
-		state.MaintenanceWindow = types.ObjectNull(maintenanceWindowAttrTypes())
 	}
 
 	// Find initial_cluster ID by listing clusters and matching the configured name

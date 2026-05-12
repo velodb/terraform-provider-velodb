@@ -265,12 +265,9 @@ resource "velodb_cluster" "test" {
   warehouse_id  = "WH-MOCK-001"
   name          = "mock-cluster"
   cluster_type  = "COMPUTE"
+  compute_vcpu  = 4
+  cache_gb      = 100
   desired_state = "running"
-
-  on_demand {
-    compute_vcpu = 4
-    cache_gb     = 100
-  }
 
   auto_pause {
     enabled              = true
@@ -299,7 +296,7 @@ resource "velodb_cluster" "test" {
 				ImportState:             true,
 				ImportStateId:           "WH-MOCK-001/CL-MOCK-001",
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"desired_state", "on_demand", "subscription", "auto_pause", "timeouts"},
+				ImportStateVerifyIgnore: []string{"desired_state", "auto_pause", "timeouts"},
 			},
 		},
 	})
