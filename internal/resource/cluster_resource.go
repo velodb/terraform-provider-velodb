@@ -271,7 +271,7 @@ func (r *ClusterResource) Create(ctx context.Context, req resource.CreateRequest
 
 	// Handle initial desired_state = paused
 	if !plan.DesiredState.IsNull() && plan.DesiredState.ValueString() == "paused" {
-		if err := r.client.PauseCluster(ctx, warehouseID, clusterID); err != nil {
+		if err := r.client.OperateCluster(ctx, warehouseID, clusterID, "pause"); err != nil {
 			resp.Diagnostics.AddError(userError("pausing cluster after creation", err))
 			return
 		}

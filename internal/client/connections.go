@@ -42,8 +42,23 @@ type WarehousePublicAccessPolicyRequest struct {
 // --- Combined connections (GET /connections) ---
 
 type WarehouseConnections struct {
-	PublicConnection  *WarehousePublicConnection  `json:"publicConnection,omitempty"`
-	PrivateConnection *WarehousePrivateConnection `json:"privateConnection,omitempty"`
+	PublicEndpoints  []ConnectionEndpoint  `json:"publicEndpoints,omitempty"`
+	PrivateEndpoints []ConnectionEndpoint  `json:"privateEndpoints,omitempty"`
+	ComputeClusters  []ConnectionCluster   `json:"computeClusters,omitempty"`
+	ObserverGroups   []ConnectionCluster   `json:"observerGroups,omitempty"`
+}
+
+type ConnectionEndpoint struct {
+	Protocol string `json:"protocol,omitempty"`
+	Host     string `json:"host,omitempty"`
+	Port     int    `json:"port,omitempty"`
+	URL      string `json:"url,omitempty"`
+}
+
+type ConnectionCluster struct {
+	ClusterID   string `json:"clusterId,omitempty"`
+	ClusterName string `json:"clusterName,omitempty"`
+	HTTPPort    int    `json:"httpPort,omitempty"`
 }
 
 // --- Methods ---

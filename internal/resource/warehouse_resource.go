@@ -22,8 +22,9 @@ import (
 )
 
 var (
-	_ resource.Resource                = &WarehouseResource{}
-	_ resource.ResourceWithImportState = &WarehouseResource{}
+	_ resource.Resource                   = &WarehouseResource{}
+	_ resource.ResourceWithImportState    = &WarehouseResource{}
+	_ resource.ResourceWithValidateConfig = &WarehouseResource{}
 )
 
 type WarehouseResource struct {
@@ -361,6 +362,26 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				Delete: true,
 			}),
 		},
+	}
+}
+
+func (r *WarehouseResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var adminPw types.String
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("admin_password"), &adminPw)...)
+	if adminPw.IsNull() || adminPw.IsUnknown() {
+		resp.Diagnostics.AddError(
+			"admin_password is required",
+			"admin_password must be set when creating a SAAS warehouse.",
+		)
+	}
+
+	var initialCluster types.List
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("initial_cluster"), &initialCluster)...)
+	if initialCluster.IsNull() || len(initialCluster.Elements()) == 0 {
+		resp.Diagnostics.AddError(
+			"initial_cluster is required",
+			"At least one initial_cluster block must be provided when creating a warehouse.",
+		)
 	}
 }
 

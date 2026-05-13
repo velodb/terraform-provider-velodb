@@ -328,75 +328,6 @@ func TestDeleteWarehouse(t *testing.T) {
 	}
 }
 
-func TestUpdateWarehouseSettings(t *testing.T) {
-	ts, mux := newTestServer(t)
-	defer ts.Close()
-	client := newTestClient(t, ts)
-
-	mux.HandleFunc("/v1/warehouses/WH-001/settings", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(t, w, r, http.MethodPatch) {
-			return
-		}
-		var req UpdateWarehouseSettingsRequest
-		json.NewDecoder(r.Body).Decode(&req)
-
-		if req.MaintenanceWindow == nil {
-			t.Fatal("expected maintenanceWindow")
-		}
-		if req.MaintenanceWindow.StartHourUtc != 2 || req.MaintenanceWindow.EndHourUtc != 4 {
-			t.Errorf("expected start=2 end=4, got %+v", req.MaintenanceWindow)
-		}
-		if req.UpgradePolicy == nil || *req.UpgradePolicy != "automatic" {
-			t.Errorf("expected upgradePolicy 'automatic'")
-		}
-
-		jsonResponse(w, 200, APIResponse[struct{}]{
-			Success:   true,
-			RequestID: "req-008",
-		})
-	})
-
-	policy := "automatic"
-	err := client.UpdateWarehouseSettings(context.Background(), "WH-001", &UpdateWarehouseSettingsRequest{
-		UpgradePolicy:     &policy,
-		MaintenanceWindow: &MaintenanceWindow{StartHourUtc: 2, EndHourUtc: 4},
-	})
-	if err != nil {
-		t.Fatalf("UpdateWarehouseSettings: %v", err)
-	}
-}
-
-func TestGetWarehouseSettings(t *testing.T) {
-	ts, mux := newTestServer(t)
-	defer ts.Close()
-	client := newTestClient(t, ts)
-
-	mux.HandleFunc("/v1/warehouses/WH-001/settings", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(t, w, r, http.MethodGet) {
-			return
-		}
-		jsonResponse(w, 200, APIResponse[WarehouseSettingsResponse]{
-			Success:   true,
-			RequestID: "req-009",
-			Data: WarehouseSettingsResponse{
-				UpgradePolicy:     "automatic",
-				MaintenanceWindow: &MaintenanceWindow{StartHourUtc: 2, EndHourUtc: 4},
-			},
-		})
-	})
-
-	settings, err := client.GetWarehouseSettings(context.Background(), "WH-001")
-	if err != nil {
-		t.Fatalf("GetWarehouseSettings: %v", err)
-	}
-	if settings.UpgradePolicy != "automatic" {
-		t.Errorf("expected upgradePolicy 'automatic', got %q", settings.UpgradePolicy)
-	}
-	if settings.MaintenanceWindow == nil || settings.MaintenanceWindow.StartHourUtc != 2 {
-		t.Errorf("expected startHourUtc=2, got %+v", settings.MaintenanceWindow)
-	}
-}
-
 func TestUpgradeWarehouse(t *testing.T) {
 	ts, mux := newTestServer(t)
 	defer ts.Close()
@@ -492,18 +423,16 @@ func TestGetWarehouseConnections(t *testing.T) {
 		if !requireMethod(t, w, r, http.MethodGet) {
 			return
 		}
-		jp := 9030
-		hp := 8030
-		slp := 8040
 		jsonResponse(w, 200, APIResponse[WarehouseConnections]{
 			Success:   true,
 			RequestID: "req-013",
 			Data: WarehouseConnections{
-				PublicConnection: &WarehousePublicConnection{
-					Host:           "wh-001.selectdbcloud.com",
-					JdbcPort:       &jp,
-					HTTPPort:       &hp,
-					StreamLoadPort: &slp,
+				PublicEndpoints: []ConnectionEndpoint{
+					{Protocol: "jdbc", Host: "wh-001.selectdbcloud.com", Port: 9030},
+					{Protocol: "http", Host: "wh-001.selectdbcloud.com", Port: 8030},
+				},
+				ComputeClusters: []ConnectionCluster{
+					{ClusterID: "CL-001", ClusterName: "default", HTTPPort: 9050},
 				},
 			},
 		})
@@ -513,14 +442,14 @@ func TestGetWarehouseConnections(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetWarehouseConnections: %v", err)
 	}
-	if conns.PublicConnection == nil {
-		t.Fatal("expected publicConnection")
+	if len(conns.PublicEndpoints) != 2 {
+		t.Fatalf("expected 2 public endpoints, got %d", len(conns.PublicEndpoints))
 	}
-	if conns.PublicConnection.Host != "wh-001.selectdbcloud.com" {
-		t.Errorf("expected host 'wh-001.selectdbcloud.com', got %q", conns.PublicConnection.Host)
+	if conns.PublicEndpoints[0].Host != "wh-001.selectdbcloud.com" {
+		t.Errorf("expected host 'wh-001.selectdbcloud.com', got %q", conns.PublicEndpoints[0].Host)
 	}
-	if conns.PublicConnection.JdbcPort == nil || *conns.PublicConnection.JdbcPort != 9030 {
-		t.Errorf("expected jdbcPort 9030")
+	if conns.PublicEndpoints[0].Port != 9030 {
+		t.Errorf("expected port 9030, got %d", conns.PublicEndpoints[0].Port)
 	}
 }
 

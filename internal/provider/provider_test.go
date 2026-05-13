@@ -97,12 +97,12 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 			"success":   true,
 			"requestId": "mock-conns",
 			"data": map[string]any{
-				"publicConnection": map[string]any{
-					"host":               "mock.selectdbcloud.com",
-					"jdbcPort":           9030,
-					"httpPort":           8030,
-					"streamLoadPort":     8040,
-					"publicAccessPolicy": "ALLOW_ALL",
+				"publicEndpoints": []map[string]any{
+					{"protocol": "jdbc", "host": "mock.selectdbcloud.com", "port": 9030},
+					{"protocol": "http", "host": "mock.selectdbcloud.com", "port": 8030},
+				},
+				"computeClusters": []map[string]any{
+					{"clusterId": "CL-MOCK-001", "clusterName": "mock-cluster", "httpPort": 9050},
 				},
 			},
 		})
@@ -366,11 +366,12 @@ data "velodb_warehouse_connections" "test" {
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "public_connection.#", "1"),
-					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "public_connection.0.host", "mock.selectdbcloud.com"),
-					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "public_connection.0.jdbc_port", "9030"),
-					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "public_connection.0.http_port", "8030"),
-					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "public_connection.0.public_access_policy", "ALLOW_ALL"),
+					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "public_endpoints.#", "2"),
+					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "public_endpoints.0.protocol", "jdbc"),
+					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "public_endpoints.0.host", "mock.selectdbcloud.com"),
+					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "public_endpoints.0.port", "9030"),
+					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "compute_clusters.#", "1"),
+					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "compute_clusters.0.cluster_id", "CL-MOCK-001"),
 				),
 			},
 		},

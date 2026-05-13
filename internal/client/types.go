@@ -69,21 +69,6 @@ type UpdateWarehouseRequest struct {
 	Name *string `json:"name,omitempty"`
 }
 
-type MaintenanceWindow struct {
-	StartHourUtc int `json:"startHourUtc"`
-	EndHourUtc   int `json:"endHourUtc"`
-}
-
-type UpdateWarehouseSettingsRequest struct {
-	UpgradePolicy     *string            `json:"upgradePolicy,omitempty"`
-	MaintenanceWindow *MaintenanceWindow `json:"maintenanceWindow,omitempty"`
-}
-
-type WarehouseSettingsResponse struct {
-	UpgradePolicy     string             `json:"upgradePolicy,omitempty"`
-	MaintenanceWindow *MaintenanceWindow `json:"maintenanceWindow,omitempty"`
-}
-
 type UpgradeWarehouseRequest struct {
 	TargetVersionID int64 `json:"targetVersionId"`
 }
@@ -199,11 +184,9 @@ type UpdateClusterRequest struct {
 	AutoPause    *AutoPauseConfig `json:"autoPause,omitempty"`
 }
 
-type RenewClusterRequest struct {
-	Period    int   `json:"period"`
-	AutoRenew *bool `json:"autoRenew,omitempty"`
+type ClusterActionRequest struct {
+	Action string `json:"action"`
 }
-
 
 type ClusterConnectionInfo struct {
 	PublicEndpoint  string `json:"publicEndpoint,omitempty"`
