@@ -201,7 +201,7 @@ func allowlistRuleAttrTypes() map[string]attr.Type {
 }
 
 func (r *PublicAccessPolicyResource) readIntoState(ctx context.Context, state *PublicAccessPolicyModel, diags *diag.Diagnostics) {
-	conn, err := r.client.GetWarehousePublicConnection(ctx, state.WarehouseID.ValueString())
+	policy, err := r.client.GetWarehousePublicAccessPolicy(ctx, state.WarehouseID.ValueString())
 	if err != nil {
 		if apiErr, ok := err.(*client.APIError); ok && apiErr.IsNotFound() {
 			state.ID = types.StringNull()
@@ -212,12 +212,12 @@ func (r *PublicAccessPolicyResource) readIntoState(ctx context.Context, state *P
 	}
 
 	state.ID = state.WarehouseID
-	if conn.PublicAccessPolicy != "" {
-		state.Policy = types.StringValue(conn.PublicAccessPolicy)
+	if policy.PublicAccessPolicy != "" {
+		state.Policy = types.StringValue(policy.PublicAccessPolicy)
 	}
 
 	var rules []attr.Value
-	for _, rl := range conn.Allowlist {
+	for _, rl := range policy.Rules {
 		obj, d := types.ObjectValue(allowlistRuleAttrTypes(), map[string]attr.Value{
 			"cidr":        types.StringValue(rl.CIDR),
 			"description": types.StringValue(rl.Description),

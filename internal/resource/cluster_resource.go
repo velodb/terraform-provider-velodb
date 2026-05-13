@@ -480,7 +480,7 @@ func (r *ClusterResource) Delete(ctx context.Context, req resource.DeleteRequest
 			return "", err
 		}
 		return cl.Status, nil
-	}, []string{"Deleted"}, nil, deleteTimeout, 15*time.Second)
+	}, []string{"Deleted"}, client.FailedStatuses, deleteTimeout, 15*time.Second)
 	if err != nil {
 		resp.Diagnostics.AddWarning("Cluster deletion may still be in progress", err.Error())
 	}

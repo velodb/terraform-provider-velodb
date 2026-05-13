@@ -39,6 +39,11 @@ type WarehousePublicAccessPolicyRequest struct {
 	Rules              []WarehouseAllowlistRule `json:"rules,omitempty"`
 }
 
+type WarehousePublicAccessPolicyResponse struct {
+	PublicAccessPolicy string                   `json:"publicAccessPolicy,omitempty"`
+	Rules              []WarehouseAllowlistRule `json:"rules,omitempty"`
+}
+
 // --- Combined connections (GET /connections) ---
 
 type WarehouseConnections struct {
@@ -83,6 +88,19 @@ func (c *FormationClient) GetWarehousePublicConnection(ctx context.Context, ware
 		return nil, err
 	}
 	var result APIResponse[WarehousePublicConnection]
+	if err := parseResponse(resp, &result); err != nil {
+		return nil, err
+	}
+	return &result.Data, nil
+}
+
+// GetWarehousePublicAccessPolicy returns the public access policy.
+func (c *FormationClient) GetWarehousePublicAccessPolicy(ctx context.Context, warehouseID string) (*WarehousePublicAccessPolicyResponse, error) {
+	resp, err := c.get(ctx, fmt.Sprintf("/v1/warehouses/%s/connections/public/access-policy", warehouseID), nil)
+	if err != nil {
+		return nil, err
+	}
+	var result APIResponse[WarehousePublicAccessPolicyResponse]
 	if err := parseResponse(resp, &result); err != nil {
 		return nil, err
 	}
