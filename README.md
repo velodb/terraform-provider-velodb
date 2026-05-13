@@ -1,6 +1,6 @@
-# VeloDB Terraform Provider Documentation
+# VeloDB Terraform Provider (v1.0.0)
 
-The VeloDB provider manages warehouses, clusters, and related infrastructure on [VeloDB Cloud](https://www.velodb.cloud/) using the Formation OpenAPI.
+The VeloDB provider manages warehouses, clusters, and related infrastructure on [VeloDB Cloud](https://www.velodb.cloud/) using the Formation Management API v1.
 
 - **Resources:**
 
@@ -27,7 +27,7 @@ terraform {
   required_providers {
     velodb = {
       source  = "velodb/velodb"
-      version = "~> 0.1"
+      version = "~> 1.0"
     }
   }
 }
@@ -61,7 +61,7 @@ terraform {
   required_providers {
     velodb = {
       source  = "velodb/velodb"
-      version = "~> 0.1"
+      version = "~> 1.0"
     }
   }
 }

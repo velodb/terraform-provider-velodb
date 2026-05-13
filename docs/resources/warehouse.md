@@ -2,12 +2,12 @@
 page_title: "velodb_warehouse Resource - velodb"
 subcategory: ""
 description: |-
-  Manages a VeloDB Cloud warehouse. A warehouse is the top-level compute and storage unit that contains one or more clusters. The resource supports both SaaS and BYOC deployment modes, initial cluster provisioning, password management, version upgrades, and maintenance window configuration.
+  Manages a VeloDB Cloud SaaS warehouse with initial cluster provisioning, password management, and version upgrades.
 ---
 
 # velodb_warehouse (Resource)
 
-Use the *velodb_warehouse* resource to create and manage warehouses on VeloDB Cloud.
+Manages a SaaS warehouse on VeloDB Cloud. Only `deployment_mode = "SAAS"` is supported (BYOC is blocked at plan time).
 
 A warehouse is the primary unit of deployment. It belongs to an organization, runs on a specific cloud provider and region, and contains one or more clusters. The resource manages the full warehouse lifecycle including creation, updates, version upgrades, password rotation, and deletion.
 

@@ -2,12 +2,12 @@
 page_title: "Provider: VeloDB"
 subcategory: ""
 description: |-
-  The VeloDB provider manages warehouses, clusters, and related infrastructure on VeloDB Cloud (SelectDB Cloud) using the Formation OpenAPI.
+  The VeloDB provider manages warehouses, clusters, and related infrastructure on VeloDB Cloud using the Formation Management API v1.
 ---
 
-# VeloDB Provider
+# VeloDB Provider (v1.0.0)
 
-The VeloDB provider allows you to manage [VeloDB Cloud](https://www.selectdb.com/) warehouses, clusters, and infrastructure using Terraform.
+The VeloDB provider allows you to manage [VeloDB Cloud](https://www.velodb.cloud/) warehouses, clusters, and infrastructure using Terraform.
 
 ## Resources and Data Sources
 
@@ -15,8 +15,8 @@ The VeloDB provider allows you to manage [VeloDB Cloud](https://www.selectdb.com
 
 | Resource | Purpose |
 |---|---|
-| [`velodb_warehouse`](./resources/warehouse.md) | SaaS or BYOC warehouse lifecycle (password, version, maintenance window) |
-| [`velodb_cluster`](./resources/cluster.md) | Cluster with `subscription{}` / `on_demand{}` pool blocks, mixed billing, pause/resume/reboot |
+| [`velodb_warehouse`](./resources/warehouse.md) | SaaS warehouse lifecycle (password, version) |
+| [`velodb_cluster`](./resources/cluster.md) | COMPUTE cluster with flat compute_vcpu/cache_gb, pause/resume/reboot |
 | [`velodb_warehouse_public_access_policy`](./resources/warehouse_public_access_policy.md) | IP allowlist for public access |
 | [`velodb_warehouse_private_endpoint`](./resources/warehouse_private_endpoint.md) | Custom DNS on inbound PrivateLink endpoints |
 | [`velodb_private_link_endpoint_service`](./resources/private_link_endpoint_service.md) | Outbound PrivateLink service registration |
@@ -27,29 +27,27 @@ The VeloDB provider allows you to manage [VeloDB Cloud](https://www.selectdb.com
 |---|---|
 | [`velodb_warehouses`](./data-sources/warehouses.md) | List warehouses with filters |
 | [`velodb_clusters`](./data-sources/clusters.md) | List clusters in a warehouse |
-| [`velodb_warehouse_connections`](./data-sources/warehouse_connections.md) | Public host/ports + PrivateLink inbound/outbound info |
+| [`velodb_warehouse_connections`](./data-sources/warehouse_connections.md) | Public host/ports + PrivateLink info |
+| [`velodb_warehouse_versions`](./data-sources/warehouse_versions.md) | Available engine versions |
 
-## Supported / not supported features
+## Supported / Not Supported
 
 | Feature | Status |
 |---|---|
-| SaaS warehouse lifecycle | ✅ Supported |
-| BYOC `guided` mode (CloudFormation) | ⚠️ Works but not IaC-friendly |
-| BYOC `advanced` mode | ❌ Sandbox API broken (awaiting fix) |
-| Cluster pool blocks (subscription + on_demand) | ✅ Supported |
-| Mixed-billing cluster (both pools) | ✅ Supported |
-| Pool add / remove / independent resize | ✅ Supported |
-| Pause / resume / reboot | ✅ Supported |
-| Password rotation | ✅ Supported |
-| Version upgrade (`core_version`) | ✅ Supported |
-| Import all resources | ✅ Supported |
-| IP allowlist | ✅ Supported |
-| PrivateLink inbound custom DNS | ✅ Supported |
-| PrivateLink outbound service | ✅ Supported (AWS requires both `endpoint_service_id` and `endpoint_service_name`) |
-| Delete prepaid (subscription) cluster | ❌ API billing semantics — wait for expiration |
-| Delete warehouse's last cluster | ❌ API restriction — delete warehouse instead |
-| Billing / audit / consumption data sources | ❌ Out of scope (use dashboards) |
-| User / role / API key management | ❌ Out of scope |
+| SaaS warehouse lifecycle | Supported |
+| BYOC deployment mode | Not supported — blocked at plan time |
+| COMPUTE cluster (on_demand) | Supported |
+| SQL / OBSERVER cluster types | Not supported — blocked at plan time |
+| Mixed billing (subscription + on_demand pools) | Not supported — removed |
+| Simultaneous CPU + disk resize | Not supported — must apply separately |
+| Pause / resume / reboot | Supported |
+| Password rotation | Supported |
+| Version upgrade (`core_version`) | Supported |
+| Import all resources | Supported |
+| IP allowlist (public access policy) | Supported |
+| PrivateLink inbound custom DNS | Supported |
+| PrivateLink outbound service | Supported |
+| maintenance_window / upgrade_policy | Not supported — use `maintainability_start_time`/`end_time` |
 
 ## Authentication
 
@@ -62,13 +60,13 @@ terraform {
   required_providers {
     velodb = {
       source  = "velodb/velodb"
-      version = "~> 0.1"
+      version = "~> 1.0"
     }
   }
 }
 
 provider "velodb" {
-  host    = "api.selectdbcloud.com"
+  host    = "api.velodb.io"
   api_key = var.velodb_api_key
 }
 
@@ -84,4 +82,4 @@ variable "velodb_api_key" {
 ### Optional
 
 - `api_key` (String, Sensitive) API key for authentication. Can also be set via the `VELODB_API_KEY` environment variable.
-- `host` (String) Formation API host (e.g., `api.selectdbcloud.com`). Can also be set via the `VELODB_HOST` environment variable.
+- `host` (String) Formation API host (e.g., `api.velodb.io`). Can also be set via the `VELODB_HOST` environment variable.
