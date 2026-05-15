@@ -29,6 +29,7 @@ The VeloDB provider allows you to manage [VeloDB Cloud](https://www.velodb.cloud
 | [`velodb_clusters`](./data-sources/clusters.md) | List clusters in a warehouse |
 | [`velodb_warehouse_connections`](./data-sources/warehouse_connections.md) | Public host/ports + PrivateLink info |
 | [`velodb_warehouse_versions`](./data-sources/warehouse_versions.md) | Available engine versions |
+| [`velodb_private_link_endpoint_services`](./data-sources/private_link_endpoint_services.md) | Outbound PrivateLink endpoint services |
 
 ## Supported / Not Supported
 

@@ -18,15 +18,24 @@ type CreatePrivateLinkEndpointServiceRequest struct {
 }
 
 type PrivateLinkEndpointService struct {
-	CloudProvider       string     `json:"cloudProvider,omitempty"`
-	Region              string     `json:"region,omitempty"`
-	Zone                string     `json:"zone,omitempty"`
-	EndpointServiceID   string     `json:"endpointServiceId,omitempty"`
-	EndpointServiceName string     `json:"endpointServiceName,omitempty"`
-	ProviderAccountID   string     `json:"providerAccountId,omitempty"`
-	Description         string     `json:"description,omitempty"`
-	CreatedAt           *time.Time `json:"createdAt,omitempty"`
-	Connected           bool       `json:"connected,omitempty"`
+	CloudProvider       string                               `json:"cloudProvider,omitempty"`
+	Region              string                               `json:"region,omitempty"`
+	Zone                string                               `json:"zone,omitempty"`
+	EndpointServiceID   string                               `json:"endpointServiceId,omitempty"`
+	EndpointServiceName string                               `json:"endpointServiceName,omitempty"`
+	ProviderAccountID   string                               `json:"providerAccountId,omitempty"`
+	Description         string                               `json:"description,omitempty"`
+	CreatedAt           *time.Time                           `json:"createdAt,omitempty"`
+	Connected           bool                                 `json:"connected,omitempty"`
+	Endpoints           []PrivateLinkEndpointServiceEndpoint `json:"endpoints,omitempty"`
+}
+
+type PrivateLinkEndpointServiceEndpoint struct {
+	EndpointID   string     `json:"endpointId,omitempty"`
+	EndpointName string     `json:"endpointName,omitempty"`
+	Domain       string     `json:"domain,omitempty"`
+	Status       string     `json:"status,omitempty"`
+	CreatedAt    *time.Time `json:"createdAt,omitempty"`
 }
 
 type ListPrivateLinkEndpointServicesOptions struct {

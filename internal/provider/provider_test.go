@@ -221,6 +221,61 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 		}
 	})
 
+	mux.HandleFunc("/v1/private-link/endpoint-services", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method != http.MethodGet {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+
+		data := []map[string]any{
+			{
+				"cloudProvider":       "aws",
+				"region":              "us-east-1",
+				"zone":                "us-east-1a",
+				"endpointServiceId":   "vpce-svc-outbound-001",
+				"endpointServiceName": "com.amazonaws.vpce.us-east-1.vpce-svc-outbound-001",
+				"providerAccountId":   "123456789012",
+				"description":         "mock outbound service",
+				"connected":           true,
+				"createdAt":           now.Format(time.RFC3339),
+				"endpoints": []map[string]any{{
+					"endpointId":   "vpce-outbound-001",
+					"endpointName": "endpoint-mock-outbound",
+					"domain":       "vpce-outbound-001.example.vpce.amazonaws.com",
+					"status":       "available",
+					"createdAt":    now.Format(time.RFC3339),
+				}},
+			},
+			{
+				"cloudProvider":       "aliyun",
+				"region":              "cn-beijing",
+				"zone":                "cn-beijing-k",
+				"endpointServiceId":   "eps-mock-002",
+				"endpointServiceName": "com.aliyuncs.privatelink.cn-beijing.eps-mock-002",
+				"description":         "other outbound service",
+				"connected":           false,
+				"createdAt":           now.Format(time.RFC3339),
+			},
+		}
+
+		filtered := make([]map[string]any, 0, len(data))
+		for _, svc := range data {
+			if q := r.URL.Query().Get("cloudProvider"); q != "" && svc["cloudProvider"] != q {
+				continue
+			}
+			if q := r.URL.Query().Get("region"); q != "" && svc["region"] != q {
+				continue
+			}
+			filtered = append(filtered, svc)
+		}
+
+		json.NewEncoder(w).Encode(map[string]any{
+			"success": true, "requestId": "mock-list-endpoint-services",
+			"data": filtered,
+		})
+	})
+
 	// -- Cluster endpoints --
 	clusterData := func() map[string]any {
 		return map[string]any{
@@ -717,6 +772,45 @@ data "velodb_warehouse_connections" "test" {
 					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "compute_clusters.#", "1"),
 					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "compute_clusters.0.cluster_id", "CL-MOCK-001"),
 					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "endpoint_service_name", "com.amazonaws.vpce.cn-beijing.vpce-svc-mock"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccPrivateLinkEndpointServicesDataSource(t *testing.T) {
+	ts := mockAPIServer(t)
+	defer ts.Close()
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(ts),
+		Steps: []resource.TestStep{
+			{
+				Config: testProviderConfig(ts) + `
+data "velodb_private_link_endpoint_services" "test" {
+  cloud_provider      = "aws"
+  region              = "us-east-1"
+  endpoint_service_id = "vpce-svc-outbound-001"
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("data.velodb_private_link_endpoint_services.test", "total", "1"),
+					resource.TestCheckResourceAttr("data.velodb_private_link_endpoint_services.test", "services.#", "1"),
+					resource.TestCheckResourceAttr("data.velodb_private_link_endpoint_services.test", "services.0.cloud_provider", "aws"),
+					resource.TestCheckResourceAttr("data.velodb_private_link_endpoint_services.test", "services.0.region", "us-east-1"),
+					resource.TestCheckResourceAttr("data.velodb_private_link_endpoint_services.test", "services.0.zone", "us-east-1a"),
+					resource.TestCheckResourceAttr("data.velodb_private_link_endpoint_services.test", "services.0.endpoint_service_id", "vpce-svc-outbound-001"),
+					resource.TestCheckResourceAttr("data.velodb_private_link_endpoint_services.test", "services.0.endpoint_service_name", "com.amazonaws.vpce.us-east-1.vpce-svc-outbound-001"),
+					resource.TestCheckResourceAttr("data.velodb_private_link_endpoint_services.test", "services.0.provider_account_id", "123456789012"),
+					resource.TestCheckResourceAttr("data.velodb_private_link_endpoint_services.test", "services.0.description", "mock outbound service"),
+					resource.TestCheckResourceAttr("data.velodb_private_link_endpoint_services.test", "services.0.connected", "true"),
+					resource.TestCheckResourceAttr("data.velodb_private_link_endpoint_services.test", "services.0.created_at", "2026-04-06T10:30:00Z"),
+					resource.TestCheckResourceAttr("data.velodb_private_link_endpoint_services.test", "services.0.endpoints.#", "1"),
+					resource.TestCheckResourceAttr("data.velodb_private_link_endpoint_services.test", "services.0.endpoints.0.endpoint_id", "vpce-outbound-001"),
+					resource.TestCheckResourceAttr("data.velodb_private_link_endpoint_services.test", "services.0.endpoints.0.endpoint_name", "endpoint-mock-outbound"),
+					resource.TestCheckResourceAttr("data.velodb_private_link_endpoint_services.test", "services.0.endpoints.0.domain", "vpce-outbound-001.example.vpce.amazonaws.com"),
+					resource.TestCheckResourceAttr("data.velodb_private_link_endpoint_services.test", "services.0.endpoints.0.status", "available"),
+					resource.TestCheckResourceAttr("data.velodb_private_link_endpoint_services.test", "services.0.endpoints.0.created_at", "2026-04-06T10:30:00Z"),
 				),
 			},
 		},

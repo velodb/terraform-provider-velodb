@@ -53,6 +53,7 @@ nav:
     - velodb_clusters: data-sources/clusters.md
     - velodb_warehouse_connections: data-sources/warehouse_connections.md
     - velodb_warehouse_versions: data-sources/warehouse_versions.md
+    - velodb_private_link_endpoint_services: data-sources/private_link_endpoint_services.md
 
 markdown_extensions:
   - admonition

@@ -28,6 +28,7 @@ provider "velodb" {
 - `velodb_clusters`
 - `velodb_warehouse_connections`
 - `velodb_warehouse_versions`
+- `velodb_private_link_endpoint_services`
 
 ## Current API Notes
 
@@ -43,6 +44,8 @@ provider "velodb" {
   groups.
 - Warehouse private endpoint registration uses
   `POST /v1/private-link/warehouses/{warehouseId}/endpoints`.
+- Outbound PrivateLink endpoint services are listed from
+  `GET /v1/private-link/endpoint-services`.
 
 See the resource and data-source pages under `docs/resources` and
 `docs/data-sources` for examples.

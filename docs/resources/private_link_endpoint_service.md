@@ -33,7 +33,7 @@ Example AWS values:
 | Invalid / unowned service ID | ❌ Returns `InternalError` `"Endpoint service access denied"` | VeloDB validates access against the provided cloud service |
 | Update description | ✅ Supported | In-place update |
 | Delete | ✅ Supported | |
-| List (data source) | ✅ Supported | Via raw API |
+| List (data source) | ✅ Supported | Use [`velodb_private_link_endpoint_services`](../data-sources/private_link_endpoint_services.md). |
 
 ## Example Usage
 

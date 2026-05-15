@@ -48,6 +48,7 @@ variable "velodb_api_key" {
 | `velodb_clusters` | List clusters using `cluster_id`, `cluster_name`, status, or type filters |
 | `velodb_warehouse_connections` | Read public/private endpoints, compute clusters, and observer groups |
 | `velodb_warehouse_versions` | List valid warehouse upgrade target versions |
+| `velodb_private_link_endpoint_services` | List outbound PrivateLink endpoint services |
 
 ## Warehouse Example
 
