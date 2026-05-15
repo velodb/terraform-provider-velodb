@@ -31,6 +31,7 @@ func (c *FormationClient) GetWarehouse(ctx context.Context, warehouseID string) 
 	if err := parseResponse(resp, &result); err != nil {
 		return nil, err
 	}
+	normalizeWarehouseItem(&result.Data)
 	return &result.Data, nil
 }
 
@@ -39,8 +40,11 @@ func (c *FormationClient) ListWarehouses(ctx context.Context, opts *ListWarehous
 	q := url.Values{}
 	if opts != nil {
 		addPagination(q, opts.Page, opts.Size)
-		if opts.Keyword != "" {
-			q.Set("keyword", opts.Keyword)
+		if opts.WarehouseID != "" {
+			q.Set("warehouseId", opts.WarehouseID)
+		}
+		if opts.Name != "" {
+			q.Set("name", opts.Name)
 		}
 		if opts.CloudProvider != "" {
 			q.Set("cloudProvider", opts.CloudProvider)
@@ -60,6 +64,9 @@ func (c *FormationClient) ListWarehouses(ctx context.Context, opts *ListWarehous
 	if err := parseResponse(resp, &result); err != nil {
 		return nil, err
 	}
+	for i := range result.Data {
+		normalizeWarehouseItem(&result.Data[i])
+	}
 	return &result, nil
 }
 
@@ -75,28 +82,6 @@ func (c *FormationClient) UpdateWarehouse(ctx context.Context, warehouseID strin
 // DeleteWarehouse deletes a warehouse.
 func (c *FormationClient) DeleteWarehouse(ctx context.Context, warehouseID string) error {
 	resp, err := c.delete(ctx, fmt.Sprintf("%s/%s", warehousesBasePath, warehouseID))
-	if err != nil {
-		return err
-	}
-	return parseResponse[any](resp, nil)
-}
-
-// GetWarehouseSettings returns warehouse settings (upgrade policy, maintenance window).
-func (c *FormationClient) GetWarehouseSettings(ctx context.Context, warehouseID string) (*WarehouseSettingsResponse, error) {
-	resp, err := c.get(ctx, fmt.Sprintf("%s/%s/settings", warehousesBasePath, warehouseID), nil)
-	if err != nil {
-		return nil, err
-	}
-	var result APIResponse[WarehouseSettingsResponse]
-	if err := parseResponse(resp, &result); err != nil {
-		return nil, err
-	}
-	return &result.Data, nil
-}
-
-// UpdateWarehouseSettings updates warehouse settings (upgrade policy, maintenance window).
-func (c *FormationClient) UpdateWarehouseSettings(ctx context.Context, warehouseID string, req *UpdateWarehouseSettingsRequest) error {
-	resp, err := c.patch(ctx, fmt.Sprintf("%s/%s/settings", warehousesBasePath, warehouseID), req)
 	if err != nil {
 		return err
 	}
@@ -138,17 +123,49 @@ func (c *FormationClient) ChangeWarehousePassword(ctx context.Context, warehouse
 	return parseResponse[any](resp, nil)
 }
 
-// GetWarehouseByocSetup returns BYOC setup guidance for a warehouse.
-func (c *FormationClient) GetWarehouseByocSetup(ctx context.Context, warehouseID string) (*WarehouseByocSetup, error) {
-	resp, err := c.get(ctx, fmt.Sprintf("%s/%s/byoc-setup", warehousesBasePath, warehouseID), nil)
-	if err != nil {
-		return nil, err
+// GetWarehouseConnections is defined in connections.go.
+
+func normalizeWarehouseItem(wh *WarehouseItem) {
+	if wh == nil {
+		return
 	}
-	var result APIResponse[WarehouseByocSetup]
-	if err := parseResponse(resp, &result); err != nil {
-		return nil, err
+	if wh.EndpointServiceID == "" {
+		wh.EndpointServiceID = firstNonEmpty(
+			wh.ServiceID,
+			warehouseEndpointServiceID(wh.EndpointService),
+			warehouseEndpointServiceID(wh.PrivateEndpointService),
+			warehouseEndpointServiceID(wh.PrivateLinkEndpointService),
+		)
 	}
-	return &result.Data, nil
+	if wh.EndpointServiceName == "" {
+		wh.EndpointServiceName = firstNonEmpty(
+			wh.ServiceName,
+			warehouseEndpointServiceName(wh.EndpointService),
+			warehouseEndpointServiceName(wh.PrivateEndpointService),
+			warehouseEndpointServiceName(wh.PrivateLinkEndpointService),
+		)
+	}
 }
 
-// GetWarehouseConnections is defined in connections.go.
+func warehouseEndpointServiceID(service *WarehouseEndpointService) string {
+	if service == nil {
+		return ""
+	}
+	return firstNonEmpty(service.EndpointServiceID, service.ServiceID, service.ID)
+}
+
+func warehouseEndpointServiceName(service *WarehouseEndpointService) string {
+	if service == nil {
+		return ""
+	}
+	return firstNonEmpty(service.EndpointServiceName, service.ServiceName, service.Name)
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
+}

@@ -2,22 +2,22 @@
 page_title: "velodb_warehouse_private_endpoint Resource - velodb"
 subcategory: ""
 description: |-
-  Manages custom DNS name and description on an inbound PrivateLink endpoint connected to a VeloDB warehouse.
+  Registers an existing cloud PrivateLink endpoint for a VeloDB warehouse.
 ---
 
 # velodb_warehouse_private_endpoint (Resource)
 
-Use the *velodb_warehouse_private_endpoint* resource to attach a **custom DNS name** and **description** to an inbound PrivateLink endpoint connected to a VeloDB warehouse.
+Use the *velodb_warehouse_private_endpoint* resource to register an existing cloud PrivateLink endpoint with a VeloDB warehouse.
 
-~> The **PrivateLink endpoint itself is NOT managed by this resource**. The endpoint is created in your own AWS/cloud account (e.g., via `aws_vpc_endpoint`). Once the endpoint connects to the warehouse's service, this resource manages only the VeloDB-side metadata.
+~> The **PrivateLink endpoint itself is NOT managed by this resource**. The endpoint is created in your own AWS/cloud account (e.g., via `aws_vpc_endpoint`). The current management API exposes registration, but not deregistration; destroying this resource removes it from Terraform state only.
 
 ## Supported / not supported features
 
 | Feature | Status | Notes |
 |---|---|---|
-| Set custom DNS name on endpoint | ✅ Supported | |
-| Set description on endpoint | ✅ Supported | |
-| Read cloud-side endpoint details (ports, domain, status) | ✅ Supported | Returned as computed attributes |
+| Register endpoint | ✅ Supported | Calls `POST /v1/private-link/warehouses/{warehouseId}/endpoints` |
+| Set DNS name / description at registration | ✅ Supported | Changes require replacement |
+| Read endpoint protocol ports and host | ✅ Supported | Returned from `GET /v1/warehouses/{warehouseId}/connections` |
 | Create the cloud-side endpoint | ❌ Out of scope | Use `aws_vpc_endpoint` (AWS provider) or equivalent for other clouds |
 | Delete the cloud-side endpoint | ❌ Out of scope | Delete the cloud endpoint in its own provider |
 | AWS region support | ✅ AWS us-east-1 tested | |
@@ -37,7 +37,7 @@ data "velodb_warehouse_connections" "main" {
 # 2. Create VPC endpoint in customer's AWS account targeting VeloDB's service
 resource "aws_vpc_endpoint" "velodb" {
   vpc_id              = aws_vpc.main.id
-  service_name        = data.velodb_warehouse_connections.main.private_inbound[0].endpoint_service_name
+  service_name        = data.velodb_warehouse_connections.main.endpoint_service_name
   vpc_endpoint_type   = "Interface"
   subnet_ids          = [aws_subnet.main.id]
   security_group_ids  = [aws_security_group.main.id]

@@ -77,14 +77,19 @@ func (r *WarehousePrivateEndpointResource) Schema(_ context.Context, _ resource.
 			"dns_name": schema.StringAttribute{
 				Description: "Custom DNS name to associate with the inbound endpoint.",
 				Optional:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"description": schema.StringAttribute{
 				Description: "Custom endpoint description.",
 				Optional:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
-			// Computed — from GET /connections/private
-			"domain":           schema.StringAttribute{Computed: true, Description: "Cloud-returned endpoint domain/VIP."},
-			"status":           schema.StringAttribute{Computed: true, Description: "Cloud-returned endpoint status."},
+			"domain":           schema.StringAttribute{Computed: true, Description: "Endpoint host/domain returned by the connection API."},
+			"status":           schema.StringAttribute{Computed: true, Description: "Endpoint status when available."},
 			"jdbc_port":        schema.Int64Attribute{Computed: true, Description: "JDBC port exposed via this endpoint."},
 			"http_port":        schema.Int64Attribute{Computed: true, Description: "HTTP port exposed via this endpoint."},
 			"stream_load_port": schema.Int64Attribute{Computed: true, Description: "Stream Load port."},
@@ -107,13 +112,14 @@ func (r *WarehousePrivateEndpointResource) Configure(_ context.Context, req reso
 }
 
 func (r *WarehousePrivateEndpointResource) applyCustom(ctx context.Context, plan *WarehousePrivateEndpointModel) error {
-	apiReq := &client.WarehousePrivateEndpointCustomRequest{}
+	apiReq := &client.RegisterWarehousePrivateEndpointRequest{
+		EndpointID: plan.EndpointID.ValueString(),
+	}
 	setOptionalString(&apiReq.DNSName, plan.DNSName)
 	setOptionalString(&apiReq.Description, plan.Description)
-	return r.client.UpdateWarehousePrivateEndpointCustom(
+	return r.client.RegisterWarehousePrivateEndpoint(
 		ctx,
 		plan.WarehouseID.ValueString(),
-		plan.EndpointID.ValueString(),
 		apiReq,
 	)
 }
@@ -132,6 +138,9 @@ func (r *WarehousePrivateEndpointResource) Create(ctx context.Context, req resou
 
 	plan.ID = types.StringValue(plan.WarehouseID.ValueString() + "/" + plan.EndpointID.ValueString())
 	r.readIntoState(ctx, &plan, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -174,6 +183,9 @@ func (r *WarehousePrivateEndpointResource) Update(ctx context.Context, req resou
 	}
 
 	r.readIntoState(ctx, &plan, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -184,18 +196,10 @@ func (r *WarehousePrivateEndpointResource) Delete(ctx context.Context, req resou
 		return
 	}
 
-	// Clear custom metadata — empty dns_name and description. The endpoint itself remains cloud-side.
-	empty := ""
-	apiReq := &client.WarehousePrivateEndpointCustomRequest{
-		DNSName:     &empty,
-		Description: &empty,
-	}
-	if err := r.client.UpdateWarehousePrivateEndpointCustom(ctx, state.WarehouseID.ValueString(), state.EndpointID.ValueString(), apiReq); err != nil {
-		if apiErr, ok := err.(*client.APIError); ok && apiErr.IsNotFound() {
-			return
-		}
-		resp.Diagnostics.AddWarning("Error clearing private endpoint custom metadata on destroy", err.Error())
-	}
+	resp.Diagnostics.AddWarning(
+		"Warehouse private endpoint left registered",
+		"The current management API exposes endpoint registration but not deregistration. Terraform removed the resource from state only.",
+	)
 }
 
 func (r *WarehousePrivateEndpointResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
@@ -210,7 +214,7 @@ func (r *WarehousePrivateEndpointResource) ImportState(ctx context.Context, req 
 }
 
 func (r *WarehousePrivateEndpointResource) readIntoState(ctx context.Context, state *WarehousePrivateEndpointModel, diags *diag.Diagnostics) {
-	conn, err := r.client.GetWarehousePrivateConnection(ctx, state.WarehouseID.ValueString())
+	conn, err := r.client.GetWarehouseConnections(ctx, state.WarehouseID.ValueString())
 	if err != nil {
 		if apiErr, ok := err.(*client.APIError); ok && apiErr.IsNotFound() {
 			state.ID = types.StringNull()
@@ -220,41 +224,43 @@ func (r *WarehousePrivateEndpointResource) readIntoState(ctx context.Context, st
 		return
 	}
 
-	var found *client.WarehouseInboundEndpoint
-	if conn.Inbound != nil {
-		for i := range conn.Inbound.Endpoints {
-			if conn.Inbound.Endpoints[i].EndpointID == state.EndpointID.ValueString() {
-				found = &conn.Inbound.Endpoints[i]
-				break
-			}
+	var found []client.PrivateConnectionEndpoint
+	for _, ep := range conn.PrivateEndpoints {
+		if ep.EndpointID == state.EndpointID.ValueString() {
+			found = append(found, ep)
 		}
 	}
 
-	if found == nil {
+	if len(found) == 0 {
 		// Endpoint disappeared cloud-side
 		state.ID = types.StringNull()
 		return
 	}
 
 	state.ID = types.StringValue(state.WarehouseID.ValueString() + "/" + state.EndpointID.ValueString())
-	state.Domain = stringOrNull(found.Domain)
-	state.Status = stringOrNull(found.Status)
-	if found.DNSName != "" {
-		state.DNSName = types.StringValue(found.DNSName)
-	}
-	if found.Description != "" {
-		state.Description = types.StringValue(found.Description)
-	}
-	state.JdbcPort = intPtrToInt64(found.JdbcPort)
-	state.HttpPort = intPtrToInt64(found.HttpPort)
-	state.StreamLoadPort = intPtrToInt64(found.StreamLoadPort)
-	state.AdbcPort = intPtrToInt64(found.AdbcPort)
-	state.StudioPort = intPtrToInt64(found.StudioPort)
+	state.Domain = stringOrNull(firstEndpointHost(found))
+	state.Status = types.StringNull()
+	state.JdbcPort = endpointPort(found, "jdbc")
+	state.HttpPort = endpointPort(found, "http")
+	state.StreamLoadPort = endpointPort(found, "stream_load")
+	state.AdbcPort = endpointPort(found, "adbc")
+	state.StudioPort = endpointPort(found, "studio")
 }
 
-func intPtrToInt64(p *int) types.Int64 {
-	if p == nil {
-		return types.Int64Null()
+func firstEndpointHost(endpoints []client.PrivateConnectionEndpoint) string {
+	for _, ep := range endpoints {
+		if ep.Host != "" {
+			return ep.Host
+		}
 	}
-	return types.Int64Value(int64(*p))
+	return ""
+}
+
+func endpointPort(endpoints []client.PrivateConnectionEndpoint, protocol string) types.Int64 {
+	for _, ep := range endpoints {
+		if ep.Protocol == protocol && ep.Port > 0 {
+			return types.Int64Value(int64(ep.Port))
+		}
+	}
+	return types.Int64Null()
 }

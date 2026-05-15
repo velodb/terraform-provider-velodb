@@ -3,6 +3,7 @@ package resource
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -72,17 +73,12 @@ func (r *PrivateLinkEndpointServiceResource) Schema(_ context.Context, _ resourc
 				},
 			},
 			"zone": schema.StringAttribute{
-				Description: "Availability zone hint (provider-dependent).",
-				Optional:    true,
+				Description: "Availability zone associated with the endpoint service when known.",
 				Computed:    true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"endpoint_service_id": schema.StringAttribute{
-				Description: "Cloud-side endpoint service ID. Some providers can infer it from endpoint_service_name.",
-				Optional:    true,
-				Computed:    true,
+				Description: "Cloud-side endpoint service ID.",
+				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -96,16 +92,15 @@ func (r *PrivateLinkEndpointServiceResource) Schema(_ context.Context, _ resourc
 			},
 			"provider_account_id": schema.StringAttribute{
 				Description: "Cloud account ID used for the endpoint service registration.",
-				Optional:    true,
 				Computed:    true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
-				},
 			},
 			"description": schema.StringAttribute{
 				Description: "Optional description.",
 				Optional:    true,
 				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"created_at": schema.StringAttribute{
 				Description: "Creation time in RFC 3339 format.",
@@ -144,11 +139,9 @@ func (r *PrivateLinkEndpointServiceResource) Create(ctx context.Context, req res
 	apiReq := &client.CreatePrivateLinkEndpointServiceRequest{
 		CloudProvider:       plan.CloudProvider.ValueString(),
 		Region:              plan.Region.ValueString(),
+		EndpointServiceID:   plan.EndpointServiceID.ValueString(),
 		EndpointServiceName: plan.EndpointServiceName.ValueString(),
 	}
-	setOptionalString(&apiReq.Zone, plan.Zone)
-	setOptionalString(&apiReq.EndpointServiceID, plan.EndpointServiceID)
-	setOptionalString(&apiReq.ProviderAccountID, plan.ProviderAccountID)
 	setOptionalString(&apiReq.Description, plan.Description)
 
 	result, err := r.client.CreatePrivateLinkEndpointService(ctx, apiReq)
@@ -158,7 +151,10 @@ func (r *PrivateLinkEndpointServiceResource) Create(ctx context.Context, req res
 	}
 
 	plan.ID = types.StringValue(result.EndpointServiceID)
-	r.readIntoState(ctx, result.EndpointServiceID, &plan, &resp.Diagnostics)
+	r.readIntoState(ctx, &plan, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -169,7 +165,7 @@ func (r *PrivateLinkEndpointServiceResource) Read(ctx context.Context, req resou
 		return
 	}
 
-	r.readIntoState(ctx, state.ID.ValueString(), &state, &resp.Diagnostics)
+	r.readIntoState(ctx, &state, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -177,24 +173,10 @@ func (r *PrivateLinkEndpointServiceResource) Read(ctx context.Context, req resou
 }
 
 func (r *PrivateLinkEndpointServiceResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan, state PrivateLinkEndpointServiceModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	if !plan.Description.Equal(state.Description) {
-		updateReq := &client.UpdatePrivateLinkEndpointServiceRequest{}
-		setOptionalString(&updateReq.Description, plan.Description)
-		if err := r.client.UpdatePrivateLinkEndpointService(ctx, state.ID.ValueString(), updateReq); err != nil {
-			resp.Diagnostics.AddError("Error updating PrivateLink endpoint service", err.Error())
-			return
-		}
-	}
-
-	r.readIntoState(ctx, state.ID.ValueString(), &plan, &resp.Diagnostics)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	resp.Diagnostics.AddError(
+		"PrivateLink endpoint service cannot be updated",
+		"The current management API only supports registering and deleting endpoint services. Change the configuration in a way that replaces the resource.",
+	)
 }
 
 func (r *PrivateLinkEndpointServiceResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -213,17 +195,35 @@ func (r *PrivateLinkEndpointServiceResource) Delete(ctx context.Context, req res
 }
 
 func (r *PrivateLinkEndpointServiceResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
+	parts := strings.Split(req.ID, "/")
+	if len(parts) != 3 {
+		resp.Diagnostics.AddError("Invalid import ID", "Expected format: cloud_provider/region/endpoint_service_id")
+		return
+	}
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("cloud_provider"), parts[0])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("region"), parts[1])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("endpoint_service_id"), parts[2])...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[2])...)
 }
 
-func (r *PrivateLinkEndpointServiceResource) readIntoState(ctx context.Context, id string, state *PrivateLinkEndpointServiceModel, diags *diag.Diagnostics) {
-	svc, err := r.client.GetPrivateLinkEndpointService(ctx, id)
+func (r *PrivateLinkEndpointServiceResource) readIntoState(ctx context.Context, state *PrivateLinkEndpointServiceModel, diags *diag.Diagnostics) {
+	services, err := r.client.ListPrivateLinkEndpointServices(ctx, &client.ListPrivateLinkEndpointServicesOptions{
+		CloudProvider: state.CloudProvider.ValueString(),
+		Region:        state.Region.ValueString(),
+	})
 	if err != nil {
-		if apiErr, ok := err.(*client.APIError); ok && apiErr.IsNotFound() {
-			state.ID = types.StringNull()
-			return
-		}
 		diags.AddError("Error reading PrivateLink endpoint service", err.Error())
+		return
+	}
+	var svc *client.PrivateLinkEndpointService
+	for i := range services {
+		if services[i].EndpointServiceID == state.EndpointServiceID.ValueString() || services[i].EndpointServiceID == state.ID.ValueString() {
+			svc = &services[i]
+			break
+		}
+	}
+	if svc == nil {
+		state.ID = types.StringNull()
 		return
 	}
 
@@ -234,7 +234,9 @@ func (r *PrivateLinkEndpointServiceResource) readIntoState(ctx context.Context, 
 	state.EndpointServiceID = stringOrNull(svc.EndpointServiceID)
 	state.EndpointServiceName = stringOrNull(svc.EndpointServiceName)
 	state.ProviderAccountID = stringOrNull(svc.ProviderAccountID)
-	state.Description = stringOrNull(svc.Description)
+	if svc.Description != "" || state.Description.IsNull() || state.Description.IsUnknown() {
+		state.Description = stringOrNull(svc.Description)
+	}
 	state.Connected = types.BoolValue(svc.Connected)
 	if svc.CreatedAt != nil {
 		state.CreatedAt = types.StringValue(svc.CreatedAt.Format(time.RFC3339))

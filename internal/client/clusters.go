@@ -45,17 +45,17 @@ func (c *FormationClient) ListClusters(ctx context.Context, warehouseID string, 
 	q := url.Values{}
 	if opts != nil {
 		addPagination(q, opts.Page, opts.Size)
-		if opts.Keyword != "" {
-			q.Set("keyword", opts.Keyword)
+		if opts.ClusterID != "" {
+			q.Set("clusterId", opts.ClusterID)
+		}
+		if opts.ClusterName != "" {
+			q.Set("clusterName", opts.ClusterName)
 		}
 		if opts.Status != "" {
 			q.Set("status", opts.Status)
 		}
 		if opts.ClusterType != "" {
 			q.Set("clusterType", opts.ClusterType)
-		}
-		if opts.BillingModel != "" {
-			q.Set("billingModel", opts.BillingModel)
 		}
 	}
 	resp, err := c.get(ctx, clustersBasePath(warehouseID), q)
@@ -87,18 +87,14 @@ func (c *FormationClient) DeleteCluster(ctx context.Context, warehouseID, cluste
 	return parseResponse[any](resp, nil)
 }
 
-// PauseCluster pauses a cluster.
-func (c *FormationClient) PauseCluster(ctx context.Context, warehouseID, clusterID string) error {
-	resp, err := c.post(ctx, fmt.Sprintf("%s/pause", clusterPath(warehouseID, clusterID)), nil)
-	if err != nil {
-		return err
+// OperateCluster performs a cluster action via the operation-specific endpoint.
+func (c *FormationClient) OperateCluster(ctx context.Context, warehouseID, clusterID, action string) error {
+	switch action {
+	case "pause", "resume", "reboot":
+	default:
+		return fmt.Errorf("unsupported cluster action %q", action)
 	}
-	return parseResponse[any](resp, nil)
-}
-
-// ResumeCluster resumes a paused cluster.
-func (c *FormationClient) ResumeCluster(ctx context.Context, warehouseID, clusterID string) error {
-	resp, err := c.post(ctx, fmt.Sprintf("%s/resume", clusterPath(warehouseID, clusterID)), nil)
+	resp, err := c.post(ctx, fmt.Sprintf("%s/%s", clusterPath(warehouseID, clusterID), action), nil)
 	if err != nil {
 		return err
 	}
@@ -107,42 +103,5 @@ func (c *FormationClient) ResumeCluster(ctx context.Context, warehouseID, cluste
 
 // RebootCluster reboots a cluster.
 func (c *FormationClient) RebootCluster(ctx context.Context, warehouseID, clusterID string) error {
-	resp, err := c.post(ctx, fmt.Sprintf("%s/reboot", clusterPath(warehouseID, clusterID)), nil)
-	if err != nil {
-		return err
-	}
-	return parseResponse[any](resp, nil)
-}
-
-// OperateCluster performs a cluster action by name (kept for backward compatibility).
-// Dispatches to PauseCluster, ResumeCluster, or RebootCluster.
-func (c *FormationClient) OperateCluster(ctx context.Context, warehouseID, clusterID, action string) error {
-	switch action {
-	case "pause":
-		return c.PauseCluster(ctx, warehouseID, clusterID)
-	case "resume":
-		return c.ResumeCluster(ctx, warehouseID, clusterID)
-	case "reboot":
-		return c.RebootCluster(ctx, warehouseID, clusterID)
-	default:
-		return fmt.Errorf("unknown cluster action: %s (valid: pause, resume, reboot)", action)
-	}
-}
-
-// RenewCluster renews a subscription cluster.
-func (c *FormationClient) RenewCluster(ctx context.Context, warehouseID, clusterID string, req *RenewClusterRequest) error {
-	resp, err := c.post(ctx, fmt.Sprintf("%s/renew", clusterPath(warehouseID, clusterID)), req)
-	if err != nil {
-		return err
-	}
-	return parseResponse[any](resp, nil)
-}
-
-// ConvertClusterToSubscription converts a cluster to subscription billing.
-func (c *FormationClient) ConvertClusterToSubscription(ctx context.Context, warehouseID, clusterID string, req *ConvertToSubscriptionRequest) error {
-	resp, err := c.post(ctx, fmt.Sprintf("%s/convert-to-subscription", clusterPath(warehouseID, clusterID)), req)
-	if err != nil {
-		return err
-	}
-	return parseResponse[any](resp, nil)
+	return c.OperateCluster(ctx, warehouseID, clusterID, "reboot")
 }

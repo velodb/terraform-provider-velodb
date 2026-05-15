@@ -49,15 +49,13 @@ func TestCreateCluster(t *testing.T) {
 	})
 
 	zone := "cn-beijing-k"
-	billingMethod := "on_demand"
 	timeout := 50
 	result, err := client.CreateCluster(context.Background(), "WH-001", &CreateClusterRequest{
-		Name:          "compute-etl",
-		ClusterType:   "COMPUTE",
-		Zone:          &zone,
-		ComputeVcpu:   4,
-		CacheGb:       100,
-		BillingModel: &billingMethod,
+		Name:        "compute-etl",
+		ClusterType: "COMPUTE",
+		Zone:        &zone,
+		ComputeVcpu: 4,
+		CacheGb:     100,
 		AutoPause: &AutoPauseConfig{
 			Enabled:            false,
 			IdleTimeoutMinutes: &timeout,
@@ -251,23 +249,13 @@ func TestDeleteCluster(t *testing.T) {
 }
 
 func TestClusterActions(t *testing.T) {
-	tests := []struct {
-		name     string
-		action   string
-		endpoint string
-	}{
-		{"pause", "pause", "/v1/warehouses/WH-001/clusters/CL-001/pause"},
-		{"resume", "resume", "/v1/warehouses/WH-001/clusters/CL-001/resume"},
-		{"reboot", "reboot", "/v1/warehouses/WH-001/clusters/CL-001/reboot"},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, action := range []string{"pause", "resume", "reboot"} {
+		t.Run(action, func(t *testing.T) {
 			ts, mux := newTestServer(t)
 			defer ts.Close()
 			client := newTestClient(t, ts)
 
-			mux.HandleFunc(tc.endpoint, func(w http.ResponseWriter, r *http.Request) {
+			mux.HandleFunc("/v1/warehouses/WH-001/clusters/CL-001/"+action, func(w http.ResponseWriter, r *http.Request) {
 				if !requireMethod(t, w, r, http.MethodPost) {
 					return
 				}
@@ -277,72 +265,11 @@ func TestClusterActions(t *testing.T) {
 				})
 			})
 
-			err := client.OperateCluster(context.Background(), "WH-001", "CL-001", tc.action)
+			err := client.OperateCluster(context.Background(), "WH-001", "CL-001", action)
 			if err != nil {
-				t.Fatalf("OperateCluster(%s): %v", tc.action, err)
+				t.Fatalf("OperateCluster(%s): %v", action, err)
 			}
 		})
-	}
-}
-
-func TestRenewCluster(t *testing.T) {
-	ts, mux := newTestServer(t)
-	defer ts.Close()
-	client := newTestClient(t, ts)
-
-	mux.HandleFunc("/v1/warehouses/WH-001/clusters/CL-001/renew", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(t, w, r, http.MethodPost) {
-			return
-		}
-		var req RenewClusterRequest
-		json.NewDecoder(r.Body).Decode(&req)
-
-		if req.Period != 1 {
-			t.Errorf("expected period 1, got %d", req.Period)
-		}
-
-		jsonResponse(w, 200, APIResponse[struct{}]{
-			Success:   true,
-			RequestID: "req-027",
-		})
-	})
-
-	err := client.RenewCluster(context.Background(), "WH-001", "CL-001", &RenewClusterRequest{
-		Period: 1,
-	})
-	if err != nil {
-		t.Fatalf("RenewCluster: %v", err)
-	}
-}
-
-func TestConvertClusterToSubscription(t *testing.T) {
-	ts, mux := newTestServer(t)
-	defer ts.Close()
-	client := newTestClient(t, ts)
-
-	mux.HandleFunc("/v1/warehouses/WH-001/clusters/CL-001/convert-to-subscription", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(t, w, r, http.MethodPost) {
-			return
-		}
-		var req ConvertToSubscriptionRequest
-		json.NewDecoder(r.Body).Decode(&req)
-
-		if req.Period != 1 {
-			t.Errorf("expected period 1, got %d", req.Period)
-		}
-
-		jsonResponse(w, 200, APIResponse[struct{}]{
-			Success:   true,
-			RequestID: "req-028",
-		})
-	})
-
-	err := client.ConvertClusterToSubscription(context.Background(), "WH-001", "CL-001", &ConvertToSubscriptionRequest{
-		Period:     1,
-		PeriodUnit: "Month",
-	})
-	if err != nil {
-		t.Fatalf("ConvertClusterToSubscription: %v", err)
 	}
 }
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -22,11 +21,41 @@ func NewWarehouseConnectionsDataSource() datasource.DataSource {
 	return &WarehouseConnectionsDataSource{}
 }
 
-type WarehouseConnectionsDataSourceModel struct {
-	WarehouseID       types.String `tfsdk:"warehouse_id"`
-	PublicConnection  types.List   `tfsdk:"public_connection"`
-	PrivateInbound    types.List   `tfsdk:"private_inbound"`
-	PrivateOutbound   types.List   `tfsdk:"private_outbound_services"`
+type WarehouseConnectionsModel struct {
+	WarehouseID         types.String                     `tfsdk:"warehouse_id"`
+	EndpointServiceID   types.String                     `tfsdk:"endpoint_service_id"`
+	EndpointServiceName types.String                     `tfsdk:"endpoint_service_name"`
+	PublicEndpoints     []ConnectionEndpointModel        `tfsdk:"public_endpoints"`
+	PrivateEndpoints    []PrivateConnectionEndpointModel `tfsdk:"private_endpoints"`
+	ComputeClusters     []ConnectionClusterModel         `tfsdk:"compute_clusters"`
+	ObserverGroups      []ObserverGroupModel             `tfsdk:"observer_groups"`
+}
+
+type ConnectionEndpointModel struct {
+	Protocol types.String `tfsdk:"protocol"`
+	Host     types.String `tfsdk:"host"`
+	Port     types.Int64  `tfsdk:"port"`
+	URL      types.String `tfsdk:"url"`
+}
+
+type ConnectionClusterModel struct {
+	ClusterID   types.String `tfsdk:"cluster_id"`
+	ClusterName types.String `tfsdk:"cluster_name"`
+	HTTPPort    types.Int64  `tfsdk:"http_port"`
+}
+
+type PrivateConnectionEndpointModel struct {
+	Protocol   types.String `tfsdk:"protocol"`
+	Host       types.String `tfsdk:"host"`
+	Port       types.Int64  `tfsdk:"port"`
+	URL        types.String `tfsdk:"url"`
+	EndpointID types.String `tfsdk:"endpoint_id"`
+}
+
+type ObserverGroupModel struct {
+	ClusterID types.String `tfsdk:"cluster_id"`
+	Name      types.String `tfsdk:"name"`
+	JdbcPort  types.Int64  `tfsdk:"jdbc_port"`
 }
 
 func (d *WarehouseConnectionsDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -35,69 +64,64 @@ func (d *WarehouseConnectionsDataSource) Metadata(_ context.Context, req datasou
 
 func (d *WarehouseConnectionsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Get combined public + private connection information for a VeloDB warehouse.",
+		Description: "Get connection endpoints for a VeloDB warehouse.",
 		Attributes: map[string]schema.Attribute{
 			"warehouse_id": schema.StringAttribute{
 				Description: "Warehouse identifier.",
 				Required:    true,
 			},
-			"public_connection": schema.ListNestedAttribute{
-				Description: "Public connection details (list with 0 or 1 elements).",
+			"endpoint_service_id": schema.StringAttribute{
+				Description: "PrivateLink endpoint service ID for creating cloud-side private endpoints when available.",
+				Computed:    true,
+			},
+			"endpoint_service_name": schema.StringAttribute{
+				Description: "PrivateLink endpoint service name for creating cloud-side private endpoints when available.",
+				Computed:    true,
+			},
+			"public_endpoints": schema.ListNestedAttribute{
+				Description: "Public connection endpoints (JDBC, HTTP, stream_load, ADBC, studio, MCP).",
 				Computed:    true,
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
-						"host":             schema.StringAttribute{Computed: true},
-						"jdbc_url":         schema.StringAttribute{Computed: true},
-						"http_url":         schema.StringAttribute{Computed: true},
-						"jdbc_port":        schema.Int64Attribute{Computed: true},
-						"http_port":        schema.Int64Attribute{Computed: true},
-						"stream_load_port": schema.Int64Attribute{Computed: true},
-						"adbc_port":        schema.Int64Attribute{Computed: true},
-						"studio_port":      schema.Int64Attribute{Computed: true},
-						"public_access_policy": schema.StringAttribute{Computed: true},
+						"protocol": schema.StringAttribute{Computed: true, Description: "Protocol name (jdbc, http, stream_load, adbc, studio, mcp)."},
+						"host":     schema.StringAttribute{Computed: true, Description: "Endpoint host."},
+						"port":     schema.Int64Attribute{Computed: true, Description: "Endpoint port."},
+						"url":      schema.StringAttribute{Computed: true, Description: "Full connection URL."},
 					},
 				},
 			},
-			"private_inbound": schema.ListNestedAttribute{
-				Description: "Inbound PrivateLink connection details (list with 0 or 1 elements).",
+			"private_endpoints": schema.ListNestedAttribute{
+				Description: "Private connection endpoints grouped by protocol.",
 				Computed:    true,
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
-						"endpoint_service_id":   schema.StringAttribute{Computed: true},
-						"endpoint_service_name": schema.StringAttribute{Computed: true},
-						"enabled":               schema.BoolAttribute{Computed: true},
-						"provider_account_id":   schema.StringAttribute{Computed: true},
-						"description":           schema.StringAttribute{Computed: true},
-						"endpoints": schema.ListNestedAttribute{
-							Computed: true,
-							NestedObject: schema.NestedAttributeObject{
-								Attributes: map[string]schema.Attribute{
-									"endpoint_id":      schema.StringAttribute{Computed: true},
-									"domain":           schema.StringAttribute{Computed: true},
-									"status":           schema.StringAttribute{Computed: true},
-									"dns_name":         schema.StringAttribute{Computed: true},
-									"description":      schema.StringAttribute{Computed: true},
-									"jdbc_port":        schema.Int64Attribute{Computed: true},
-									"http_port":        schema.Int64Attribute{Computed: true},
-									"stream_load_port": schema.Int64Attribute{Computed: true},
-									"adbc_port":        schema.Int64Attribute{Computed: true},
-									"studio_port":      schema.Int64Attribute{Computed: true},
-								},
-							},
-						},
+						"protocol":    schema.StringAttribute{Computed: true, Description: "Protocol name (jdbc, http, stream_load, adbc, studio, mcp)."},
+						"host":        schema.StringAttribute{Computed: true, Description: "Endpoint host."},
+						"port":        schema.Int64Attribute{Computed: true, Description: "Endpoint port."},
+						"url":         schema.StringAttribute{Computed: true, Description: "Full connection URL."},
+						"endpoint_id": schema.StringAttribute{Computed: true, Description: "Cloud private endpoint ID when available."},
 					},
 				},
 			},
-			"private_outbound_services": schema.ListNestedAttribute{
-				Description: "Outbound PrivateLink endpoint services visible to this warehouse.",
+			"compute_clusters": schema.ListNestedAttribute{
+				Description: "Compute cluster connection details.",
 				Computed:    true,
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
-						"endpoint_service_id":   schema.StringAttribute{Computed: true},
-						"endpoint_service_name": schema.StringAttribute{Computed: true},
-						"cloud_provider":        schema.StringAttribute{Computed: true},
-						"region":                schema.StringAttribute{Computed: true},
-						"description":           schema.StringAttribute{Computed: true},
+						"cluster_id":   schema.StringAttribute{Computed: true, Description: "Cluster identifier."},
+						"cluster_name": schema.StringAttribute{Computed: true, Description: "Cluster name."},
+						"http_port":    schema.Int64Attribute{Computed: true, Description: "HTTP port for this cluster."},
+					},
+				},
+			},
+			"observer_groups": schema.ListNestedAttribute{
+				Description: "Observer group connection details.",
+				Computed:    true,
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"cluster_id": schema.StringAttribute{Computed: true, Description: "Observer cluster identifier when available."},
+						"name":       schema.StringAttribute{Computed: true, Description: "Observer group name."},
+						"jdbc_port":  schema.Int64Attribute{Computed: true, Description: "JDBC port for this observer group."},
 					},
 				},
 			},
@@ -118,7 +142,7 @@ func (d *WarehouseConnectionsDataSource) Configure(_ context.Context, req dataso
 }
 
 func (d *WarehouseConnectionsDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-	var config WarehouseConnectionsDataSourceModel
+	var config WarehouseConnectionsModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -130,134 +154,68 @@ func (d *WarehouseConnectionsDataSource) Read(ctx context.Context, req datasourc
 		return
 	}
 
-	// --- public_connection ---
-	pubTypes := map[string]attr.Type{
-		"host":                 types.StringType,
-		"jdbc_url":             types.StringType,
-		"http_url":             types.StringType,
-		"jdbc_port":            types.Int64Type,
-		"http_port":            types.Int64Type,
-		"stream_load_port":     types.Int64Type,
-		"adbc_port":            types.Int64Type,
-		"studio_port":          types.Int64Type,
-		"public_access_policy": types.StringType,
+	config.EndpointServiceID = types.StringNull()
+	config.EndpointServiceName = types.StringNull()
+	wh, err := d.client.GetWarehouse(ctx, config.WarehouseID.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddWarning(
+			"Unable to enrich warehouse endpoint service",
+			fmt.Sprintf("Connection endpoints were read, but warehouse detail lookup failed: %s", err.Error()),
+		)
+	} else {
+		config.EndpointServiceID = stringOrNull(wh.EndpointServiceID)
+		config.EndpointServiceName = stringOrNull(wh.EndpointServiceName)
 	}
-	var pubItems []attr.Value
-	if conns.PublicConnection != nil {
-		p := conns.PublicConnection
-		obj, d1 := types.ObjectValue(pubTypes, map[string]attr.Value{
-			"host":                 stringVal(p.Host),
-			"jdbc_url":             stringVal(p.JdbcURL),
-			"http_url":             stringVal(p.HTTPURL),
-			"jdbc_port":            intPtrVal(p.JdbcPort),
-			"http_port":            intPtrVal(p.HTTPPort),
-			"stream_load_port":     intPtrVal(p.StreamLoadPort),
-			"adbc_port":            intPtrVal(p.AdbcPort),
-			"studio_port":          intPtrVal(p.StudioPort),
-			"public_access_policy": stringVal(p.PublicAccessPolicy),
+
+	config.PublicEndpoints = make([]ConnectionEndpointModel, 0, len(conns.PublicEndpoints))
+	for _, ep := range conns.PublicEndpoints {
+		config.PublicEndpoints = append(config.PublicEndpoints, ConnectionEndpointModel{
+			Protocol: stringOrNull(ep.Protocol),
+			Host:     stringOrNull(ep.Host),
+			Port:     types.Int64Value(int64(ep.Port)),
+			URL:      stringOrNull(ep.URL),
 		})
-		resp.Diagnostics.Append(d1...)
-		pubItems = append(pubItems, obj)
 	}
-	pubList, d1 := types.ListValue(types.ObjectType{AttrTypes: pubTypes}, pubItems)
-	resp.Diagnostics.Append(d1...)
-	config.PublicConnection = pubList
 
-	// --- private_inbound ---
-	epTypes := map[string]attr.Type{
-		"endpoint_id":      types.StringType,
-		"domain":           types.StringType,
-		"status":           types.StringType,
-		"dns_name":         types.StringType,
-		"description":      types.StringType,
-		"jdbc_port":        types.Int64Type,
-		"http_port":        types.Int64Type,
-		"stream_load_port": types.Int64Type,
-		"adbc_port":        types.Int64Type,
-		"studio_port":      types.Int64Type,
-	}
-	inboundTypes := map[string]attr.Type{
-		"endpoint_service_id":   types.StringType,
-		"endpoint_service_name": types.StringType,
-		"enabled":               types.BoolType,
-		"provider_account_id":   types.StringType,
-		"description":           types.StringType,
-		"endpoints":             types.ListType{ElemType: types.ObjectType{AttrTypes: epTypes}},
-	}
-	var inboundItems []attr.Value
-	if conns.PrivateConnection != nil && conns.PrivateConnection.Inbound != nil {
-		inb := conns.PrivateConnection.Inbound
-		var epItems []attr.Value
-		for _, ep := range inb.Endpoints {
-			obj, dd := types.ObjectValue(epTypes, map[string]attr.Value{
-				"endpoint_id":      types.StringValue(ep.EndpointID),
-				"domain":           stringVal(ep.Domain),
-				"status":           stringVal(ep.Status),
-				"dns_name":         stringVal(ep.DNSName),
-				"description":      stringVal(ep.Description),
-				"jdbc_port":        intPtrVal(ep.JdbcPort),
-				"http_port":        intPtrVal(ep.HttpPort),
-				"stream_load_port": intPtrVal(ep.StreamLoadPort),
-				"adbc_port":        intPtrVal(ep.AdbcPort),
-				"studio_port":      intPtrVal(ep.StudioPort),
-			})
-			resp.Diagnostics.Append(dd...)
-			epItems = append(epItems, obj)
-		}
-		epList, dd := types.ListValue(types.ObjectType{AttrTypes: epTypes}, epItems)
-		resp.Diagnostics.Append(dd...)
-
-		enabled := types.BoolNull()
-		if inb.Enabled != nil {
-			enabled = types.BoolValue(*inb.Enabled)
-		}
-		obj, dd := types.ObjectValue(inboundTypes, map[string]attr.Value{
-			"endpoint_service_id":   stringVal(inb.EndpointServiceID),
-			"endpoint_service_name": stringVal(inb.EndpointServiceName),
-			"enabled":               enabled,
-			"provider_account_id":   stringVal(inb.ProviderAccountID),
-			"description":           stringVal(inb.Description),
-			"endpoints":             epList,
+	config.PrivateEndpoints = make([]PrivateConnectionEndpointModel, 0, len(conns.PrivateEndpoints))
+	for _, ep := range conns.PrivateEndpoints {
+		config.PrivateEndpoints = append(config.PrivateEndpoints, PrivateConnectionEndpointModel{
+			Protocol:   stringOrNull(ep.Protocol),
+			Host:       stringOrNull(ep.Host),
+			Port:       types.Int64Value(int64(ep.Port)),
+			URL:        stringOrNull(ep.URL),
+			EndpointID: stringOrNull(ep.EndpointID),
 		})
-		resp.Diagnostics.Append(dd...)
-		inboundItems = append(inboundItems, obj)
 	}
-	inboundList, d2 := types.ListValue(types.ObjectType{AttrTypes: inboundTypes}, inboundItems)
-	resp.Diagnostics.Append(d2...)
-	config.PrivateInbound = inboundList
 
-	// --- private_outbound_services ---
-	outTypes := map[string]attr.Type{
-		"endpoint_service_id":   types.StringType,
-		"endpoint_service_name": types.StringType,
-		"cloud_provider":        types.StringType,
-		"region":                types.StringType,
-		"description":           types.StringType,
+	config.ComputeClusters = make([]ConnectionClusterModel, 0, len(conns.ComputeClusters))
+	for _, cl := range conns.ComputeClusters {
+		config.ComputeClusters = append(config.ComputeClusters, ConnectionClusterModel{
+			ClusterID:   stringOrNull(cl.ClusterID),
+			ClusterName: stringOrNull(cl.ClusterName),
+			HTTPPort:    types.Int64Value(int64(cl.HTTPPort)),
+		})
 	}
-	var outItems []attr.Value
-	if conns.PrivateConnection != nil {
-		for _, svc := range conns.PrivateConnection.OutboundServices {
-			obj, dd := types.ObjectValue(outTypes, map[string]attr.Value{
-				"endpoint_service_id":   stringVal(svc.EndpointServiceID),
-				"endpoint_service_name": stringVal(svc.EndpointServiceName),
-				"cloud_provider":        stringVal(svc.CloudProvider),
-				"region":                stringVal(svc.Region),
-				"description":           stringVal(svc.Description),
-			})
-			resp.Diagnostics.Append(dd...)
-			outItems = append(outItems, obj)
+
+	config.ObserverGroups = make([]ObserverGroupModel, 0, len(conns.ObserverGroups))
+	for _, group := range conns.ObserverGroups {
+		jdbcPort := types.Int64Null()
+		if group.JdbcPort != nil {
+			jdbcPort = types.Int64Value(int64(*group.JdbcPort))
 		}
+		config.ObserverGroups = append(config.ObserverGroups, ObserverGroupModel{
+			ClusterID: stringOrNull(group.ClusterID),
+			Name:      stringOrNull(group.Name),
+			JdbcPort:  jdbcPort,
+		})
 	}
-	outList, d3 := types.ListValue(types.ObjectType{AttrTypes: outTypes}, outItems)
-	resp.Diagnostics.Append(d3...)
-	config.PrivateOutbound = outList
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &config)...)
 }
 
-func intPtrVal(p *int) types.Int64 {
-	if p == nil {
-		return types.Int64Null()
+func stringOrNull(s string) types.String {
+	if s == "" {
+		return types.StringNull()
 	}
-	return types.Int64Value(int64(*p))
+	return types.StringValue(s)
 }

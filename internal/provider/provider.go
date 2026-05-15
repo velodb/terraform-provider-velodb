@@ -23,8 +23,8 @@ type VeloDBProvider struct {
 }
 
 type VeloDBProviderModel struct {
-	Host    types.String `tfsdk:"host"`
-	APIKey  types.String `tfsdk:"api_key"`
+	Host   types.String `tfsdk:"host"`
+	APIKey types.String `tfsdk:"api_key"`
 }
 
 func New(version string) func() provider.Provider {

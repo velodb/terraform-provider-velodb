@@ -39,11 +39,37 @@ type WarehousePublicAccessPolicyRequest struct {
 	Rules              []WarehouseAllowlistRule `json:"rules,omitempty"`
 }
 
+type WarehousePublicAccessPolicyResponse struct {
+	PublicAccessPolicy string                   `json:"publicAccessPolicy,omitempty"`
+	Allowlist          []WarehouseAllowlistRule `json:"allowlist,omitempty"`
+	Rules              []WarehouseAllowlistRule `json:"rules,omitempty"`
+}
+
 // --- Combined connections (GET /connections) ---
 
 type WarehouseConnections struct {
-	PublicConnection  *WarehousePublicConnection  `json:"publicConnection,omitempty"`
-	PrivateConnection *WarehousePrivateConnection `json:"privateConnection,omitempty"`
+	PublicEndpoints  []ConnectionEndpoint        `json:"publicEndpoints,omitempty"`
+	PrivateEndpoints []PrivateConnectionEndpoint `json:"privateEndpoints,omitempty"`
+	ComputeClusters  []ConnectionCluster         `json:"computeClusters,omitempty"`
+	ObserverGroups   []ObserverGroup             `json:"observerGroups,omitempty"`
+}
+
+type ConnectionEndpoint struct {
+	Protocol string `json:"protocol,omitempty"`
+	Host     string `json:"host,omitempty"`
+	Port     int    `json:"port,omitempty"`
+	URL      string `json:"url,omitempty"`
+}
+
+type PrivateConnectionEndpoint struct {
+	ConnectionEndpoint
+	EndpointID string `json:"endpointId,omitempty"`
+}
+
+type ConnectionCluster struct {
+	ClusterID   string `json:"clusterId,omitempty"`
+	ClusterName string `json:"clusterName,omitempty"`
+	HTTPPort    int    `json:"httpPort,omitempty"`
 }
 
 // --- Methods ---
@@ -74,6 +100,19 @@ func (c *FormationClient) GetWarehousePublicConnection(ctx context.Context, ware
 	return &result.Data, nil
 }
 
+// GetWarehousePublicAccessPolicy returns the public access policy.
+func (c *FormationClient) GetWarehousePublicAccessPolicy(ctx context.Context, warehouseID string) (*WarehousePublicAccessPolicyResponse, error) {
+	resp, err := c.get(ctx, fmt.Sprintf("/v1/warehouses/%s/connections/public/access-policy", warehouseID), nil)
+	if err != nil {
+		return nil, err
+	}
+	var result APIResponse[WarehousePublicAccessPolicyResponse]
+	if err := parseResponse(resp, &result); err != nil {
+		return nil, err
+	}
+	return &result.Data, nil
+}
+
 // UpdateWarehousePublicAccessPolicy sets the public access policy.
 func (c *FormationClient) UpdateWarehousePublicAccessPolicy(ctx context.Context, warehouseID string, req *WarehousePublicAccessPolicyRequest) error {
 	resp, err := c.patch(ctx, fmt.Sprintf("/v1/warehouses/%s/connections/public/access-policy", warehouseID), req)
@@ -83,23 +122,9 @@ func (c *FormationClient) UpdateWarehousePublicAccessPolicy(ctx context.Context,
 	return parseResponse[any](resp, nil)
 }
 
-// GetWarehousePrivateConnection returns private PrivateLink inbound/outbound info.
-func (c *FormationClient) GetWarehousePrivateConnection(ctx context.Context, warehouseID string) (*WarehousePrivateConnection, error) {
-	resp, err := c.get(ctx, fmt.Sprintf("/v1/warehouses/%s/connections/private", warehouseID), nil)
-	if err != nil {
-		return nil, err
-	}
-	var result APIResponse[WarehousePrivateConnection]
-	if err := parseResponse(resp, &result); err != nil {
-		return nil, err
-	}
-	return &result.Data, nil
-}
-
-// UpdateWarehousePrivateEndpointCustom sets custom DNS and description on an inbound PrivateLink endpoint.
-func (c *FormationClient) UpdateWarehousePrivateEndpointCustom(ctx context.Context, warehouseID, endpointID string, req *WarehousePrivateEndpointCustomRequest) error {
-	path := fmt.Sprintf("/v1/warehouses/%s/connections/private/endpoints/%s", warehouseID, endpointID)
-	resp, err := c.put(ctx, path, req)
+// RegisterWarehousePrivateEndpoint registers an existing cloud private endpoint for a warehouse.
+func (c *FormationClient) RegisterWarehousePrivateEndpoint(ctx context.Context, warehouseID string, req *RegisterWarehousePrivateEndpointRequest) error {
+	resp, err := c.post(ctx, fmt.Sprintf("/v1/private-link/warehouses/%s/endpoints", warehouseID), req)
 	if err != nil {
 		return err
 	}

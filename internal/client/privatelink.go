@@ -12,15 +12,9 @@ import (
 type CreatePrivateLinkEndpointServiceRequest struct {
 	CloudProvider       string  `json:"cloudProvider"`
 	Region              string  `json:"region"`
-	Zone                *string `json:"zone,omitempty"`
-	EndpointServiceID   *string `json:"endpointServiceId,omitempty"`
+	EndpointServiceID   string  `json:"endpointServiceId"`
 	EndpointServiceName string  `json:"endpointServiceName"`
-	ProviderAccountID   *string `json:"providerAccountId,omitempty"`
 	Description         *string `json:"description,omitempty"`
-}
-
-type UpdatePrivateLinkEndpointServiceRequest struct {
-	Description *string `json:"description,omitempty"`
 }
 
 type PrivateLinkEndpointService struct {
@@ -48,24 +42,15 @@ func (c *FormationClient) CreatePrivateLinkEndpointService(ctx context.Context, 
 	if err != nil {
 		return nil, err
 	}
-	var result APIResponse[PrivateLinkEndpointService]
-	if err := parseResponse(resp, &result); err != nil {
+	if err := parseResponse[any](resp, nil); err != nil {
 		return nil, err
 	}
-	return &result.Data, nil
-}
-
-// GetPrivateLinkEndpointService returns a single endpoint service by ID.
-func (c *FormationClient) GetPrivateLinkEndpointService(ctx context.Context, endpointServiceID string) (*PrivateLinkEndpointService, error) {
-	resp, err := c.get(ctx, fmt.Sprintf("/v1/private-link/endpoint-services/%s", endpointServiceID), nil)
-	if err != nil {
-		return nil, err
-	}
-	var result APIResponse[PrivateLinkEndpointService]
-	if err := parseResponse(resp, &result); err != nil {
-		return nil, err
-	}
-	return &result.Data, nil
+	return &PrivateLinkEndpointService{
+		CloudProvider:       req.CloudProvider,
+		Region:              req.Region,
+		EndpointServiceID:   req.EndpointServiceID,
+		EndpointServiceName: req.EndpointServiceName,
+	}, nil
 }
 
 // ListPrivateLinkEndpointServices returns all registered endpoint services.
@@ -88,15 +73,6 @@ func (c *FormationClient) ListPrivateLinkEndpointServices(ctx context.Context, o
 		return nil, err
 	}
 	return result.Data, nil
-}
-
-// UpdatePrivateLinkEndpointService updates the description of an endpoint service.
-func (c *FormationClient) UpdatePrivateLinkEndpointService(ctx context.Context, endpointServiceID string, req *UpdatePrivateLinkEndpointServiceRequest) error {
-	resp, err := c.patch(ctx, fmt.Sprintf("/v1/private-link/endpoint-services/%s", endpointServiceID), req)
-	if err != nil {
-		return err
-	}
-	return parseResponse[any](resp, nil)
 }
 
 // DeletePrivateLinkEndpointService deregisters an endpoint service.

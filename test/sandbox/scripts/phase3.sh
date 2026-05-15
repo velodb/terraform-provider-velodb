@@ -8,15 +8,18 @@ cd "$(dirname "$0")/../phase1"
 : "${TF_VAR_api_key:?TF_VAR_api_key required}"
 
 assert_clean() {
+  local label="$1"
+  shift
   set +e
   terraform plan -detailed-exitcode -no-color "$@" > /tmp/p3.log 2>&1
   rc=$?
   set -e
   if [ "$rc" -ne 0 ]; then
-    echo "FAIL: drift after $1"
+    echo "FAIL: drift after $label"
     cat /tmp/p3.log
     exit 1
   fi
+  echo "OK: $label drift clean"
 }
 
 # 3.1 — create on_demand cluster

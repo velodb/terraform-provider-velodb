@@ -2,29 +2,33 @@ package resource
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/velodb/terraform-provider-velodb/internal/client"
 )
 
 var (
-	_ resource.Resource                = &ClusterResource{}
-	_ resource.ResourceWithImportState = &ClusterResource{}
+	_ resource.Resource                   = &ClusterResource{}
+	_ resource.ResourceWithImportState    = &ClusterResource{}
+	_ resource.ResourceWithValidateConfig = &ClusterResource{}
 )
 
 type ClusterResource struct {
@@ -43,39 +47,24 @@ type ClusterResourceModel struct {
 	Name          types.String   `tfsdk:"name"`
 	ClusterType   types.String   `tfsdk:"cluster_type"`
 	Zone          types.String   `tfsdk:"zone"`
+	ComputeVcpu   types.Int64    `tfsdk:"compute_vcpu"`
+	CacheGb       types.Int64    `tfsdk:"cache_gb"`
+	BillingMethod types.String   `tfsdk:"billing_method"`
 	DesiredState  types.String   `tfsdk:"desired_state"`
 	RebootTrigger types.Int64    `tfsdk:"reboot_trigger"`
-	Subscription  types.List     `tfsdk:"subscription"`
-	OnDemand      types.List     `tfsdk:"on_demand"`
 	AutoPause     types.List     `tfsdk:"auto_pause"`
 	Timeouts      timeouts.Value `tfsdk:"timeouts"`
 	// Computed
-	Status                types.String `tfsdk:"status"`
-	CloudProvider         types.String `tfsdk:"cloud_provider"`
-	Region                types.String `tfsdk:"region"`
-	IsMixedBilling        types.Bool   `tfsdk:"is_mixed_billing"`
-	TotalCpu              types.Int64  `tfsdk:"total_cpu"`
-	TotalDiskGb           types.Int64  `tfsdk:"total_disk_gb"`
-	NodeCount             types.Int64  `tfsdk:"node_count"`
-	OnDemandNodeCount     types.Int64  `tfsdk:"on_demand_node_count"`
-	SubscriptionNodeCount types.Int64  `tfsdk:"subscription_node_count"`
-	CreatedAt             types.String `tfsdk:"created_at"`
-	StartedAt             types.String `tfsdk:"started_at"`
-	ExpireTime            types.String `tfsdk:"expire_time"`
-	ConnectionInfo        types.List   `tfsdk:"connection_info"`
-}
-
-type SubscriptionPoolModel struct {
-	ComputeVcpu types.Int64  `tfsdk:"compute_vcpu"`
-	CacheGb     types.Int64  `tfsdk:"cache_gb"`
-	Period      types.Int64  `tfsdk:"period"`
-	PeriodUnit  types.String `tfsdk:"period_unit"`
-	AutoRenew   types.Bool   `tfsdk:"auto_renew"`
-}
-
-type OnDemandPoolModel struct {
-	ComputeVcpu types.Int64 `tfsdk:"compute_vcpu"`
-	CacheGb     types.Int64 `tfsdk:"cache_gb"`
+	Status         types.String `tfsdk:"status"`
+	CloudProvider  types.String `tfsdk:"cloud_provider"`
+	Region         types.String `tfsdk:"region"`
+	TotalCpu       types.Int64  `tfsdk:"total_cpu"`
+	TotalDiskGb    types.Int64  `tfsdk:"total_disk_gb"`
+	NodeCount      types.Int64  `tfsdk:"node_count"`
+	CreatedAt      types.String `tfsdk:"created_at"`
+	StartedAt      types.String `tfsdk:"started_at"`
+	ExpireTime     types.String `tfsdk:"expire_time"`
+	ConnectionInfo types.List   `tfsdk:"connection_info"`
 }
 
 type ConnectionInfoModel struct {
@@ -92,7 +81,7 @@ func (r *ClusterResource) Metadata(_ context.Context, req resource.MetadataReque
 
 func (r *ClusterResource) Schema(ctx context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Manages a VeloDB Cloud cluster within a warehouse. Supports pure on-demand, pure subscription, or mixed billing via the subscription{} and on_demand{} blocks.",
+		Description: "Manages a VeloDB Cloud cluster within a warehouse.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Description: "Cluster identifier.",
@@ -111,12 +100,19 @@ func (r *ClusterResource) Schema(ctx context.Context, _ resource.SchemaRequest, 
 			"name": schema.StringAttribute{
 				Description: "Cluster display name.",
 				Required:    true,
+				Validators: []validator.String{
+					stringvalidator.LengthBetween(1, 32),
+					stringvalidator.RegexMatches(regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]{0,31}$`), "must start with a letter and contain only letters, numbers, and underscores"),
+				},
 			},
 			"cluster_type": schema.StringAttribute{
-				Description: "Cluster type: SQL, COMPUTE, or OBSERVER.",
+				Description: "Cluster type. Only COMPUTE is supported.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+				},
+				Validators: []validator.String{
+					stringvalidator.OneOf("COMPUTE"),
 				},
 			},
 			"zone": schema.StringAttribute{
@@ -127,12 +123,32 @@ func (r *ClusterResource) Schema(ctx context.Context, _ resource.SchemaRequest, 
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
+			"compute_vcpu": schema.Int64Attribute{
+				Description: "vCPU capacity: 4, 8, 16, or multiples of 16.",
+				Required:    true,
+				Validators:  []validator.Int64{int64validator.AtLeast(4)},
+			},
+			"cache_gb": schema.Int64Attribute{
+				Description: "Cache disk size in GB (minimum 100).",
+				Required:    true,
+				Validators:  []validator.Int64{int64validator.AtLeast(100)},
+			},
+			"billing_method": schema.StringAttribute{
+				Description: "Observed billing method.",
+				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
 			"desired_state": schema.StringAttribute{
 				Description: "Desired cluster state: running or paused.",
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
+				},
+				Validators: []validator.String{
+					stringvalidator.OneOf("running", "paused"),
 				},
 			},
 			"reboot_trigger": schema.Int64Attribute{
@@ -143,53 +159,18 @@ func (r *ClusterResource) Schema(ctx context.Context, _ resource.SchemaRequest, 
 			"status": schema.StringAttribute{
 				Description: "Observed cluster status.",
 				Computed:    true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
-			"cloud_provider": schema.StringAttribute{
-				Computed: true, Description: "Cloud provider.",
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
-			},
-			"region": schema.StringAttribute{
-				Computed: true, Description: "Cloud region.",
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
-			},
-			// Pool-derived computed fields: these change whenever vcpu/cache_gb/pool composition
-			// changes, so we cannot use UseStateForUnknown — the framework would lie about the
-			// expected value and reject the apply with "inconsistent result". They show
-			// "(known after apply)" on every update plan, which is a cosmetic diff but correct.
-			"is_mixed_billing": schema.BoolAttribute{
-				Description: "True when the cluster has both on_demand and subscription pools.",
-				Computed:    true,
-			},
-			"total_cpu": schema.Int64Attribute{
-				Computed: true, Description: "Total CPU across all pools.",
-			},
-			"total_disk_gb": schema.Int64Attribute{
-				Computed: true, Description: "Total disk GB across all pools.",
-			},
-			"node_count": schema.Int64Attribute{
-				Computed: true, Description: "Total node count.",
-			},
-			"on_demand_node_count": schema.Int64Attribute{
-				Description: "Node count in the on-demand pool.",
-				Computed:    true,
-			},
-			"subscription_node_count": schema.Int64Attribute{
-				Description: "Node count in the subscription pool.",
-				Computed:    true,
-			},
+			"cloud_provider": schema.StringAttribute{Computed: true, Description: "Cloud provider."},
+			"region":         schema.StringAttribute{Computed: true, Description: "Cloud region."},
+			"total_cpu":      schema.Int64Attribute{Computed: true, Description: "Total CPU."},
+			"total_disk_gb":  schema.Int64Attribute{Computed: true, Description: "Total disk GB."},
+			"node_count":     schema.Int64Attribute{Computed: true, Description: "Total node count."},
 			"created_at": schema.StringAttribute{
 				Computed: true, Description: "Creation time in RFC 3339 format.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
-			"started_at": schema.StringAttribute{
-				Computed: true, Description: "Start time in RFC 3339 format.",
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
-			},
-			"expire_time": schema.StringAttribute{
-				Computed: true, Description: "Expiration time when applicable.",
-				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
-			},
+			"started_at":  schema.StringAttribute{Computed: true, Description: "Start time in RFC 3339 format."},
+			"expire_time": schema.StringAttribute{Computed: true, Description: "Expiration time when applicable."},
 			"connection_info": schema.ListNestedAttribute{
 				Description: "Cluster connection endpoints.",
 				Computed:    true,
@@ -203,68 +184,19 @@ func (r *ClusterResource) Schema(ctx context.Context, _ resource.SchemaRequest, 
 			},
 		},
 		Blocks: map[string]schema.Block{
-			"subscription": schema.ListNestedBlock{
-				Description: "Subscription billing pool. Required when the cluster uses reserved/subscription capacity.",
-				NestedObject: schema.NestedBlockObject{
-					Attributes: map[string]schema.Attribute{
-						"compute_vcpu": schema.Int64Attribute{
-							Description: "vCPU capacity of the subscription pool. Minimum 4. Valid values are 4, 8, 16, and multiples of 16 above that.",
-							Required:    true,
-							Validators:  []validator.Int64{int64validator.AtLeast(4)},
-						},
-						"cache_gb": schema.Int64Attribute{
-							Description: "Cache GB of the subscription pool. Optional — when omitted, the API auto-scales disk proportionally to compute_vcpu.",
-							Optional:    true,
-							Computed:    true,
-							Validators:  []validator.Int64{int64validator.AtLeast(100)},
-							PlanModifiers: []planmodifier.Int64{
-								int64planmodifier.UseStateForUnknown(),
-							},
-						},
-						"period": schema.Int64Attribute{
-							Description: "Subscription period length.",
-							Required:    true,
-						},
-						"period_unit": schema.StringAttribute{
-							Description: "Period unit: Month or Year.",
-							Required:    true,
-						},
-						"auto_renew": schema.BoolAttribute{
-							Description: "Whether the subscription auto-renews at expiration.",
-							Optional:    true,
-							Computed:    true,
-						},
-					},
-				},
-			},
-			"on_demand": schema.ListNestedBlock{
-				Description: "On-demand billing pool. Required when the cluster uses pay-as-you-go capacity.",
-				NestedObject: schema.NestedBlockObject{
-					Attributes: map[string]schema.Attribute{
-						"compute_vcpu": schema.Int64Attribute{
-							Description: "vCPU capacity of the on-demand pool. Minimum 4. Valid values are 4, 8, 16, and multiples of 16 above that.",
-							Required:    true,
-							Validators:  []validator.Int64{int64validator.AtLeast(4)},
-						},
-						"cache_gb": schema.Int64Attribute{
-							Description: "Cache GB of the on-demand pool. Optional — when omitted, the API auto-scales disk proportionally to compute_vcpu.",
-							Optional:    true,
-							Computed:    true,
-							Validators:  []validator.Int64{int64validator.AtLeast(100)},
-							PlanModifiers: []planmodifier.Int64{
-								int64planmodifier.UseStateForUnknown(),
-							},
-						},
-					},
-				},
-			},
 			"auto_pause": schema.ListNestedBlock{
 				Description: "Auto-pause configuration (applies to whole cluster).",
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"enabled": schema.BoolAttribute{Required: true, Description: "Whether auto-pause is enabled."},
 						"idle_timeout_minutes": schema.Int64Attribute{
-							Optional: true, Description: "Idle minutes before auto-pause.",
+							Optional: true, Computed: true, Description: "Idle minutes before auto-pause. Required when enabled is true.",
+							PlanModifiers: []planmodifier.Int64{
+								int64planmodifier.UseStateForUnknown(),
+							},
+							Validators: []validator.Int64{
+								int64validator.AtLeast(0),
+							},
 						},
 					},
 				},
@@ -272,6 +204,18 @@ func (r *ClusterResource) Schema(ctx context.Context, _ resource.SchemaRequest, 
 			"timeouts": timeouts.Block(ctx, timeouts.Opts{Create: true, Update: true, Delete: true}),
 		},
 	}
+}
+
+func (r *ClusterResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var computeVcpu types.Int64
+	var cacheGb types.Int64
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("compute_vcpu"), &computeVcpu)...)
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("cache_gb"), &cacheGb)...)
+	validateClusterCapacity(&resp.Diagnostics, "cluster", computeVcpu, cacheGb)
+
+	var autoPause types.List
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("auto_pause"), &autoPause)...)
+	validateAutoPauseRequiresTimeout(ctx, &resp.Diagnostics, "cluster", autoPause)
 }
 
 func (r *ClusterResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -303,76 +247,30 @@ func (r *ClusterResource) Create(ctx context.Context, req resource.CreateRequest
 	ctx, cancel := context.WithTimeout(ctx, createTimeout)
 	defer cancel()
 
-	sub := r.extractSubscriptionPool(ctx, plan.Subscription, &resp.Diagnostics)
-	od := r.extractOnDemandPool(ctx, plan.OnDemand, &resp.Diagnostics)
+	warehouseID := plan.WarehouseID.ValueString()
+
+	createReq := &client.CreateClusterRequest{
+		Name:        plan.Name.ValueString(),
+		ClusterType: plan.ClusterType.ValueString(),
+		ComputeVcpu: int(plan.ComputeVcpu.ValueInt64()),
+		CacheGb:     int(plan.CacheGb.ValueInt64()),
+	}
+	setOptionalString(&createReq.Zone, plan.Zone)
+	createReq.AutoPause = r.buildAutoPause(ctx, plan.AutoPause, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if sub == nil && od == nil {
-		resp.Diagnostics.AddError("Invalid cluster configuration", "At least one of subscription{} or on_demand{} blocks must be provided.")
+	result, err := r.client.CreateCluster(ctx, warehouseID, createReq)
+	if err != nil {
+		resp.Diagnostics.AddError(userError("creating cluster", err))
 		return
 	}
-
-	// Primary pool to create with. Prefer on_demand if present; else subscription.
-	// Rationale: on_demand creation is simpler; if mixed, we'll add subscription via convert.
-	warehouseID := plan.WarehouseID.ValueString()
-	var clusterID string
-
-	if od != nil {
-		// Create pure on_demand first
-		createReq := &client.CreateClusterRequest{
-			Name:         plan.Name.ValueString(),
-			ClusterType:  plan.ClusterType.ValueString(),
-			ComputeVcpu:  int(od.ComputeVcpu.ValueInt64()),
-			CacheGb:      int(od.CacheGb.ValueInt64()),
-			BillingModel: stringPtr("on_demand"),
-		}
-		setOptionalString(&createReq.Zone, plan.Zone)
-		createReq.AutoPause = r.buildAutoPause(ctx, plan.AutoPause, &resp.Diagnostics)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-
-		result, err := r.client.CreateCluster(ctx, warehouseID, createReq)
-		if err != nil {
-			resp.Diagnostics.AddError("Error creating cluster (on_demand)", err.Error())
-			return
-		}
-		clusterID = result.ClusterID
-	} else {
-		// Create pure subscription
-		createReq := &client.CreateClusterRequest{
-			Name:         plan.Name.ValueString(),
-			ClusterType:  plan.ClusterType.ValueString(),
-			ComputeVcpu:  int(sub.ComputeVcpu.ValueInt64()),
-			CacheGb:      int(sub.CacheGb.ValueInt64()),
-			BillingModel: stringPtr("subscription"),
-			Period:       intPtr(int(sub.Period.ValueInt64())),
-			PeriodUnit:   stringPtr(sub.PeriodUnit.ValueString()),
-		}
-		if !sub.AutoRenew.IsNull() && !sub.AutoRenew.IsUnknown() {
-			b := sub.AutoRenew.ValueBool()
-			createReq.AutoRenew = &b
-		}
-		setOptionalString(&createReq.Zone, plan.Zone)
-		createReq.AutoPause = r.buildAutoPause(ctx, plan.AutoPause, &resp.Diagnostics)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-
-		result, err := r.client.CreateCluster(ctx, warehouseID, createReq)
-		if err != nil {
-			resp.Diagnostics.AddError("Error creating cluster (subscription)", err.Error())
-			return
-		}
-		clusterID = result.ClusterID
-	}
-
+	clusterID := result.ClusterID
 	plan.ID = types.StringValue(clusterID)
 
 	// Wait to Running
-	_, err := client.WaitForStatus(ctx, func(ctx context.Context) (string, error) {
+	_, err = client.WaitForStatus(ctx, func(ctx context.Context) (string, error) {
 		cl, err := r.client.GetCluster(ctx, warehouseID, clusterID)
 		if err != nil {
 			return "", err
@@ -383,61 +281,10 @@ func (r *ClusterResource) Create(ctx context.Context, req resource.CreateRequest
 		resp.Diagnostics.AddWarning("Cluster created but not yet Running", err.Error())
 	}
 
-	// Mixed billing: if both pools configured, add the subscription pool via PATCH.
-	// API rule: computeVcpu and cacheGb cannot be updated at the same time, so the
-	// "add subscription pool" call splits into two sequential PATCHes — first vcpu
-	// + period (which establishes the subscription pool), then cacheGb.
-	if sub != nil && od != nil {
-		vcpu := int(sub.ComputeVcpu.ValueInt64())
-		cache := int(sub.CacheGb.ValueInt64())
-		period := int(sub.Period.ValueInt64())
-		periodUnit := sub.PeriodUnit.ValueString()
-		// 1. Establish subscription pool with vcpu (no cacheGb in this call).
-		addReq := &client.UpdateClusterRequest{
-			BillingModel: stringPtr("subscription"),
-			ComputeVcpu:  &vcpu,
-			Period:       &period,
-			PeriodUnit:   &periodUnit,
-		}
-		if !sub.AutoRenew.IsNull() && !sub.AutoRenew.IsUnknown() {
-			b := sub.AutoRenew.ValueBool()
-			addReq.AutoRenew = &b
-		}
-		if err := r.client.UpdateCluster(ctx, warehouseID, clusterID, addReq); err != nil {
-			resp.Diagnostics.AddError("Error adding subscription pool after cluster creation", err.Error())
-			return
-		}
-		_, _ = client.WaitForStatus(ctx, func(ctx context.Context) (string, error) {
-			cl, err := r.client.GetCluster(ctx, warehouseID, clusterID)
-			if err != nil {
-				return "", err
-			}
-			return cl.Status, nil
-		}, client.StableStatuses, client.FailedStatuses, createTimeout, 15*time.Second)
-		// 2. Resize subscription cacheGb in a separate PATCH (skip if already at target).
-		if cache > 0 {
-			diskReq := &client.UpdateClusterRequest{
-				BillingModel: stringPtr("subscription"),
-				CacheGb:      &cache,
-			}
-			if err := r.client.UpdateCluster(ctx, warehouseID, clusterID, diskReq); err != nil {
-				resp.Diagnostics.AddError("Error sizing subscription pool cacheGb after cluster creation", err.Error())
-				return
-			}
-			_, _ = client.WaitForStatus(ctx, func(ctx context.Context) (string, error) {
-				cl, err := r.client.GetCluster(ctx, warehouseID, clusterID)
-				if err != nil {
-					return "", err
-				}
-				return cl.Status, nil
-			}, client.StableStatuses, client.FailedStatuses, createTimeout, 15*time.Second)
-		}
-	}
-
 	// Handle initial desired_state = paused
 	if !plan.DesiredState.IsNull() && plan.DesiredState.ValueString() == "paused" {
-		if err := r.client.PauseCluster(ctx, warehouseID, clusterID); err != nil {
-			resp.Diagnostics.AddError("Error pausing cluster after creation", err.Error())
+		if err := r.client.OperateCluster(ctx, warehouseID, clusterID, "pause"); err != nil {
+			resp.Diagnostics.AddError(userError("pausing cluster after creation", err))
 			return
 		}
 		_, _ = client.WaitForStatus(ctx, func(ctx context.Context) (string, error) {
@@ -450,19 +297,8 @@ func (r *ClusterResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	r.readClusterIntoState(ctx, warehouseID, clusterID, &plan, &resp.Diagnostics)
-	// Preserve plan values for subscription.auto_renew and subscription.period
-	if sub != nil && !plan.Subscription.IsNull() {
-		var pools []SubscriptionPoolModel
-		resp.Diagnostics.Append(plan.Subscription.ElementsAs(ctx, &pools, false)...)
-		if len(pools) > 0 {
-			pools[0].AutoRenew = sub.AutoRenew
-			if pools[0].Period.IsNull() || pools[0].Period.ValueInt64() == 0 {
-				pools[0].Period = sub.Period
-			}
-			newList, d := types.ListValueFrom(ctx, plan.Subscription.ElementType(ctx), pools)
-			resp.Diagnostics.Append(d...)
-			plan.Subscription = newList
-		}
+	if resp.Diagnostics.HasError() {
+		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
@@ -475,43 +311,14 @@ func (r *ClusterResource) Read(ctx context.Context, req resource.ReadRequest, re
 	}
 
 	// Preserve only what truly can't be read back
-	priorAutoPause := state.AutoPause
 	priorRebootTrigger := state.RebootTrigger
 	priorTimeouts := state.Timeouts
-	priorSubAutoRenew := types.BoolNull()
-	priorSubPeriod := types.Int64Null()
-	if priorSub := r.extractSubscriptionPool(ctx, state.Subscription, &resp.Diagnostics); priorSub != nil {
-		priorSubAutoRenew = priorSub.AutoRenew
-		priorSubPeriod = priorSub.Period
-	}
 
 	r.readClusterIntoState(ctx, state.WarehouseID.ValueString(), state.ID.ValueString(), &state, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// readClusterIntoState derives Subscription and OnDemand blocks from billingPools.
-	// Preserve auto_renew (not returned by API) and period (not always returned by API).
-	if !state.Subscription.IsNull() && !state.Subscription.IsUnknown() {
-		var newPools []SubscriptionPoolModel
-		resp.Diagnostics.Append(state.Subscription.ElementsAs(ctx, &newPools, false)...)
-		if len(newPools) > 0 {
-			if !priorSubAutoRenew.IsNull() {
-				newPools[0].AutoRenew = priorSubAutoRenew
-			}
-			// If API didn't return period, use prior value
-			if newPools[0].Period.IsNull() || newPools[0].Period.ValueInt64() == 0 {
-				if !priorSubPeriod.IsNull() {
-					newPools[0].Period = priorSubPeriod
-				}
-			}
-			newList, d := types.ListValueFrom(ctx, state.Subscription.ElementType(ctx), newPools)
-			resp.Diagnostics.Append(d...)
-			state.Subscription = newList
-		}
-	}
-
-	state.AutoPause = priorAutoPause
 	state.RebootTrigger = priorRebootTrigger
 	state.Timeouts = priorTimeouts
 
@@ -537,26 +344,56 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 	warehouseID := state.WarehouseID.ValueString()
 	clusterID := state.ID.ValueString()
 
-	planSub := r.extractSubscriptionPool(ctx, plan.Subscription, &resp.Diagnostics)
-	planOd := r.extractOnDemandPool(ctx, plan.OnDemand, &resp.Diagnostics)
-	stateSub := r.extractSubscriptionPool(ctx, state.Subscription, &resp.Diagnostics)
-	stateOd := r.extractOnDemandPool(ctx, state.OnDemand, &resp.Diagnostics)
-	if resp.Diagnostics.HasError() {
+	cpuChanged := !plan.ComputeVcpu.Equal(state.ComputeVcpu)
+	diskChanged := !plan.CacheGb.Equal(state.CacheGb)
+	cacheChangeHandledByCPU := false
+	apiCacheAfterCPUResize := int64(0)
+	hasAPIResizeCache := cpuChanged &&
+		!plan.ComputeVcpu.IsUnknown() && !state.ComputeVcpu.IsUnknown() &&
+		!plan.CacheGb.IsUnknown() && !state.CacheGb.IsUnknown()
+	if hasAPIResizeCache {
+		apiCacheAfterCPUResize = cacheGbAfterCPUResize(
+			state.ComputeVcpu.ValueInt64(),
+			state.CacheGb.ValueInt64(),
+			plan.ComputeVcpu.ValueInt64(),
+		)
+	}
+	if cpuChanged && diskChanged && hasAPIResizeCache && plan.CacheGb.ValueInt64() == apiCacheAfterCPUResize {
+		cacheChangeHandledByCPU = true
+	} else if diskChanged && !plan.CacheGb.IsUnknown() && !state.CacheGb.IsUnknown() &&
+		plan.CacheGb.ValueInt64() < state.CacheGb.ValueInt64() {
+		resp.Diagnostics.AddError(
+			"cache_gb cannot be decreased",
+			"VeloDB does not support shrinking cluster cache_gb. "+
+				"Increase cache_gb only, or recreate the cluster if you need a smaller disk.",
+		)
+		return
+	} else if cpuChanged && diskChanged {
+		resp.Diagnostics.AddError(
+			"Simultaneous compute_vcpu and cache_gb changes are not supported",
+			fmt.Sprintf(
+				"VeloDB automatically adjusts cache_gb to %d when resizing compute_vcpu from %d to %d. "+
+					"Set cache_gb to %d for the CPU resize, then apply any additional cache_gb change in a later apply.",
+				apiCacheAfterCPUResize,
+				state.ComputeVcpu.ValueInt64(),
+				plan.ComputeVcpu.ValueInt64(),
+				apiCacheAfterCPUResize,
+			),
+		)
 		return
 	}
-
-	// Detect pool additions/removals
-	subAdded := stateSub == nil && planSub != nil
-	odAdded := stateOd == nil && planOd != nil
-	subRemoved := stateSub != nil && planSub == nil
-	odRemoved := stateOd != nil && planOd == nil
-
-	// Pool removal: API accepts PATCH with billingModel=<pool>, computeVcpu=0 to remove that pool.
-	// At least one pool must remain.
-	if subRemoved && odRemoved {
+	if cpuChanged && !diskChanged && hasAPIResizeCache && apiCacheAfterCPUResize != plan.CacheGb.ValueInt64() {
 		resp.Diagnostics.AddError(
-			"Cannot remove all billing pools",
-			"At least one of subscription{} or on_demand{} must be present. To destroy the cluster, remove the resource entirely.",
+			"compute_vcpu resize requires cache_gb update",
+			fmt.Sprintf(
+				"VeloDB automatically adjusts cache_gb to %d when resizing compute_vcpu from %d to %d. "+
+					"Set cache_gb to %d and apply again. Keeping cache_gb at %d requires a later cache-only apply after the API cooldown.",
+				apiCacheAfterCPUResize,
+				state.ComputeVcpu.ValueInt64(),
+				plan.ComputeVcpu.ValueInt64(),
+				apiCacheAfterCPUResize,
+				plan.CacheGb.ValueInt64(),
+			),
 		)
 		return
 	}
@@ -569,7 +406,7 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 			// Check current status — skip action if already in desired state
 			cur, err := r.client.GetCluster(ctx, warehouseID, clusterID)
 			if err != nil {
-				resp.Diagnostics.AddError("Error reading cluster before action", err.Error())
+				resp.Diagnostics.AddError(userError("reading cluster before action", err))
 				return
 			}
 			alreadyThere := false
@@ -581,7 +418,7 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 			}
 			if !alreadyThere {
 				if err := r.client.OperateCluster(ctx, warehouseID, clusterID, action); err != nil {
-					resp.Diagnostics.AddError("Error performing cluster action", err.Error())
+					resp.Diagnostics.AddError(userError("performing cluster action", err))
 					return
 				}
 				_, err := client.WaitForStatus(ctx, func(ctx context.Context) (string, error) {
@@ -601,7 +438,7 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 	// 2. Reboot trigger
 	if !plan.RebootTrigger.IsNull() && !plan.RebootTrigger.Equal(state.RebootTrigger) {
 		if err := r.client.RebootCluster(ctx, warehouseID, clusterID); err != nil {
-			resp.Diagnostics.AddError("Error rebooting cluster", err.Error())
+			resp.Diagnostics.AddError(userError("rebooting cluster", err))
 			return
 		}
 		_, _ = client.WaitForStatus(ctx, func(ctx context.Context) (string, error) {
@@ -613,191 +450,45 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 		}, []string{"Running"}, client.FailedStatuses, updateTimeout, 10*time.Second)
 	}
 
-	// 2b. Pool removal: PATCH billingModel=<pool>, computeVcpu=0 to remove a pool
-	if subRemoved {
-		zero := 0
-		req := &client.UpdateClusterRequest{
-			BillingModel: stringPtr("subscription"),
-			ComputeVcpu:  &zero,
+	// 3. Resize compute_vcpu
+	if !plan.ComputeVcpu.Equal(state.ComputeVcpu) {
+		v := int(plan.ComputeVcpu.ValueInt64())
+		updateReq := &client.UpdateClusterRequest{
+			ComputeVcpu: &v,
 		}
-		if err := r.client.UpdateCluster(ctx, warehouseID, clusterID, req); err != nil {
-			resp.Diagnostics.AddError("Error removing subscription pool", err.Error())
+		if err := r.client.UpdateCluster(ctx, warehouseID, clusterID, updateReq); err != nil {
+			resp.Diagnostics.AddError(userError("resizing compute_vcpu", err))
 			return
 		}
 		r.waitStable(ctx, warehouseID, clusterID, updateTimeout, &resp.Diagnostics)
-	}
-	if odRemoved {
-		zero := 0
-		req := &client.UpdateClusterRequest{
-			BillingModel: stringPtr("on_demand"),
-			ComputeVcpu:  &zero,
-		}
-		if err := r.client.UpdateCluster(ctx, warehouseID, clusterID, req); err != nil {
-			resp.Diagnostics.AddError("Error removing on_demand pool", err.Error())
+		if resp.Diagnostics.HasError() {
 			return
-		}
-		r.waitStable(ctx, warehouseID, clusterID, updateTimeout, &resp.Diagnostics)
-	}
-
-	// 3. Add subscription pool to pure on_demand cluster.
-	// API rule: computeVcpu and cacheGb cannot be updated at the same time, so split
-	// into two sequential PATCHes — first establish the subscription pool with vcpu,
-	// then size cacheGb separately.
-	if subAdded && stateOd != nil {
-		vcpu := int(planSub.ComputeVcpu.ValueInt64())
-		cache := int(planSub.CacheGb.ValueInt64())
-		period := int(planSub.Period.ValueInt64())
-		periodUnit := planSub.PeriodUnit.ValueString()
-		addReq := &client.UpdateClusterRequest{
-			BillingModel: stringPtr("subscription"),
-			ComputeVcpu:  &vcpu,
-			Period:       &period,
-			PeriodUnit:   &periodUnit,
-		}
-		if !planSub.AutoRenew.IsNull() && !planSub.AutoRenew.IsUnknown() {
-			b := planSub.AutoRenew.ValueBool()
-			addReq.AutoRenew = &b
-		}
-		if err := r.client.UpdateCluster(ctx, warehouseID, clusterID, addReq); err != nil {
-			resp.Diagnostics.AddError("Error adding subscription pool", err.Error())
-			return
-		}
-		r.waitStable(ctx, warehouseID, clusterID, updateTimeout, &resp.Diagnostics)
-		if cache > 0 {
-			diskReq := &client.UpdateClusterRequest{
-				BillingModel: stringPtr("subscription"),
-				CacheGb:      &cache,
-			}
-			if err := r.client.UpdateCluster(ctx, warehouseID, clusterID, diskReq); err != nil {
-				resp.Diagnostics.AddError("Error sizing subscription pool cacheGb", err.Error())
-				return
-			}
-			r.waitStable(ctx, warehouseID, clusterID, updateTimeout, &resp.Diagnostics)
 		}
 	}
 
-	// 4. Add on_demand pool to pure subscription cluster
-	if odAdded && stateSub != nil {
-		v := int(planOd.ComputeVcpu.ValueInt64())
-		req := &client.UpdateClusterRequest{
-			BillingModel: stringPtr("on_demand"),
-			ComputeVcpu:  &v,
+	// 4. Resize cache_gb
+	if !cacheChangeHandledByCPU && !plan.CacheGb.Equal(state.CacheGb) {
+		v := int(plan.CacheGb.ValueInt64())
+		updateReq := &client.UpdateClusterRequest{
+			CacheGb: &v,
 		}
-		if err := r.client.UpdateCluster(ctx, warehouseID, clusterID, req); err != nil {
-			resp.Diagnostics.AddError("Error adding on_demand pool", err.Error())
+		if err := r.client.UpdateCluster(ctx, warehouseID, clusterID, updateReq); err != nil {
+			resp.Diagnostics.AddError(userError("resizing cache_gb", err))
 			return
 		}
 		r.waitStable(ctx, warehouseID, clusterID, updateTimeout, &resp.Diagnostics)
 	}
 
-	// 5. Resize on_demand pool (when both old and new exist).
-	// API rule: vcpu and cache_gb cannot move in the same PATCH. The API also auto-scales
-	// disk proportionally to a vcpu change, which would clobber a user's pinned cache_gb.
-	// Strategy: if vcpu changes, do the vcpu PATCH first; then if the user pinned cache_gb
-	// to something other than the auto-scaled result, send a second PATCH to enforce it.
-	if stateOd != nil && planOd != nil && !odAdded {
-		vcpuChanged := !planOd.ComputeVcpu.Equal(stateOd.ComputeVcpu)
-		if vcpuChanged {
-			v := int(planOd.ComputeVcpu.ValueInt64())
-			req := &client.UpdateClusterRequest{
-				BillingModel: stringPtr("on_demand"),
-				ComputeVcpu:  &v,
-			}
-			if err := r.client.UpdateCluster(ctx, warehouseID, clusterID, req); err != nil {
-				resp.Diagnostics.AddError("Error resizing on_demand compute_vcpu", err.Error())
-				return
-			}
-			r.waitStable(ctx, warehouseID, clusterID, updateTimeout, &resp.Diagnostics)
-		}
-		// Enforce the user's cache_gb when (a) it changed in config, or (b) vcpu changed and the
-		// user pinned cache_gb (so auto-scale would otherwise clobber it).
-		userPinnedCache := !planOd.CacheGb.IsNull() && !planOd.CacheGb.IsUnknown()
-		cacheChanged := !planOd.CacheGb.Equal(stateOd.CacheGb)
-		if userPinnedCache && (cacheChanged || vcpuChanged) {
-			v := int(planOd.CacheGb.ValueInt64())
-			req := &client.UpdateClusterRequest{
-				BillingModel: stringPtr("on_demand"),
-				CacheGb:      &v,
-			}
-			if err := r.client.UpdateCluster(ctx, warehouseID, clusterID, req); err != nil {
-				// "no cluster changes" is normal when auto-scale already arrived at the target value.
-				if apiErr, ok := err.(*client.APIError); !ok || !strings.Contains(apiErr.Message, "no cluster changes") {
-					resp.Diagnostics.AddError("Error resizing on_demand cache_gb", err.Error())
-					return
-				}
-			} else {
-				r.waitStable(ctx, warehouseID, clusterID, updateTimeout, &resp.Diagnostics)
-			}
-		}
-	}
-
-	// 6. Resize subscription pool (vcpu, cache, or period/auto_renew change)
-	if stateSub != nil && planSub != nil && !subAdded {
-		if !planSub.PeriodUnit.Equal(stateSub.PeriodUnit) {
-			resp.Diagnostics.AddError(
-				"period_unit change requires replacement",
-				"Changing subscription.period_unit is not supported in place. Taint and recreate the cluster.",
-			)
-			return
-		}
-		if !planSub.ComputeVcpu.Equal(stateSub.ComputeVcpu) {
-			v := int(planSub.ComputeVcpu.ValueInt64())
-			req := &client.UpdateClusterRequest{
-				BillingModel: stringPtr("subscription"),
-				ComputeVcpu:  &v,
-			}
-			if err := r.client.UpdateCluster(ctx, warehouseID, clusterID, req); err != nil {
-				resp.Diagnostics.AddError("Error resizing subscription compute_vcpu", err.Error())
-				return
-			}
-			r.waitStable(ctx, warehouseID, clusterID, updateTimeout, &resp.Diagnostics)
-		}
-		if !planSub.CacheGb.Equal(stateSub.CacheGb) {
-			v := int(planSub.CacheGb.ValueInt64())
-			req := &client.UpdateClusterRequest{
-				BillingModel: stringPtr("subscription"),
-				CacheGb:      &v,
-			}
-			if err := r.client.UpdateCluster(ctx, warehouseID, clusterID, req); err != nil {
-				resp.Diagnostics.AddError("Error resizing subscription cache_gb", err.Error())
-				return
-			}
-			r.waitStable(ctx, warehouseID, clusterID, updateTimeout, &resp.Diagnostics)
-		}
-		// Period or auto_renew change — skip if state is stale (period=0 indicates API didn't return it)
-		stateStalePeriod := stateSub.Period.IsNull() || stateSub.Period.ValueInt64() == 0
-		periodChanged := !stateStalePeriod && !planSub.Period.Equal(stateSub.Period)
-		autoRenewChanged := !planSub.AutoRenew.IsNull() && !planSub.AutoRenew.IsUnknown() &&
-			!stateSub.AutoRenew.IsNull() && !planSub.AutoRenew.Equal(stateSub.AutoRenew)
-		if periodChanged || autoRenewChanged {
-			p := int(planSub.Period.ValueInt64())
-			pu := planSub.PeriodUnit.ValueString()
-			req := &client.UpdateClusterRequest{
-				BillingModel: stringPtr("subscription"),
-				Period:       &p,
-				PeriodUnit:   &pu,
-			}
-			if !planSub.AutoRenew.IsNull() && !planSub.AutoRenew.IsUnknown() {
-				b := planSub.AutoRenew.ValueBool()
-				req.AutoRenew = &b
-			}
-			if err := r.client.UpdateCluster(ctx, warehouseID, clusterID, req); err != nil {
-				resp.Diagnostics.AddError("Error updating subscription period/auto_renew", err.Error())
-				return
-			}
-		}
-	}
-
-	// 7. Name change
+	// 5. Name change
 	if !plan.Name.Equal(state.Name) {
 		s := plan.Name.ValueString()
 		if err := r.client.UpdateCluster(ctx, warehouseID, clusterID, &client.UpdateClusterRequest{Name: &s}); err != nil {
-			resp.Diagnostics.AddError("Error updating cluster name", err.Error())
+			resp.Diagnostics.AddError(userError("updating cluster name", err))
 			return
 		}
 	}
 
-	// 8. auto_pause change
+	// 6. auto_pause change
 	if !plan.AutoPause.Equal(state.AutoPause) {
 		ap := r.buildAutoPause(ctx, plan.AutoPause, &resp.Diagnostics)
 		if resp.Diagnostics.HasError() {
@@ -805,27 +496,15 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 		}
 		if ap != nil {
 			if err := r.client.UpdateCluster(ctx, warehouseID, clusterID, &client.UpdateClusterRequest{AutoPause: ap}); err != nil {
-				resp.Diagnostics.AddError("Error updating auto_pause", err.Error())
+				resp.Diagnostics.AddError(userError("updating auto_pause", err))
 				return
 			}
 		}
 	}
 
 	r.readClusterIntoState(ctx, warehouseID, clusterID, &plan, &resp.Diagnostics)
-	// Preserve plan values for subscription.auto_renew and subscription.period
-	// (API doesn't always return them via billingPools)
-	if planSub != nil && !plan.Subscription.IsNull() {
-		var pools []SubscriptionPoolModel
-		resp.Diagnostics.Append(plan.Subscription.ElementsAs(ctx, &pools, false)...)
-		if len(pools) > 0 {
-			pools[0].AutoRenew = planSub.AutoRenew
-			if pools[0].Period.IsNull() || pools[0].Period.ValueInt64() == 0 {
-				pools[0].Period = planSub.Period
-			}
-			newList, d := types.ListValueFrom(ctx, plan.Subscription.ElementType(ctx), pools)
-			resp.Diagnostics.Append(d...)
-			plan.Subscription = newList
-		}
+	if resp.Diagnostics.HasError() {
+		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
@@ -852,7 +531,7 @@ func (r *ClusterResource) Delete(ctx context.Context, req resource.DeleteRequest
 		if apiErr, ok := err.(*client.APIError); ok && apiErr.IsNotFound() {
 			return
 		}
-		resp.Diagnostics.AddError("Error deleting cluster", err.Error())
+		resp.Diagnostics.AddError(userError("deleting cluster", err))
 		return
 	}
 
@@ -862,20 +541,41 @@ func (r *ClusterResource) Delete(ctx context.Context, req resource.DeleteRequest
 			return "", err
 		}
 		return cl.Status, nil
-	}, []string{"Deleted"}, nil, deleteTimeout, 15*time.Second)
+	}, []string{"Deleted"}, client.FailedStatuses, deleteTimeout, 15*time.Second)
 	if err != nil {
 		resp.Diagnostics.AddWarning("Cluster deletion may still be in progress", err.Error())
 	}
 }
 
 func (r *ClusterResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	parts := strings.SplitN(req.ID, "/", 2)
-	if len(parts) != 2 {
+	importID := strings.TrimSpace(req.ID)
+	parts := strings.SplitN(importID, "/", 2)
+	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
 		resp.Diagnostics.AddError("Invalid import ID", "Expected format: warehouse_id/cluster_id")
 		return
 	}
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("warehouse_id"), parts[0])...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[1])...)
+	warehouseID := strings.TrimSpace(parts[0])
+	clusterID := strings.TrimSpace(parts[1])
+	if r.client == nil {
+		resp.Diagnostics.AddError("Provider not configured", "The VeloDB client is not available during import.")
+		return
+	}
+
+	if _, err := r.client.GetCluster(ctx, warehouseID, clusterID); err != nil {
+		var apiErr *client.APIError
+		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
+			resp.Diagnostics.AddError(
+				"Cluster not found",
+				fmt.Sprintf("Cluster %q in warehouse %q does not exist or is not accessible. Verify the import ID before importing.", clusterID, warehouseID),
+			)
+			return
+		}
+		resp.Diagnostics.AddError(userError("importing cluster", err))
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("warehouse_id"), warehouseID)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), clusterID)...)
 }
 
 // --- Helpers ---
@@ -923,30 +623,6 @@ func statusToDesiredState(status string) string {
 	}
 }
 
-func (r *ClusterResource) extractSubscriptionPool(ctx context.Context, list types.List, diags *diag.Diagnostics) *SubscriptionPoolModel {
-	if list.IsNull() || list.IsUnknown() {
-		return nil
-	}
-	var pools []SubscriptionPoolModel
-	diags.Append(list.ElementsAs(ctx, &pools, false)...)
-	if len(pools) == 0 {
-		return nil
-	}
-	return &pools[0]
-}
-
-func (r *ClusterResource) extractOnDemandPool(ctx context.Context, list types.List, diags *diag.Diagnostics) *OnDemandPoolModel {
-	if list.IsNull() || list.IsUnknown() {
-		return nil
-	}
-	var pools []OnDemandPoolModel
-	diags.Append(list.ElementsAs(ctx, &pools, false)...)
-	if len(pools) == 0 {
-		return nil
-	}
-	return &pools[0]
-}
-
 func (r *ClusterResource) buildAutoPause(ctx context.Context, autoPauseList types.List, diags *diag.Diagnostics) *client.AutoPauseConfig {
 	if autoPauseList.IsNull() || autoPauseList.IsUnknown() {
 		return nil
@@ -970,27 +646,6 @@ func connectionInfoAttrTypes() map[string]attr.Type {
 	}
 }
 
-func subscriptionPoolObjectType() types.ObjectType {
-	return types.ObjectType{
-		AttrTypes: map[string]attr.Type{
-			"compute_vcpu": types.Int64Type,
-			"cache_gb":     types.Int64Type,
-			"period":       types.Int64Type,
-			"period_unit":  types.StringType,
-			"auto_renew":   types.BoolType,
-		},
-	}
-}
-
-func onDemandPoolObjectType() types.ObjectType {
-	return types.ObjectType{
-		AttrTypes: map[string]attr.Type{
-			"compute_vcpu": types.Int64Type,
-			"cache_gb":     types.Int64Type,
-		},
-	}
-}
-
 func (r *ClusterResource) readClusterIntoState(ctx context.Context, warehouseID, clusterID string, state *ClusterResourceModel, diags *diag.Diagnostics) {
 	cl, err := r.client.GetCluster(ctx, warehouseID, clusterID)
 	if err != nil {
@@ -998,7 +653,7 @@ func (r *ClusterResource) readClusterIntoState(ctx context.Context, warehouseID,
 			state.ID = types.StringNull()
 			return
 		}
-		diags.AddError("Error reading cluster", err.Error())
+		diags.AddError(userError("reading cluster", err))
 		return
 	}
 
@@ -1010,23 +665,29 @@ func (r *ClusterResource) readClusterIntoState(ctx context.Context, warehouseID,
 	state.CloudProvider = stringOrNull(cl.CloudProvider)
 	state.Region = stringOrNull(cl.Region)
 	state.Zone = stringOrNull(cl.Zone)
+	state.BillingMethod = stringOrNull(cl.BillingModel)
 
-	// Mixed-billing computed fields
+	// Computed fields from BillingSummary or ClusterItem
 	if cl.BillingSummary != nil {
-		state.IsMixedBilling = types.BoolValue(cl.BillingSummary.IsMixedBilling)
 		state.TotalCpu = types.Int64Value(int64(cl.BillingSummary.TotalCpu))
 		state.TotalDiskGb = types.Int64Value(int64(cl.BillingSummary.TotalDiskSizeGb))
 		state.NodeCount = types.Int64Value(int64(cl.BillingSummary.NodeCount))
-		state.OnDemandNodeCount = types.Int64Value(int64(cl.BillingSummary.OnDemandNodeCount))
-		state.SubscriptionNodeCount = types.Int64Value(int64(cl.BillingSummary.SubscriptionNodeCount))
 	} else {
-		// Fall back to ClusterItem fields
-		state.IsMixedBilling = types.BoolValue(false)
 		state.NodeCount = types.Int64Value(int64(cl.NodeCount))
-		state.OnDemandNodeCount = types.Int64Value(int64(cl.OnDemandNodeCount))
-		state.SubscriptionNodeCount = types.Int64Value(int64(cl.SubscriptionNodeCount))
 		state.TotalCpu = types.Int64Null()
 		state.TotalDiskGb = types.Int64Null()
+	}
+
+	// Flat compute_vcpu and cache_gb from billing pools or cluster-level fields
+	if cl.BillingPools != nil && cl.BillingPools.OnDemand != nil {
+		state.ComputeVcpu = types.Int64Value(int64(cl.BillingPools.OnDemand.Cpu))
+		state.CacheGb = types.Int64Value(int64(cl.BillingPools.OnDemand.DiskSizeGb))
+	} else if cl.BillingPools != nil && cl.BillingPools.Subscription != nil {
+		state.ComputeVcpu = types.Int64Value(int64(cl.BillingPools.Subscription.Cpu))
+		state.CacheGb = types.Int64Value(int64(cl.BillingPools.Subscription.DiskSizeGb))
+	} else if cl.BillingSummary != nil {
+		state.ComputeVcpu = types.Int64Value(int64(cl.BillingSummary.TotalCpu))
+		state.CacheGb = types.Int64Value(int64(cl.BillingSummary.TotalDiskSizeGb))
 	}
 
 	if cl.CreatedAt != nil {
@@ -1044,40 +705,8 @@ func (r *ClusterResource) readClusterIntoState(ctx context.Context, warehouseID,
 	}
 
 	state.DesiredState = types.StringValue(statusToDesiredState(cl.Status))
-
-	// Billing pools — derive from API billingPools for drift detection
-	subObjType := subscriptionPoolObjectType()
-	odObjType := onDemandPoolObjectType()
-
-	if cl.BillingPools != nil && cl.BillingPools.Subscription != nil {
-		sp := cl.BillingPools.Subscription
-		obj, d := types.ObjectValue(subObjType.AttrTypes, map[string]attr.Value{
-			"compute_vcpu": types.Int64Value(int64(sp.Cpu)),
-			"cache_gb":     types.Int64Value(int64(sp.DiskSizeGb)),
-			"period":       types.Int64Value(int64(sp.Period)),
-			"period_unit":  stringOrNull(sp.PeriodUnit),
-			"auto_renew":   types.BoolNull(), // API doesn't return this; preserved by Read()
-		})
-		diags.Append(d...)
-		lst, d := types.ListValue(subObjType, []attr.Value{obj})
-		diags.Append(d...)
-		state.Subscription = lst
-	} else {
-		state.Subscription = types.ListNull(subObjType)
-	}
-
-	if cl.BillingPools != nil && cl.BillingPools.OnDemand != nil {
-		op := cl.BillingPools.OnDemand
-		obj, d := types.ObjectValue(odObjType.AttrTypes, map[string]attr.Value{
-			"compute_vcpu": types.Int64Value(int64(op.Cpu)),
-			"cache_gb":     types.Int64Value(int64(op.DiskSizeGb)),
-		})
-		diags.Append(d...)
-		lst, d := types.ListValue(odObjType, []attr.Value{obj})
-		diags.Append(d...)
-		state.OnDemand = lst
-	} else {
-		state.OnDemand = types.ListNull(odObjType)
+	if !state.AutoPause.IsNull() && !state.AutoPause.IsUnknown() {
+		state.AutoPause = autoPauseToList(cl.AutoPause, diags)
 	}
 
 	// Connection info
@@ -1095,8 +724,3 @@ func (r *ClusterResource) readClusterIntoState(ctx context.Context, warehouseID,
 		state.ConnectionInfo = types.ListNull(types.ObjectType{AttrTypes: connectionInfoAttrTypes()})
 	}
 }
-
-// --- Simple helpers ---
-
-func stringPtr(s string) *string { return &s }
-func intPtr(i int) *int          { return &i }

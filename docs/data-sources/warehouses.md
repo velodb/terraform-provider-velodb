@@ -2,7 +2,7 @@
 page_title: "velodb_warehouses Data Source - velodb"
 subcategory: ""
 description: |-
-  Lists VeloDB Cloud warehouses visible to the current organization, with optional filters for cloud provider, region, deployment mode, and keyword search.
+  Lists VeloDB Cloud warehouses visible to the current organization, with optional filters for warehouse ID, name, cloud provider, region, deployment mode, and legacy keyword search.
 ---
 
 # velodb_warehouses (Data Source)
@@ -31,7 +31,7 @@ output "warehouse_names" {
 data "velodb_warehouses" "beijing_saas" {
   cloud_provider  = "aliyun"
   region          = "cn-beijing"
-  deployment_mode = "SAAS"
+  deployment_mode = "SaaS"
 }
 ```
 
@@ -53,9 +53,11 @@ output "prod_warehouse_ids" {
 ### Optional
 
 - `cloud_provider` (String) Cloud provider filter (e.g., `aws`, `aliyun`).
-- `deployment_mode` (String) Deployment mode filter: `BYOC` or `SAAS`.
-- `keyword` (String) Fuzzy match against warehouse name or identifier.
+- `deployment_mode` (String) Deployment mode filter: `BYOC` or `SaaS`.
+- `keyword` (String) Legacy local fuzzy match against warehouse name or exact ID.
+- `name` (String) Partial warehouse name filter.
 - `region` (String) Cloud region filter (e.g., `us-east-1`, `cn-beijing`).
+- `warehouse_id` (String) Exact warehouse ID filter.
 
 ### Read-Only
 
@@ -70,7 +72,9 @@ Read-Only:
 - `cloud_provider` (String) Cloud provider.
 - `core_version` (String) Core version string.
 - `created_at` (String) Creation time in ISO 8601 / RFC 3339 format.
-- `deployment_mode` (String) Deployment mode: `BYOC` or `SAAS`.
+- `deployment_mode` (String) Deployment mode: `BYOC` or `SaaS`.
+- `endpoint_service_id` (String) PrivateLink endpoint service ID when available.
+- `endpoint_service_name` (String) PrivateLink endpoint service name when available.
 - `expire_time` (String) Expiration time when available.
 - `name` (String) Warehouse display name.
 - `pay_type` (String) Billing type: `PostPaid` or `PrePaid`.
