@@ -21,6 +21,7 @@ import (
 var (
 	_ resource.Resource                   = &PublicAccessPolicyResource{}
 	_ resource.ResourceWithImportState    = &PublicAccessPolicyResource{}
+	_ resource.ResourceWithModifyPlan     = &PublicAccessPolicyResource{}
 	_ resource.ResourceWithValidateConfig = &PublicAccessPolicyResource{}
 )
 
@@ -101,6 +102,22 @@ func (r *PublicAccessPolicyResource) ValidateConfig(ctx context.Context, req res
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("policy"), &policy)...)
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("rules"), &rules)...)
 	validatePublicAccessPolicy(&resp.Diagnostics, policy, rules)
+}
+
+func (r *PublicAccessPolicyResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.Plan.Raw.IsNull() || !req.Plan.Raw.IsKnown() {
+		return
+	}
+
+	var policy types.String
+	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("policy"), &policy)...)
+	if resp.Diagnostics.HasError() || policy.IsNull() || policy.IsUnknown() {
+		return
+	}
+
+	if policy.ValueString() != "ALLOWLIST_ONLY" {
+		resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("rules"), types.SetNull(types.ObjectType{AttrTypes: allowlistRuleAttrTypes()}))...)
+	}
 }
 
 func (r *PublicAccessPolicyResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -242,8 +259,21 @@ func (r *PublicAccessPolicyResource) readIntoState(ctx context.Context, state *P
 		state.Policy = types.StringValue(policy.PublicAccessPolicy)
 	}
 
+	rules := policy.Allowlist
+	if len(rules) == 0 {
+		rules = policy.Rules
+	}
+	state.Rules = publicAccessRulesToSet(state.Policy.ValueString(), rules, diags)
+}
+
+func publicAccessRulesToSet(policy string, apiRules []client.WarehouseAllowlistRule, diags *diag.Diagnostics) types.Set {
+	ruleType := types.ObjectType{AttrTypes: allowlistRuleAttrTypes()}
+	if policy != "ALLOWLIST_ONLY" {
+		return types.SetNull(ruleType)
+	}
+
 	var rules []attr.Value
-	for _, rl := range policy.Rules {
+	for _, rl := range apiRules {
 		obj, d := types.ObjectValue(allowlistRuleAttrTypes(), map[string]attr.Value{
 			"cidr":        types.StringValue(rl.CIDR),
 			"description": types.StringValue(rl.Description),
@@ -251,9 +281,9 @@ func (r *PublicAccessPolicyResource) readIntoState(ctx context.Context, state *P
 		diags.Append(d...)
 		rules = append(rules, obj)
 	}
-	list, d := types.SetValue(types.ObjectType{AttrTypes: allowlistRuleAttrTypes()}, rules)
+	list, d := types.SetValue(ruleType, rules)
 	diags.Append(d...)
-	state.Rules = list
+	return list
 }
 
 func preserveConfiguredPublicAccessRules(state *PublicAccessPolicyModel, priorRules types.Set) {

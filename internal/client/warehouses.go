@@ -31,6 +31,7 @@ func (c *FormationClient) GetWarehouse(ctx context.Context, warehouseID string) 
 	if err := parseResponse(resp, &result); err != nil {
 		return nil, err
 	}
+	normalizeWarehouseItem(&result.Data)
 	return &result.Data, nil
 }
 
@@ -62,6 +63,9 @@ func (c *FormationClient) ListWarehouses(ctx context.Context, opts *ListWarehous
 	var result PageResponse[WarehouseItem]
 	if err := parseResponse(resp, &result); err != nil {
 		return nil, err
+	}
+	for i := range result.Data {
+		normalizeWarehouseItem(&result.Data[i])
 	}
 	return &result, nil
 }
@@ -120,3 +124,48 @@ func (c *FormationClient) ChangeWarehousePassword(ctx context.Context, warehouse
 }
 
 // GetWarehouseConnections is defined in connections.go.
+
+func normalizeWarehouseItem(wh *WarehouseItem) {
+	if wh == nil {
+		return
+	}
+	if wh.EndpointServiceID == "" {
+		wh.EndpointServiceID = firstNonEmpty(
+			wh.ServiceID,
+			warehouseEndpointServiceID(wh.EndpointService),
+			warehouseEndpointServiceID(wh.PrivateEndpointService),
+			warehouseEndpointServiceID(wh.PrivateLinkEndpointService),
+		)
+	}
+	if wh.EndpointServiceName == "" {
+		wh.EndpointServiceName = firstNonEmpty(
+			wh.ServiceName,
+			warehouseEndpointServiceName(wh.EndpointService),
+			warehouseEndpointServiceName(wh.PrivateEndpointService),
+			warehouseEndpointServiceName(wh.PrivateLinkEndpointService),
+		)
+	}
+}
+
+func warehouseEndpointServiceID(service *WarehouseEndpointService) string {
+	if service == nil {
+		return ""
+	}
+	return firstNonEmpty(service.EndpointServiceID, service.ServiceID, service.ID)
+}
+
+func warehouseEndpointServiceName(service *WarehouseEndpointService) string {
+	if service == nil {
+		return ""
+	}
+	return firstNonEmpty(service.EndpointServiceName, service.ServiceName, service.Name)
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
+}

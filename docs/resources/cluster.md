@@ -151,7 +151,7 @@ Required:
 
 Optional:
 
-- `idle_timeout_minutes` (Number) Idle minutes before auto-pause.
+- `idle_timeout_minutes` (Number) Idle minutes before auto-pause. Required when `enabled` is `true`.
 
 <a id="nestedatt--connection_info"></a>
 ### Nested Schema for `connection_info`

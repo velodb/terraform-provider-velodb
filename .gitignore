@@ -1,5 +1,7 @@
 # CLAUDE.md contains credentials — never commit
 CLAUDE.md
+.claude/
+*.pdf
 
 # Go
 terraform-provider-velodb
@@ -11,6 +13,8 @@ terraform-provider-velodb
 .terraform/
 *.tfstate
 *.tfstate.*
+tfplan
+terraformrc
 crash.log
 *.tfvars
 override.tf
@@ -33,3 +37,6 @@ Thumbs.db
 
 # MkDocs build output
 site/
+
+# Local live-test scratch workspaces
+test/live-*/

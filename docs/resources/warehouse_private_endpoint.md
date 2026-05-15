@@ -37,7 +37,7 @@ data "velodb_warehouse_connections" "main" {
 # 2. Create VPC endpoint in customer's AWS account targeting VeloDB's service
 resource "aws_vpc_endpoint" "velodb" {
   vpc_id              = aws_vpc.main.id
-  service_name        = velodb_warehouse.main.endpoint_service_name
+  service_name        = data.velodb_warehouse_connections.main.endpoint_service_name
   vpc_endpoint_type   = "Interface"
   subnet_ids          = [aws_subnet.main.id]
   security_group_ids  = [aws_security_group.main.id]

@@ -61,7 +61,7 @@ func validateAutoPauseRequiresTimeout(ctx context.Context, diags *diag.Diagnosti
 		if block.Enabled.IsNull() || block.Enabled.IsUnknown() {
 			continue
 		}
-		if block.Enabled.ValueBool() && block.IdleTimeoutMinutes.IsNull() {
+		if block.Enabled.ValueBool() && (block.IdleTimeoutMinutes.IsNull() || block.IdleTimeoutMinutes.IsUnknown()) {
 			diags.AddError(
 				"idle_timeout_minutes is required when auto_pause is enabled",
 				fmt.Sprintf("%s auto_pause.idle_timeout_minutes must be set when enabled is true.", label),

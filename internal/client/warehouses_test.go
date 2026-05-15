@@ -188,6 +188,44 @@ func TestGetWarehouse(t *testing.T) {
 	}
 }
 
+func TestGetWarehouseEndpointServiceFromNestedInfo(t *testing.T) {
+	ts, mux := newTestServer(t)
+	defer ts.Close()
+	client := newTestClient(t, ts)
+
+	mux.HandleFunc("/v1/warehouses/WH-NESTED", func(w http.ResponseWriter, r *http.Request) {
+		if !requireMethod(t, w, r, http.MethodGet) {
+			return
+		}
+		jsonResponse(w, 200, map[string]any{
+			"success":   true,
+			"requestId": "req-nested-service",
+			"data": map[string]any{
+				"warehouseId":   "WH-NESTED",
+				"name":          "nested-service-warehouse",
+				"status":        "Running",
+				"cloudProvider": "aws",
+				"region":        "us-east-1",
+				"endpointService": map[string]any{
+					"serviceId":   "vpce-svc-nested",
+					"serviceName": "com.amazonaws.vpce.us-east-1.vpce-svc-nested",
+				},
+			},
+		})
+	})
+
+	wh, err := client.GetWarehouse(context.Background(), "WH-NESTED")
+	if err != nil {
+		t.Fatalf("GetWarehouse: %v", err)
+	}
+	if wh.EndpointServiceID != "vpce-svc-nested" {
+		t.Errorf("expected nested endpoint service ID, got %q", wh.EndpointServiceID)
+	}
+	if wh.EndpointServiceName != "com.amazonaws.vpce.us-east-1.vpce-svc-nested" {
+		t.Errorf("expected nested endpoint service name, got %q", wh.EndpointServiceName)
+	}
+}
+
 func TestGetWarehouseNotFound(t *testing.T) {
 	ts, mux := newTestServer(t)
 	defer ts.Close()

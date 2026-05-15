@@ -70,21 +70,35 @@ type ChangePasswordRequest struct {
 }
 
 type WarehouseItem struct {
-	WarehouseID         string               `json:"warehouseId"`
-	Name                string               `json:"name"`
-	Status              string               `json:"status,omitempty"`
-	CloudProvider       string               `json:"cloudProvider"`
-	Region              string               `json:"region"`
-	Zone                string               `json:"zone,omitempty"`
-	DeploymentMode      string               `json:"deploymentMode,omitempty"`
-	CoreVersion         string               `json:"coreVersion,omitempty"`
-	PayType             string               `json:"payType,omitempty"`
-	EndpointServiceID   string               `json:"endpointServiceId,omitempty"`
-	EndpointServiceName string               `json:"endpointServiceName,omitempty"`
-	SetupGuide          *WarehouseSetupGuide `json:"setupGuide,omitempty"`
-	CreatedAt           *time.Time           `json:"createdAt,omitempty"`
-	ExpireTime          *time.Time           `json:"expireTime,omitempty"`
-	Tags                map[string]string    `json:"tags,omitempty"`
+	WarehouseID                string                    `json:"warehouseId"`
+	Name                       string                    `json:"name"`
+	Status                     string                    `json:"status,omitempty"`
+	CloudProvider              string                    `json:"cloudProvider"`
+	Region                     string                    `json:"region"`
+	Zone                       string                    `json:"zone,omitempty"`
+	DeploymentMode             string                    `json:"deploymentMode,omitempty"`
+	CoreVersion                string                    `json:"coreVersion,omitempty"`
+	PayType                    string                    `json:"payType,omitempty"`
+	EndpointServiceID          string                    `json:"endpointServiceId,omitempty"`
+	EndpointServiceName        string                    `json:"endpointServiceName,omitempty"`
+	ServiceID                  string                    `json:"serviceId,omitempty"`
+	ServiceName                string                    `json:"serviceName,omitempty"`
+	EndpointService            *WarehouseEndpointService `json:"endpointService,omitempty"`
+	PrivateEndpointService     *WarehouseEndpointService `json:"privateEndpointService,omitempty"`
+	PrivateLinkEndpointService *WarehouseEndpointService `json:"privateLinkEndpointService,omitempty"`
+	SetupGuide                 *WarehouseSetupGuide      `json:"setupGuide,omitempty"`
+	CreatedAt                  *time.Time                `json:"createdAt,omitempty"`
+	ExpireTime                 *time.Time                `json:"expireTime,omitempty"`
+	Tags                       map[string]string         `json:"tags,omitempty"`
+}
+
+type WarehouseEndpointService struct {
+	ID                  string `json:"id,omitempty"`
+	Name                string `json:"name,omitempty"`
+	ServiceID           string `json:"serviceId,omitempty"`
+	ServiceName         string `json:"serviceName,omitempty"`
+	EndpointServiceID   string `json:"endpointServiceId,omitempty"`
+	EndpointServiceName string `json:"endpointServiceName,omitempty"`
 }
 
 type CreateWarehouseResult struct {

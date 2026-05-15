@@ -75,6 +75,8 @@ output "all_endpoints" {
 ### Read-Only
 
 - `compute_clusters` (Attributes List) Compute cluster connection details.
+- `endpoint_service_id` (String) PrivateLink endpoint service ID for creating cloud-side private endpoints when available.
+- `endpoint_service_name` (String) PrivateLink endpoint service name for creating cloud-side private endpoints when available.
 - `observer_groups` (Attributes List) Observer group connection details.
 - `private_endpoints` (Attributes List) Private connection endpoints grouped by protocol.
 - `public_endpoints` (Attributes List) Public connection endpoints grouped by protocol.

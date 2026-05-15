@@ -41,6 +41,7 @@ type WarehousePublicAccessPolicyRequest struct {
 
 type WarehousePublicAccessPolicyResponse struct {
 	PublicAccessPolicy string                   `json:"publicAccessPolicy,omitempty"`
+	Allowlist          []WarehouseAllowlistRule `json:"allowlist,omitempty"`
 	Rules              []WarehouseAllowlistRule `json:"rules,omitempty"`
 }
 

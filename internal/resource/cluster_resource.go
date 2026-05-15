@@ -2,6 +2,7 @@ package resource
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -189,7 +190,7 @@ func (r *ClusterResource) Schema(ctx context.Context, _ resource.SchemaRequest, 
 					Attributes: map[string]schema.Attribute{
 						"enabled": schema.BoolAttribute{Required: true, Description: "Whether auto-pause is enabled."},
 						"idle_timeout_minutes": schema.Int64Attribute{
-							Optional: true, Computed: true, Description: "Idle minutes before auto-pause.",
+							Optional: true, Computed: true, Description: "Idle minutes before auto-pause. Required when enabled is true.",
 							PlanModifiers: []planmodifier.Int64{
 								int64planmodifier.UseStateForUnknown(),
 							},
@@ -547,13 +548,34 @@ func (r *ClusterResource) Delete(ctx context.Context, req resource.DeleteRequest
 }
 
 func (r *ClusterResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	parts := strings.SplitN(req.ID, "/", 2)
-	if len(parts) != 2 {
+	importID := strings.TrimSpace(req.ID)
+	parts := strings.SplitN(importID, "/", 2)
+	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
 		resp.Diagnostics.AddError("Invalid import ID", "Expected format: warehouse_id/cluster_id")
 		return
 	}
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("warehouse_id"), parts[0])...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), parts[1])...)
+	warehouseID := strings.TrimSpace(parts[0])
+	clusterID := strings.TrimSpace(parts[1])
+	if r.client == nil {
+		resp.Diagnostics.AddError("Provider not configured", "The VeloDB client is not available during import.")
+		return
+	}
+
+	if _, err := r.client.GetCluster(ctx, warehouseID, clusterID); err != nil {
+		var apiErr *client.APIError
+		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
+			resp.Diagnostics.AddError(
+				"Cluster not found",
+				fmt.Sprintf("Cluster %q in warehouse %q does not exist or is not accessible. Verify the import ID before importing.", clusterID, warehouseID),
+			)
+			return
+		}
+		resp.Diagnostics.AddError(userError("importing cluster", err))
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("warehouse_id"), warehouseID)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), clusterID)...)
 }
 
 // --- Helpers ---

@@ -2,6 +2,7 @@ package resource
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -26,6 +27,7 @@ import (
 var (
 	_ resource.Resource                   = &WarehouseResource{}
 	_ resource.ResourceWithImportState    = &WarehouseResource{}
+	_ resource.ResourceWithModifyPlan     = &WarehouseResource{}
 	_ resource.ResourceWithValidateConfig = &WarehouseResource{}
 )
 
@@ -347,7 +349,7 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 										Required:    true,
 									},
 									"idle_timeout_minutes": schema.Int64Attribute{
-										Description: "Idle timeout in minutes.",
+										Description: "Idle timeout in minutes. Required when enabled is true.",
 										Optional:    true,
 										Validators: []validator.Int64{
 											int64validator.AtLeast(0),
@@ -383,34 +385,17 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 }
 
 func (r *WarehouseResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	var adminPw types.String
-	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("admin_password"), &adminPw)...)
-	if adminPw.IsNull() {
-		resp.Diagnostics.AddError(
-			"admin_password is required",
-			"admin_password must be set when creating a warehouse.",
-		)
-	}
-
 	var initialCluster types.List
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("initial_cluster"), &initialCluster)...)
 	if initialCluster.IsUnknown() {
 		return
 	}
-	if initialCluster.IsNull() || len(initialCluster.Elements()) == 0 {
-		resp.Diagnostics.AddError(
-			"initial_cluster is required",
-			"At least one initial_cluster block must be provided when creating a warehouse.",
-		)
-		return
-	}
-
-	var clusters []InitialClusterModel
-	resp.Diagnostics.Append(initialCluster.ElementsAs(ctx, &clusters, false)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	if len(clusters) > 0 {
+	if !initialCluster.IsNull() && len(initialCluster.Elements()) > 0 {
+		var clusters []InitialClusterModel
+		resp.Diagnostics.Append(initialCluster.ElementsAs(ctx, &clusters, false)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
 		validateClusterCapacity(&resp.Diagnostics, "initial_cluster", clusters[0].ComputeVcpu, clusters[0].CacheGb)
 		validateAutoPauseRequiresTimeout(ctx, &resp.Diagnostics, "initial_cluster", clusters[0].AutoPause)
 	}
@@ -432,6 +417,44 @@ func (r *WarehouseResource) ValidateConfig(ctx context.Context, req resource.Val
 	}
 }
 
+func (r *WarehouseResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.Plan.Raw.IsNull() || !req.Plan.Raw.IsKnown() || !req.State.Raw.IsNull() {
+		return
+	}
+
+	var deploymentMode types.String
+	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("deployment_mode"), &deploymentMode)...)
+	if resp.Diagnostics.HasError() || deploymentMode.IsNull() || deploymentMode.IsUnknown() {
+		return
+	}
+
+	if normalizeDeploymentMode(deploymentMode.ValueString()) == "BYOC" {
+		resp.Diagnostics.AddError(
+			"BYOC warehouse creation is not supported",
+			"velodb_warehouse can import and read existing BYOC warehouses, but it cannot create new BYOC warehouses with the current Management API. Create the BYOC warehouse outside Terraform, then import it by warehouse ID.",
+		)
+		return
+	}
+
+	var adminPw types.String
+	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("admin_password"), &adminPw)...)
+	if adminPw.IsNull() || adminPw.IsUnknown() {
+		resp.Diagnostics.AddError(
+			"admin_password is required for creation",
+			"admin_password must be set when creating a SaaS warehouse. It can be omitted when importing an existing warehouse.",
+		)
+	}
+
+	var initialCluster types.List
+	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("initial_cluster"), &initialCluster)...)
+	if initialCluster.IsNull() || initialCluster.IsUnknown() || len(initialCluster.Elements()) == 0 {
+		resp.Diagnostics.AddError(
+			"initial_cluster is required for creation",
+			"At least one initial_cluster block must be provided when creating a SaaS warehouse. It can be omitted when importing an existing warehouse.",
+		)
+	}
+}
+
 func (r *WarehouseResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
@@ -449,6 +472,30 @@ func (r *WarehouseResource) Configure(_ context.Context, req resource.ConfigureR
 func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan WarehouseResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if normalizeDeploymentMode(plan.DeploymentMode.ValueString()) == "BYOC" {
+		resp.Diagnostics.AddError(
+			"BYOC warehouse creation is not supported",
+			"velodb_warehouse can import and read existing BYOC warehouses, but it cannot create new BYOC warehouses with the current Management API. Create the BYOC warehouse outside Terraform, then import it by warehouse ID.",
+		)
+		return
+	}
+
+	if plan.AdminPassword.IsNull() || plan.AdminPassword.IsUnknown() {
+		resp.Diagnostics.AddError(
+			"admin_password is required for creation",
+			"admin_password must be set when creating a SaaS warehouse. It can be omitted when importing an existing warehouse.",
+		)
+	}
+	if plan.InitialCluster.IsNull() || plan.InitialCluster.IsUnknown() || len(plan.InitialCluster.Elements()) == 0 {
+		resp.Diagnostics.AddError(
+			"initial_cluster is required for creation",
+			"At least one initial_cluster block must be provided when creating a SaaS warehouse. It can be omitted when importing an existing warehouse.",
+		)
+	}
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -708,7 +755,30 @@ func (r *WarehouseResource) Delete(ctx context.Context, req resource.DeleteReque
 }
 
 func (r *WarehouseResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	warehouseID := strings.TrimSpace(req.ID)
+	if warehouseID == "" {
+		resp.Diagnostics.AddError("Invalid import ID", "Expected warehouse_id.")
+		return
+	}
+	if r.client == nil {
+		resp.Diagnostics.AddError("Provider not configured", "The VeloDB client is not available during import.")
+		return
+	}
+
+	if _, err := r.client.GetWarehouse(ctx, warehouseID); err != nil {
+		var apiErr *client.APIError
+		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
+			resp.Diagnostics.AddError(
+				"Warehouse not found",
+				fmt.Sprintf("Warehouse %q does not exist or is not accessible. Verify the warehouse_id before importing.", warehouseID),
+			)
+			return
+		}
+		resp.Diagnostics.AddError(userError("importing warehouse", err))
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), warehouseID)...)
 }
 
 // --- Helpers ---

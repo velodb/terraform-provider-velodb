@@ -34,7 +34,7 @@ variable "velodb_api_key" {
 
 | Resource | Purpose |
 |---|---|
-| `velodb_warehouse` | Create/update/delete SaaS or BYOC warehouses |
+| `velodb_warehouse` | Create/update/delete SaaS warehouses; import/read existing BYOC warehouses |
 | `velodb_cluster` | Manage COMPUTE clusters inside a warehouse |
 | `velodb_public_access_policy` | Manage public access allowlist policy |
 | `velodb_warehouse_private_endpoint` | Register an existing cloud PrivateLink endpoint |
@@ -72,10 +72,11 @@ resource "velodb_warehouse" "main" {
 }
 ```
 
-`deployment_mode` must be `SaaS` or `BYOC`. The current Management API does not
-accept `maintenance_window`, `upgrade_policy`, mixed-billing request fields, or
-legacy `advanced_settings` in Terraform warehouse/cluster create/update
-requests.
+`deployment_mode` must be `SaaS` or `BYOC`. `BYOC` warehouses can be imported
+and read, but cannot be created by this provider with the current Management
+API. The current Management API does not accept `maintenance_window`,
+`upgrade_policy`, mixed-billing request fields, or legacy `advanced_settings` in
+Terraform warehouse/cluster create/update requests.
 
 ## Cluster Example
 

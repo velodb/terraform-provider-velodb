@@ -22,11 +22,13 @@ func NewWarehouseConnectionsDataSource() datasource.DataSource {
 }
 
 type WarehouseConnectionsModel struct {
-	WarehouseID      types.String                     `tfsdk:"warehouse_id"`
-	PublicEndpoints  []ConnectionEndpointModel        `tfsdk:"public_endpoints"`
-	PrivateEndpoints []PrivateConnectionEndpointModel `tfsdk:"private_endpoints"`
-	ComputeClusters  []ConnectionClusterModel         `tfsdk:"compute_clusters"`
-	ObserverGroups   []ObserverGroupModel             `tfsdk:"observer_groups"`
+	WarehouseID         types.String                     `tfsdk:"warehouse_id"`
+	EndpointServiceID   types.String                     `tfsdk:"endpoint_service_id"`
+	EndpointServiceName types.String                     `tfsdk:"endpoint_service_name"`
+	PublicEndpoints     []ConnectionEndpointModel        `tfsdk:"public_endpoints"`
+	PrivateEndpoints    []PrivateConnectionEndpointModel `tfsdk:"private_endpoints"`
+	ComputeClusters     []ConnectionClusterModel         `tfsdk:"compute_clusters"`
+	ObserverGroups      []ObserverGroupModel             `tfsdk:"observer_groups"`
 }
 
 type ConnectionEndpointModel struct {
@@ -67,6 +69,14 @@ func (d *WarehouseConnectionsDataSource) Schema(_ context.Context, _ datasource.
 			"warehouse_id": schema.StringAttribute{
 				Description: "Warehouse identifier.",
 				Required:    true,
+			},
+			"endpoint_service_id": schema.StringAttribute{
+				Description: "PrivateLink endpoint service ID for creating cloud-side private endpoints when available.",
+				Computed:    true,
+			},
+			"endpoint_service_name": schema.StringAttribute{
+				Description: "PrivateLink endpoint service name for creating cloud-side private endpoints when available.",
+				Computed:    true,
 			},
 			"public_endpoints": schema.ListNestedAttribute{
 				Description: "Public connection endpoints (JDBC, HTTP, stream_load, ADBC, studio, MCP).",
@@ -142,6 +152,19 @@ func (d *WarehouseConnectionsDataSource) Read(ctx context.Context, req datasourc
 	if err != nil {
 		resp.Diagnostics.AddError("Error reading warehouse connections", err.Error())
 		return
+	}
+
+	config.EndpointServiceID = types.StringNull()
+	config.EndpointServiceName = types.StringNull()
+	wh, err := d.client.GetWarehouse(ctx, config.WarehouseID.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddWarning(
+			"Unable to enrich warehouse endpoint service",
+			fmt.Sprintf("Connection endpoints were read, but warehouse detail lookup failed: %s", err.Error()),
+		)
+	} else {
+		config.EndpointServiceID = stringOrNull(wh.EndpointServiceID)
+		config.EndpointServiceName = stringOrNull(wh.EndpointServiceName)
 	}
 
 	config.PublicEndpoints = make([]ConnectionEndpointModel, 0, len(conns.PublicEndpoints))
