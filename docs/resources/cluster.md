@@ -14,13 +14,14 @@ Key capabilities:
 - **Flat billing** — `compute_vcpu` and `cache_gb` as top-level attributes (on_demand only)
 - **Declarative lifecycle** — `desired_state` = `running` or `paused`
 - **Auto-pause** — configure idle timeout for automatic pause to save costs
+- **Observed billing** — `billing_method` is read from the API; billing selection is not part of the current create/update schema
 - **Connection info** — public/private endpoints and ports exposed as computed attributes
 
 ## Constraints
 
 - Only `cluster_type = "COMPUTE"` is supported (SQL and OBSERVER are blocked at plan time)
-- `compute_vcpu` and `cache_gb` cannot be changed simultaneously — apply them in separate steps
-- `compute_vcpu` minimum is 4, `cache_gb` minimum is 100
+- Arbitrary `compute_vcpu` and `cache_gb` changes cannot be combined; when increasing CPU, set `cache_gb` to the API-implied minimum for the new CPU size
+- `compute_vcpu` minimum is 4, `cache_gb` minimum is `max(100, compute_vcpu * 25)`
 
 ## Example Usage
 
@@ -29,10 +30,10 @@ Key capabilities:
 ```terraform
 resource "velodb_cluster" "etl" {
   warehouse_id  = velodb_warehouse.main.id
-  name          = "compute-etl"
+  name          = "compute_etl"
   cluster_type  = "COMPUTE"
   compute_vcpu  = 8
-  cache_gb      = 100
+  cache_gb      = 200
   desired_state = "running"
 
   auto_pause {
@@ -56,7 +57,7 @@ output "etl_endpoint" {
 ```terraform
 resource "velodb_cluster" "dev" {
   warehouse_id  = velodb_warehouse.main.id
-  name          = "compute-dev"
+  name          = "compute_dev"
   cluster_type  = "COMPUTE"
   compute_vcpu  = 4
   cache_gb      = 100
@@ -75,7 +76,7 @@ resource "velodb_cluster" "dev" {
 resource "velodb_cluster" "etl" {
   # ...
   compute_vcpu = 16   # was 8 — apply this first
-  cache_gb     = 100   # keep unchanged
+  cache_gb     = 400   # API-implied minimum for 16 vCPU
 }
 # After apply completes:
 resource "velodb_cluster" "etl" {
@@ -112,16 +113,15 @@ resource "velodb_cluster" "c" {
 
 ### Required
 
-- `cache_gb` (Number) Cache disk size in GB (minimum 100). Changing triggers resize. Cannot be changed simultaneously with `compute_vcpu`.
+- `cache_gb` (Number) Cache disk size in GB. Minimum is `max(100, compute_vcpu * 25)`. Changing triggers resize. Arbitrary cache changes cannot be combined with `compute_vcpu`; when increasing CPU, set this to the API-implied minimum for the new CPU size.
 - `cluster_type` (String) Only `COMPUTE` is supported. Changing this forces a new resource.
-- `compute_vcpu` (Number) vCPU capacity (minimum 4). Changing triggers resize. Cannot be changed simultaneously with `cache_gb`.
-- `name` (String) Cluster display name.
+- `compute_vcpu` (Number) vCPU capacity (minimum 4). Changing triggers resize. When increasing CPU, set `cache_gb` to the API-implied minimum for the new CPU size.
+- `name` (String) Cluster display name. Must start with a letter and contain only letters, numbers, and underscores.
 - `warehouse_id` (String) Parent warehouse identifier. Changing this forces a new resource.
 
 ### Optional
 
 - `auto_pause` (Block List, Max: 1) Auto-pause configuration. (see [below for nested schema](#nestedblock--auto_pause))
-- `billing_method` (String) Billing method. Defaults to `on_demand`.
 - `desired_state` (String) `running` or `paused`. Changing triggers the corresponding action.
 - `reboot_trigger` (Number) Increment to trigger a cluster reboot.
 - `timeouts` (Block, Optional) (see [below for nested schema](#nestedblock--timeouts))
@@ -130,6 +130,7 @@ resource "velodb_cluster" "c" {
 ### Read-Only
 
 - `cloud_provider` (String) Cloud provider inherited from warehouse.
+- `billing_method` (String) Observed billing method.
 - `connection_info` (Attributes List) Connection endpoints. (see [below for nested schema](#nestedatt--connection_info))
 - `created_at` (String) Creation time in RFC 3339 format.
 - `expire_time` (String) Expiration time when applicable.

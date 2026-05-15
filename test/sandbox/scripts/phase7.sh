@@ -15,7 +15,7 @@ terraform {
 }
 
 provider "velodb" {
-  host    = "sandbox.velodb.io"
+  host    = "sandbox-api.velodb.io"
   api_key = "x"
 }
 HCL
@@ -36,7 +36,6 @@ resource "velodb_warehouse" "stale" {
   $hcl
 
   initial_cluster {
-    name         = "default"
     zone         = "us-east-1d"
     compute_vcpu = 4
     cache_gb     = 100
@@ -83,5 +82,20 @@ expect_validate_error "7.4 core_version read-only" \
   "Invalid Configuration for Read-Only Attribute" \
   'core_version = "3.1.0"'
 
+# 7.5 — maintenance_window is not in the current management API
+expect_validate_error "7.5 maintenance_window" \
+  "An argument named \"maintenance_window\"" \
+  'maintenance_window = { start_hour_utc = 2, end_hour_utc = 6 }'
+
+# 7.6 — upgrade_policy is not in the current management API
+expect_validate_error "7.6 upgrade_policy" \
+  "An argument named \"upgrade_policy\"" \
+  'upgrade_policy = "automatic"'
+
+# 7.7 — initial_cluster billing fields are not in CreateWarehouseRequest
+expect_validate_error "7.7 initial_cluster billing_model" \
+  "An argument named \"billing_model\"" \
+  $'initial_cluster {\n    zone = "us-east-1d"\n    compute_vcpu = 4\n    cache_gb = 100\n    billing_model = "on_demand"\n  }'
+
 echo
-echo "=== Phase 7 complete: all 4 stale fields fail loudly ==="
+echo "=== Phase 7 complete: all stale fields fail loudly ==="

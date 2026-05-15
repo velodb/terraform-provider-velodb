@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -11,14 +12,16 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/velodb/terraform-provider-velodb/internal/client"
 )
 
 var (
-	_ resource.Resource                = &PublicAccessPolicyResource{}
-	_ resource.ResourceWithImportState = &PublicAccessPolicyResource{}
+	_ resource.Resource                   = &PublicAccessPolicyResource{}
+	_ resource.ResourceWithImportState    = &PublicAccessPolicyResource{}
+	_ resource.ResourceWithValidateConfig = &PublicAccessPolicyResource{}
 )
 
 type PublicAccessPolicyResource struct {
@@ -66,6 +69,9 @@ func (r *PublicAccessPolicyResource) Schema(_ context.Context, _ resource.Schema
 			"policy": schema.StringAttribute{
 				Description: "Public access policy: DENY_ALL, ALLOW_ALL, or ALLOWLIST_ONLY.",
 				Required:    true,
+				Validators: []validator.String{
+					stringvalidator.OneOf("DENY_ALL", "ALLOW_ALL", "ALLOWLIST_ONLY"),
+				},
 			},
 			"rules": schema.SetNestedAttribute{
 				Description: "Allowlist CIDR rules. Only valid when policy is ALLOWLIST_ONLY. Order is not significant.",
@@ -87,6 +93,14 @@ func (r *PublicAccessPolicyResource) Schema(_ context.Context, _ resource.Schema
 			},
 		},
 	}
+}
+
+func (r *PublicAccessPolicyResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var policy types.String
+	var rules types.Set
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("policy"), &policy)...)
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("rules"), &rules)...)
+	validatePublicAccessPolicy(&resp.Diagnostics, policy, rules)
 }
 
 func (r *PublicAccessPolicyResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -136,7 +150,12 @@ func (r *PublicAccessPolicyResource) Create(ctx context.Context, req resource.Cr
 	}
 
 	plan.ID = plan.WarehouseID
+	priorRules := plan.Rules
 	r.readIntoState(ctx, &plan, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	preserveConfiguredPublicAccessRules(&plan, priorRules)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -147,10 +166,12 @@ func (r *PublicAccessPolicyResource) Read(ctx context.Context, req resource.Read
 		return
 	}
 
+	priorRules := state.Rules
 	r.readIntoState(ctx, &state, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	preserveConfiguredPublicAccessRules(&state, priorRules)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -171,7 +192,12 @@ func (r *PublicAccessPolicyResource) Update(ctx context.Context, req resource.Up
 		return
 	}
 
+	priorRules := plan.Rules
 	r.readIntoState(ctx, &plan, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	preserveConfiguredPublicAccessRules(&plan, priorRules)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -228,4 +254,17 @@ func (r *PublicAccessPolicyResource) readIntoState(ctx context.Context, state *P
 	list, d := types.SetValue(types.ObjectType{AttrTypes: allowlistRuleAttrTypes()}, rules)
 	diags.Append(d...)
 	state.Rules = list
+}
+
+func preserveConfiguredPublicAccessRules(state *PublicAccessPolicyModel, priorRules types.Set) {
+	if state.Policy.IsNull() || state.Policy.IsUnknown() || state.Policy.ValueString() != "ALLOWLIST_ONLY" {
+		return
+	}
+	if priorRules.IsNull() || priorRules.IsUnknown() || len(priorRules.Elements()) == 0 {
+		return
+	}
+	if !state.Rules.IsNull() && !state.Rules.IsUnknown() && len(state.Rules.Elements()) > 0 {
+		return
+	}
+	state.Rules = priorRules
 }

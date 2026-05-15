@@ -20,6 +20,7 @@ func WaitForStatus(ctx context.Context, fetchStatus StatusFunc, targetStatuses, 
 
 	targetSet := toSet(targetStatuses)
 	failedSet := toSet(failedStatuses)
+	var lastErr error
 
 	for {
 		status, err := fetchStatus(ctx)
@@ -30,18 +31,34 @@ func WaitForStatus(ctx context.Context, fetchStatus StatusFunc, targetStatuses, 
 					return "Deleted", nil
 				}
 			}
-			return "", fmt.Errorf("polling status: %w", err)
-		}
+			if _, ok := err.(*APIError); ok {
+				return "", fmt.Errorf("polling status: %w", err)
+			}
+			lastErr = err
+		} else {
+			lastErr = nil
 
-		if _, ok := targetSet[status]; ok {
-			return status, nil
-		}
-		if _, ok := failedSet[status]; ok {
-			return status, fmt.Errorf("resource reached failed status: %s", status)
+			// Some delete reads return a successful but empty payload instead of a
+			// 404. Only accept that as terminal when the caller is waiting on delete.
+			if status == "" {
+				if _, ok := targetSet["Deleted"]; ok {
+					return "Deleted", nil
+				}
+			}
+
+			if _, ok := targetSet[status]; ok {
+				return status, nil
+			}
+			if _, ok := failedSet[status]; ok {
+				return status, fmt.Errorf("resource reached failed status: %s", status)
+			}
 		}
 
 		select {
 		case <-ctx.Done():
+			if lastErr != nil {
+				return status, fmt.Errorf("timed out waiting for status %v after polling error: %w", targetStatuses, lastErr)
+			}
 			return status, fmt.Errorf("timed out waiting for status %v, current status: %s", targetStatuses, status)
 		case <-ticker.C:
 		}

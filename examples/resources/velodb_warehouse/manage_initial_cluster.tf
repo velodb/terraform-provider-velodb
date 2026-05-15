@@ -22,7 +22,6 @@ resource "velodb_warehouse" "main" {
   admin_password  = var.admin_password
 
   initial_cluster {
-    name         = "bootstrap"
     zone         = "us-east-1a"
     compute_vcpu = 4
     cache_gb     = 100
@@ -40,11 +39,8 @@ resource "velodb_cluster" "etl" {
   name         = "etl"
   cluster_type = "COMPUTE"
   zone         = "us-east-1a"
-
-  on_demand {
-    compute_vcpu = 16
-    cache_gb     = 100
-  }
+  compute_vcpu = 16
+  cache_gb     = 400
 }
 
 # 3. Import the initial cluster so Terraform can manage it
@@ -58,11 +54,8 @@ resource "velodb_cluster" "initial" {
   name         = "bootstrap"
   cluster_type = "COMPUTE"
   zone         = "us-east-1a"
-
-  on_demand {
-    compute_vcpu = 4
-    cache_gb     = 100
-  }
+  compute_vcpu = 4
+  cache_gb     = 100
 }
 
 # 4. Day-N: destroy the initial cluster by removing both blocks above

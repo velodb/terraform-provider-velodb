@@ -63,22 +63,25 @@ var mockTime = time.Date(2026, 4, 6, 10, 30, 0, 0, time.UTC)
 func mockWarehouse(id, name string) WarehouseItem {
 	t := mockTime
 	return WarehouseItem{
-		WarehouseID:    id,
-		Name:           name,
-		Status:         "Running",
-		CloudProvider:  "aliyun",
-		Region:         "cn-beijing",
-		Zone:           "cn-beijing-k",
-		DeploymentMode: "SAAS",
-		CoreVersion:    "3.0.3",
-		PayType:        "PostPaid",
-		CreatedAt:      &t,
-		Tags:           map[string]string{"env": "test"},
+		WarehouseID:         id,
+		Name:                name,
+		Status:              "Running",
+		CloudProvider:       "aliyun",
+		Region:              "cn-beijing",
+		Zone:                "cn-beijing-k",
+		DeploymentMode:      "SaaS",
+		CoreVersion:         "3.0.3",
+		PayType:             "PostPaid",
+		EndpointServiceID:   "vpce-svc-mock",
+		EndpointServiceName: "com.amazonaws.vpce.cn-beijing.vpce-svc-mock",
+		CreatedAt:           &t,
+		Tags:                map[string]string{"env": "test"},
 	}
 }
 
 func mockCluster(id, warehouseID, name string) ClusterItem {
 	t := mockTime
+	idleTimeout := 15
 	return ClusterItem{
 		ClusterID:     id,
 		WarehouseID:   warehouseID,
@@ -92,6 +95,10 @@ func mockCluster(id, warehouseID, name string) ClusterItem {
 		BillingModel:  "on_demand",
 		CreatedAt:     &t,
 		StartedAt:     &t,
+		AutoPause: &AutoPauseConfig{
+			Enabled:            true,
+			IdleTimeoutMinutes: &idleTimeout,
+		},
 		ConnectionInfo: &ClusterConnectionInfo{
 			PublicEndpoint:  fmt.Sprintf("%s.selectdbcloud.com", id),
 			PrivateEndpoint: fmt.Sprintf("%s.internal", id),

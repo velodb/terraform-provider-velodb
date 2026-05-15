@@ -1,6 +1,6 @@
 # Sandbox tests
 
-Live tests against `https://sandbox.velodb.io`. **Provisions real warehouses and clusters — costs money.**
+Live tests against `https://sandbox-api.velodb.io`. **Provisions real warehouses and clusters — costs money.**
 
 ## Layout
 
@@ -8,9 +8,9 @@ Live tests against `https://sandbox.velodb.io`. **Provisions real warehouses and
 test/sandbox/
 ├── phase1/                      # base Terraform workspace (warehouse, optional cluster, versions data source)
 ├── scripts/
-│   ├── phase2.sh                # warehouse mutations (8 sub-tests)
+│   ├── phase2.sh                # warehouse mutations
 │   ├── phase3.sh                # cluster regressions: pause/resume/reboot
-│   ├── phase4.sh                # on_demand resize: vcpu auto-scale + explicit cache_gb
+│   ├── phase4.sh                # resize: vcpu + API-implied cache + explicit cache_gb
 │   ├── phase5.sh                # edge cases: invalid IDs, validators, resize-while-paused
 │   ├── phase6.sh                # import flow: warehouse + cluster, drift assertions
 │   └── phase7.sh                # stale-config canary (no API calls)
@@ -25,11 +25,11 @@ The phases share state — phase2 → phase3 → phase4 → phase5 → phase6 ea
 |---|---|---|
 | 0 | `go build`, `go vet`, `go test` | no |
 | 1 | Fresh `apply` of new HCL shape, post-apply drift = 0 | yes (creates warehouse) |
-| 2 | 8 mutation paths: maintenance window change, only-upgrade-policy, both-removed, two validator rejections, rename, password rotation, invalid `core_version_id` | yes |
+| 2 | Rename, password rotation, invalid `core_version_id` | yes |
 | 3 | Pause / resume / reboot via `desired_state` + `reboot_trigger`, post-apply drift = 0 | yes (creates cluster) |
-| 4 | on_demand resize: `vcpu 4→8` with auto-scaled cache, then explicit `cache_gb` resize | yes |
-| 5 | 6 edge cases: invalid `core_version_id`, negative hour, empty `upgrade_policy`, `vcpu < 4`, `cache_gb < 100`, resize-while-paused | partial — most are plan-only |
-| 6 | Import warehouse + cluster into a fresh workspace; assert no drift on migrated v1 fields | yes (read-only) |
+| 4 | Resize: `vcpu 4→8` with API-implied cache, then explicit `cache_gb` resize | yes |
+| 5 | Edge cases: invalid `core_version_id`, invalid `compute_vcpu`, `cache_gb < 100`, auto-pause timeout validation, resize-while-paused | partial — most are plan-only |
+| 6 | Import warehouse + cluster into a fresh workspace; assert no drift on read-back fields | yes (read-only) |
 | 7 | Confirm v0.x fields fail at `terraform validate` | no |
 
 ## Running locally
@@ -74,8 +74,8 @@ Required repo secret: `VELODB_SANDBOX_API_KEY`.
 
 ## Not in scope (sandbox quirks, not provider bugs)
 
-- **Mixed-billing PATCH** (`PATCH /clusters/{id}` with `billingModel=subscription` to add a subscription pool to an existing on_demand cluster) returns `409 OperationConflict` for all sizes tested. Provider code is correct for when the path is restored. Tracked as Phase 4b in `TEST_PLAN.md`; no automation here until the sandbox accepts the call again.
+- **Mixed-billing create/update** is not part of the current management API schema. Terraform exposes the observed `billing_model` as read-only.
 - **Prepaid cluster delete lock** — once a cluster is on subscription billing, `DELETE` returns 409 until expiry. Avoid creating prepaid clusters in throwaway tests.
 - **`/v1/warehouses/{id}/versions`** returns `data: []` for fresh warehouses, so Phase 2.7 (valid `core_version_id` upgrade) is documented but not asserted.
-- **Disk resize cooldown** — re-pinning `cache_gb` immediately after a vcpu change returns `409 "No more than 6 hours since the last"`. Phase 4 schedules the cache-only resize after the vcpu resize so they avoid the cooldown.
-- **`/v1/private-link/warehouses/{id}/endpoints`** (new) returns 404 in sandbox — legacy `/connections/private/...` endpoints still work and the provider continues to use them.
+- **CPU resize cache floor** — increasing vCPU can automatically raise cache to the API-implied minimum. Phase 4 plans that minimum (`4/100 → 8/200`) before testing a separate cache-only resize.
+- **PrivateLink endpoint deregistration** is not exposed by the current management API. Terraform can register endpoints, but destroy removes only local state.

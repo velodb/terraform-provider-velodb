@@ -3,10 +3,12 @@ package resource
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -38,29 +40,31 @@ func NewWarehouseResource() resource.Resource {
 // --- Terraform model ---
 
 type WarehouseResourceModel struct {
-	ID                       types.String  `tfsdk:"id"`
-	Name                     types.String  `tfsdk:"name"`
-	DeploymentMode           types.String  `tfsdk:"deployment_mode"`
-	CloudProvider            types.String  `tfsdk:"cloud_provider"`
-	Region                   types.String  `tfsdk:"region"`
-	SetupMode               types.String  `tfsdk:"setup_mode"`
-	VpcMode                  types.String  `tfsdk:"vpc_mode"`
-	VpcID                    types.String  `tfsdk:"vpc_id"`
-	CredentialID             types.Int64   `tfsdk:"credential_id"`
-	NetworkConfigID          types.Int64   `tfsdk:"network_config_id"`
-	BucketName               types.String  `tfsdk:"bucket_name"`
-	DataCredentialArn        types.String  `tfsdk:"data_credential_arn"`
-	DeploymentCredentialArn  types.String  `tfsdk:"deployment_credential_arn"`
-	SubnetID                 types.String  `tfsdk:"subnet_id"`
-	SecurityGroupID          types.String  `tfsdk:"security_group_id"`
-	EndpointID               types.String  `tfsdk:"endpoint_id"`
-	CoreVersion              types.String  `tfsdk:"core_version"`
-	CoreVersionID            types.Int64   `tfsdk:"core_version_id"`
-	AdminPassword            types.String  `tfsdk:"admin_password"`
-	AdminPasswordVersion     types.Int64   `tfsdk:"admin_password_version"`
-	Tags                     types.Map     `tfsdk:"tags"`
-	InitialCluster           types.List    `tfsdk:"initial_cluster"`
-	Timeouts                 timeouts.Value `tfsdk:"timeouts"`
+	ID                      types.String   `tfsdk:"id"`
+	Name                    types.String   `tfsdk:"name"`
+	DeploymentMode          types.String   `tfsdk:"deployment_mode"`
+	CloudProvider           types.String   `tfsdk:"cloud_provider"`
+	Region                  types.String   `tfsdk:"region"`
+	SetupMode               types.String   `tfsdk:"setup_mode"`
+	VpcMode                 types.String   `tfsdk:"vpc_mode"`
+	VpcID                   types.String   `tfsdk:"vpc_id"`
+	CredentialID            types.Int64    `tfsdk:"credential_id"`
+	NetworkConfigID         types.Int64    `tfsdk:"network_config_id"`
+	BucketName              types.String   `tfsdk:"bucket_name"`
+	DataCredentialArn       types.String   `tfsdk:"data_credential_arn"`
+	DeploymentCredentialArn types.String   `tfsdk:"deployment_credential_arn"`
+	SubnetID                types.String   `tfsdk:"subnet_id"`
+	SecurityGroupID         types.String   `tfsdk:"security_group_id"`
+	EndpointID              types.String   `tfsdk:"endpoint_id"`
+	CoreVersion             types.String   `tfsdk:"core_version"`
+	CoreVersionID           types.Int64    `tfsdk:"core_version_id"`
+	EndpointServiceID       types.String   `tfsdk:"endpoint_service_id"`
+	EndpointServiceName     types.String   `tfsdk:"endpoint_service_name"`
+	AdminPassword           types.String   `tfsdk:"admin_password"`
+	AdminPasswordVersion    types.Int64    `tfsdk:"admin_password_version"`
+	Tags                    types.Map      `tfsdk:"tags"`
+	InitialCluster          types.List     `tfsdk:"initial_cluster"`
+	Timeouts                timeouts.Value `tfsdk:"timeouts"`
 	// Computed
 	Status           types.String `tfsdk:"status"`
 	Zone             types.String `tfsdk:"zone"`
@@ -72,14 +76,10 @@ type WarehouseResourceModel struct {
 }
 
 type InitialClusterModel struct {
-	Name          types.String `tfsdk:"name"`
-	Zone          types.String `tfsdk:"zone"`
-	ComputeVcpu   types.Int64  `tfsdk:"compute_vcpu"`
-	CacheGb       types.Int64  `tfsdk:"cache_gb"`
-	BillingModel types.String `tfsdk:"billing_model"`
-	Period        types.Int64  `tfsdk:"period"`
-	PeriodUnit    types.String `tfsdk:"period_unit"`
-	AutoPause     types.List   `tfsdk:"auto_pause"`
+	Zone        types.String `tfsdk:"zone"`
+	ComputeVcpu types.Int64  `tfsdk:"compute_vcpu"`
+	CacheGb     types.Int64  `tfsdk:"cache_gb"`
+	AutoPause   types.List   `tfsdk:"auto_pause"`
 }
 
 type AutoPauseModel struct {
@@ -117,15 +117,19 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 			"name": schema.StringAttribute{
 				Description: "Warehouse display name.",
 				Required:    true,
+				Validators: []validator.String{
+					stringvalidator.LengthBetween(1, 32),
+					stringvalidator.RegexMatches(regexp.MustCompile(`^[A-Za-z0-9_-]+$`), "must contain only letters, numbers, underscores, and hyphens"),
+				},
 			},
 			"deployment_mode": schema.StringAttribute{
-				Description: "Deployment mode. Only SAAS is supported.",
+				Description: "Deployment mode: SaaS or BYOC.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 				Validators: []validator.String{
-					stringvalidator.OneOf("SAAS"),
+					stringvalidator.OneOf("SaaS", "BYOC"),
 				},
 			},
 			"cloud_provider": schema.StringAttribute{
@@ -148,12 +152,18 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
+				Validators: []validator.String{
+					stringvalidator.OneOf("guided", "advanced"),
+				},
 			},
 			"vpc_mode": schema.StringAttribute{
 				Description: "VPC mode hint: existing or new.",
 				Optional:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
+				},
+				Validators: []validator.String{
+					stringvalidator.OneOf("existing", "new"),
 				},
 			},
 			"vpc_id": schema.StringAttribute{
@@ -169,12 +179,18 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				PlanModifiers: []planmodifier.Int64{
 					int64planmodifier.RequiresReplace(),
 				},
+				Validators: []validator.Int64{
+					int64validator.AtLeast(1),
+				},
 			},
 			"network_config_id": schema.Int64Attribute{
 				Description: "Network configuration identifier for Wizard mode.",
 				Optional:    true,
 				PlanModifiers: []planmodifier.Int64{
 					int64planmodifier.RequiresReplace(),
+				},
+				Validators: []validator.Int64{
+					int64validator.AtLeast(1),
 				},
 			},
 			"bucket_name": schema.StringAttribute{
@@ -231,7 +247,7 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				Optional:    true,
 			},
 			"admin_password": schema.StringAttribute{
-				Description: "Administrator password. Write-only — not stored in state.",
+				Description: "Administrator password. Write-only in the API and preserved as sensitive Terraform state so password rotation can be detected.",
 				Optional:    true,
 				Sensitive:   true,
 			},
@@ -240,9 +256,9 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				Optional:    true,
 			},
 			"tags": schema.MapAttribute{
-				Description: "Warehouse tags.",
-				Optional:    true,
-				ElementType: types.StringType,
+				Description:   "Warehouse tags.",
+				Optional:      true,
+				ElementType:   types.StringType,
 				PlanModifiers: []planmodifier.Map{},
 			},
 			// Computed
@@ -266,6 +282,14 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
+			},
+			"endpoint_service_id": schema.StringAttribute{
+				Description: "PrivateLink endpoint service ID associated with the warehouse when available.",
+				Computed:    true,
+			},
+			"endpoint_service_name": schema.StringAttribute{
+				Description: "PrivateLink endpoint service name associated with the warehouse when available.",
+				Computed:    true,
 			},
 			"created_at": schema.StringAttribute{
 				Description: "Creation time in ISO 8601 format.",
@@ -294,33 +318,23 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				Description: "Initial cluster created with the warehouse. Create-only.",
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
-						"name": schema.StringAttribute{
-							Description: "Cluster name.",
-							Required:    true,
-						},
 						"zone": schema.StringAttribute{
 							Description: "Availability zone.",
-							Optional:    true,
+							Required:    true,
 						},
 						"compute_vcpu": schema.Int64Attribute{
 							Description: "Compute capacity in vCPUs.",
 							Required:    true,
+							Validators: []validator.Int64{
+								int64validator.AtLeast(4),
+							},
 						},
 						"cache_gb": schema.Int64Attribute{
 							Description: "Cache capacity in GB.",
 							Required:    true,
-						},
-						"billing_model": schema.StringAttribute{
-							Description: "Billing method (e.g., monthly, on_demand).",
-							Optional:    true,
-						},
-						"period": schema.Int64Attribute{
-							Description: "Prepaid subscription length.",
-							Optional:    true,
-						},
-						"period_unit": schema.StringAttribute{
-							Description: "Period unit: Month, Year, or Week.",
-							Optional:    true,
+							Validators: []validator.Int64{
+								int64validator.AtLeast(100),
+							},
 						},
 					},
 					Blocks: map[string]schema.Block{
@@ -335,6 +349,9 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 									"idle_timeout_minutes": schema.Int64Attribute{
 										Description: "Idle timeout in minutes.",
 										Optional:    true,
+										Validators: []validator.Int64{
+											int64validator.AtLeast(0),
+										},
 									},
 								},
 							},
@@ -346,7 +363,7 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				Description: "BYOC setup guidance (computed).",
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
-						"token":                    schema.StringAttribute{Computed: true},
+						"token":                     schema.StringAttribute{Computed: true},
 						"shell_command":             schema.StringAttribute{Computed: true},
 						"shell_command_for_new_vpc": schema.StringAttribute{Computed: true},
 						"url":                       schema.StringAttribute{Computed: true},
@@ -368,19 +385,49 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 func (r *WarehouseResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
 	var adminPw types.String
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("admin_password"), &adminPw)...)
-	if adminPw.IsNull() || adminPw.IsUnknown() {
+	if adminPw.IsNull() {
 		resp.Diagnostics.AddError(
 			"admin_password is required",
-			"admin_password must be set when creating a SAAS warehouse.",
+			"admin_password must be set when creating a warehouse.",
 		)
 	}
 
 	var initialCluster types.List
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("initial_cluster"), &initialCluster)...)
+	if initialCluster.IsUnknown() {
+		return
+	}
 	if initialCluster.IsNull() || len(initialCluster.Elements()) == 0 {
 		resp.Diagnostics.AddError(
 			"initial_cluster is required",
 			"At least one initial_cluster block must be provided when creating a warehouse.",
+		)
+		return
+	}
+
+	var clusters []InitialClusterModel
+	resp.Diagnostics.Append(initialCluster.ElementsAs(ctx, &clusters, false)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if len(clusters) > 0 {
+		validateClusterCapacity(&resp.Diagnostics, "initial_cluster", clusters[0].ComputeVcpu, clusters[0].CacheGb)
+		validateAutoPauseRequiresTimeout(ctx, &resp.Diagnostics, "initial_cluster", clusters[0].AutoPause)
+	}
+
+	rejectUnsupportedString(ctx, req, resp, "vpc_id")
+	rejectUnsupportedString(ctx, req, resp, "bucket_name")
+	rejectUnsupportedString(ctx, req, resp, "data_credential_arn")
+	rejectUnsupportedString(ctx, req, resp, "deployment_credential_arn")
+	rejectUnsupportedString(ctx, req, resp, "subnet_id")
+	rejectUnsupportedString(ctx, req, resp, "security_group_id")
+	rejectUnsupportedString(ctx, req, resp, "endpoint_id")
+	var tags types.Map
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("tags"), &tags)...)
+	if !tags.IsNull() && !tags.IsUnknown() {
+		resp.Diagnostics.AddError(
+			"Unsupported tags",
+			"tags is not part of the current management API CreateWarehouseRequest.",
 		)
 	}
 }
@@ -417,32 +464,15 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 	// Build request
 	createReq := &client.CreateWarehouseRequest{
 		Name:           plan.Name.ValueString(),
-		DeploymentMode: plan.DeploymentMode.ValueString(),
+		DeploymentMode: normalizeDeploymentMode(plan.DeploymentMode.ValueString()),
 		CloudProvider:  plan.CloudProvider.ValueString(),
 		Region:         plan.Region.ValueString(),
 	}
 	setOptionalString(&createReq.VpcMode, plan.VpcMode)
 	setOptionalString(&createReq.SetupMode, plan.SetupMode)
-	setOptionalString(&createReq.VpcID, plan.VpcID)
 	setOptionalInt64(&createReq.CredentialID, plan.CredentialID)
 	setOptionalInt64(&createReq.NetworkConfigID, plan.NetworkConfigID)
-	setOptionalString(&createReq.BucketName, plan.BucketName)
-	setOptionalString(&createReq.DataCredentialArn, plan.DataCredentialArn)
-	setOptionalString(&createReq.DeploymentCredentialArn, plan.DeploymentCredentialArn)
-	setOptionalString(&createReq.SubnetID, plan.SubnetID)
-	setOptionalString(&createReq.SecurityGroupID, plan.SecurityGroupID)
-	setOptionalString(&createReq.EndpointID, plan.EndpointID)
 	setOptionalString(&createReq.AdminPassword, plan.AdminPassword)
-
-	// Tags
-	if !plan.Tags.IsNull() && !plan.Tags.IsUnknown() {
-		tags := make(map[string]string)
-		resp.Diagnostics.Append(plan.Tags.ElementsAs(ctx, &tags, false)...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-		createReq.Tags = tags
-	}
 
 	// Initial cluster
 	if !plan.InitialCluster.IsNull() && !plan.InitialCluster.IsUnknown() {
@@ -454,14 +484,10 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 		if len(clusters) > 0 {
 			ic := clusters[0]
 			clReq := &client.InitialClusterRequest{
-				Name:        ic.Name.ValueString(),
+				Zone:        ic.Zone.ValueString(),
 				ComputeVcpu: int(ic.ComputeVcpu.ValueInt64()),
 				CacheGb:     int(ic.CacheGb.ValueInt64()),
 			}
-			setOptionalString(&clReq.Zone, ic.Zone)
-			setOptionalString(&clReq.BillingModel, ic.BillingModel)
-			setOptionalIntFromInt64(&clReq.Period, ic.Period)
-			setOptionalString(&clReq.PeriodUnit, ic.PeriodUnit)
 
 			if !ic.AutoPause.IsNull() && !ic.AutoPause.IsUnknown() {
 				var apModels []AutoPauseModel
@@ -491,7 +517,7 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 	plan.ID = types.StringValue(result.WarehouseID)
 
 	// Store BYOC setup if returned
-	r.setByocSetup(ctx, &plan, result.ByocSetup, &resp.Diagnostics)
+	r.setByocSetup(ctx, &plan, result.SetupGuide, &resp.Diagnostics)
 
 	// Wait for warehouse to become Running
 	_, err = client.WaitForStatus(ctx, func(ctx context.Context) (string, error) {
@@ -505,8 +531,35 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 		resp.Diagnostics.AddWarning("Warehouse created but not yet Running", err.Error())
 	}
 
+	if !plan.CoreVersionID.IsNull() && !plan.CoreVersionID.IsUnknown() {
+		if plan.CoreVersionID.ValueInt64() <= 0 {
+			resp.Diagnostics.AddError(
+				"Invalid core_version_id",
+				"core_version_id must be a positive engine version ID.",
+			)
+			return
+		}
+		if err := r.client.UpgradeWarehouse(ctx, result.WarehouseID, plan.CoreVersionID.ValueInt64()); err != nil {
+			resp.Diagnostics.AddError(userError("upgrading warehouse", err))
+			return
+		}
+		_, err = client.WaitForStatus(ctx, func(ctx context.Context) (string, error) {
+			wh, err := r.client.GetWarehouse(ctx, result.WarehouseID)
+			if err != nil {
+				return "", err
+			}
+			return wh.Status, nil
+		}, []string{"Running"}, client.FailedStatuses, createTimeout, 15*time.Second)
+		if err != nil {
+			resp.Diagnostics.AddWarning("Warehouse upgrade may still be in progress", err.Error())
+		}
+	}
+
 	// Read back state
 	r.readWarehouseIntoState(ctx, result.WarehouseID, &plan, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	// Preserve admin_password from plan (can't be read from API)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
@@ -567,9 +620,6 @@ func (r *WarehouseResource) Update(ctx context.Context, req resource.UpdateReque
 		}
 	}
 
-	// Update upgrade policy / maintenance window via PATCH /warehouses/{id}/settings.
-	// API requires at least one of upgradePolicy or maintenanceWindow — skip the call
-	// entirely if both ended up null in the plan, which would otherwise produce a 400.
 	// Trigger version upgrade if core_version_id changed.
 	// Guard against zero IDs (which the velodb_warehouse_versions data source returns
 	// when the API has no available versions) — they would always 409 "targetVersionId not found".
@@ -613,6 +663,9 @@ func (r *WarehouseResource) Update(ctx context.Context, req resource.UpdateReque
 
 	// Read back state, preserving plan values for write-only/config-only fields
 	r.readWarehouseIntoState(ctx, warehouseID, &plan, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -680,6 +733,8 @@ func (r *WarehouseResource) readWarehouseIntoState(ctx context.Context, warehous
 	state.DeploymentMode = stringOrNull(wh.DeploymentMode)
 	state.CoreVersion = stringOrNull(wh.CoreVersion)
 	state.PayType = stringOrNull(wh.PayType)
+	state.EndpointServiceID = stringOrNull(wh.EndpointServiceID)
+	state.EndpointServiceName = stringOrNull(wh.EndpointServiceName)
 
 	if wh.CreatedAt != nil {
 		state.CreatedAt = types.StringValue(wh.CreatedAt.Format(time.RFC3339))
@@ -690,29 +745,16 @@ func (r *WarehouseResource) readWarehouseIntoState(ctx context.Context, warehous
 		state.ExpireTime = types.StringNull()
 	}
 
-	// Find initial_cluster ID by listing clusters and matching the configured name
+	// Find initial_cluster ID by selecting the first non-system cluster.
 	if state.InitialClusterID.IsNull() || state.InitialClusterID.IsUnknown() {
-		initialName := ""
-		if !state.InitialCluster.IsNull() && !state.InitialCluster.IsUnknown() {
-			var ics []InitialClusterModel
-			state.InitialCluster.ElementsAs(ctx, &ics, false)
-			if len(ics) > 0 {
-				initialName = ics[0].Name.ValueString()
-			}
-		}
-		if initialName == "" {
-			initialName = "initial_cluster" // default name set by API
-		}
 		clusters, err := r.client.ListClusters(ctx, warehouseID, &client.ListClustersOptions{Page: 1, Size: 50})
 		if err == nil {
 			for _, c := range clusters.Data {
 				if strings.HasPrefix(c.ClusterID, "m-") {
 					continue
 				}
-				if c.Name == initialName {
-					state.InitialClusterID = types.StringValue(c.ClusterID)
-					break
-				}
+				state.InitialClusterID = types.StringValue(c.ClusterID)
+				break
 			}
 		}
 		if state.InitialClusterID.IsNull() || state.InitialClusterID.IsUnknown() {
@@ -720,29 +762,25 @@ func (r *WarehouseResource) readWarehouseIntoState(ctx context.Context, warehous
 		}
 	}
 
-	// Try to get BYOC setup for BYOC warehouses
-	if wh.DeploymentMode == "BYOC" || wh.DeploymentMode == "byoc" {
-		setup, err := r.client.GetWarehouseByocSetup(ctx, warehouseID)
-		if err == nil {
-			r.setByocSetup(ctx, state, setup, diags)
-		}
+	if wh.SetupGuide != nil {
+		r.setByocSetup(ctx, state, wh.SetupGuide, diags)
 	}
 }
 
-func (r *WarehouseResource) setByocSetup(ctx context.Context, state *WarehouseResourceModel, setup *client.WarehouseByocSetup, diags *diag.Diagnostics) {
+func (r *WarehouseResource) setByocSetup(ctx context.Context, state *WarehouseResourceModel, setup *client.WarehouseSetupGuide, diags *diag.Diagnostics) {
 	if setup == nil {
 		state.ByocSetup = types.ListNull(types.ObjectType{AttrTypes: byocSetupAttrTypes()})
 		return
 	}
 
 	obj, d := types.ObjectValue(byocSetupAttrTypes(), map[string]attr.Value{
-		"token":                    stringOrNull(setup.Token),
-		"shell_command":            stringOrNull(setup.ShellCommand),
-		"shell_command_for_new_vpc": stringOrNull(setup.ShellCommandForNewVpc),
-		"url":                      stringOrNull(setup.URL),
-		"doc_url":                  stringOrNull(setup.DocURL),
-		"url_for_new_vpc":          stringOrNull(setup.URLForNewVpc),
-		"doc_url_for_new_vpc":      stringOrNull(setup.DocURLForNewVpc),
+		"token":                     types.StringNull(),
+		"shell_command":             stringOrNull(setup.ShellCommand),
+		"shell_command_for_new_vpc": types.StringNull(),
+		"url":                       stringOrNull(setup.SetupURL),
+		"doc_url":                   stringOrNull(setup.GuideURL),
+		"url_for_new_vpc":           types.StringNull(),
+		"doc_url_for_new_vpc":       types.StringNull(),
 	})
 	diags.Append(d...)
 
@@ -753,13 +791,13 @@ func (r *WarehouseResource) setByocSetup(ctx context.Context, state *WarehouseRe
 
 func byocSetupAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{
-		"token":                    types.StringType,
-		"shell_command":            types.StringType,
+		"token":                     types.StringType,
+		"shell_command":             types.StringType,
 		"shell_command_for_new_vpc": types.StringType,
-		"url":                      types.StringType,
-		"doc_url":                  types.StringType,
-		"url_for_new_vpc":          types.StringType,
-		"doc_url_for_new_vpc":      types.StringType,
+		"url":                       types.StringType,
+		"doc_url":                   types.StringType,
+		"url_for_new_vpc":           types.StringType,
+		"doc_url_for_new_vpc":       types.StringType,
 	}
 }
 

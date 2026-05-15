@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -33,7 +34,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 				data = append(data, map[string]any{
 					"warehouseId": "WH-MOCK-001", "name": "mock-warehouse", "status": "Running",
 					"cloudProvider": "aliyun", "region": "cn-beijing", "zone": "cn-beijing-k",
-					"deploymentMode": "SAAS", "coreVersion": "3.0.3", "payType": "PostPaid",
+					"deploymentMode": "SaaS", "coreVersion": "3.0.3", "payType": "PostPaid",
 					"createdAt": now.Format(time.RFC3339),
 				})
 			}
@@ -68,7 +69,8 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 				"data": map[string]any{
 					"warehouseId": "WH-MOCK-001", "name": "mock-warehouse", "status": "Running",
 					"cloudProvider": "aliyun", "region": "cn-beijing", "zone": "cn-beijing-k",
-					"deploymentMode": "SAAS", "coreVersion": "3.0.3", "payType": "PostPaid",
+					"deploymentMode": "SaaS", "coreVersion": "3.0.3", "payType": "PostPaid",
+					"endpointServiceId": "vpce-svc-mock", "endpointServiceName": "com.amazonaws.vpce.cn-beijing.vpce-svc-mock",
 					"createdAt": now.Format(time.RFC3339),
 				},
 			})
@@ -85,12 +87,6 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 		json.NewEncoder(w).Encode(map[string]any{"success": true, "requestId": "mock-settings", "data": map[string]any{}})
 	})
 
-	mux.HandleFunc("/v1/warehouses/WH-MOCK-001/byoc-setup", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(404)
-		json.NewEncoder(w).Encode(map[string]any{"code": "NotFound", "message": "Not BYOC", "success": false})
-	})
-
 	mux.HandleFunc("/v1/warehouses/WH-MOCK-001/connections", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
@@ -101,8 +97,11 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 					{"protocol": "jdbc", "host": "mock.selectdbcloud.com", "port": 9030},
 					{"protocol": "http", "host": "mock.selectdbcloud.com", "port": 8030},
 				},
+				"privateEndpoints": []map[string]any{
+					{"protocol": "jdbc", "host": "mock.internal", "port": 9030, "endpointId": "vpce-mock"},
+				},
 				"computeClusters": []map[string]any{
-					{"clusterId": "CL-MOCK-001", "clusterName": "mock-cluster", "httpPort": 9050},
+					{"clusterId": "CL-MOCK-001", "clusterName": "mock_cluster", "httpPort": 9050},
 				},
 			},
 		})
@@ -112,7 +111,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 	clusterData := func() map[string]any {
 		return map[string]any{
 			"clusterId": "CL-MOCK-001", "warehouseId": "WH-MOCK-001",
-			"name": "mock-cluster", "status": "Running", "clusterType": "COMPUTE",
+			"name": "mock_cluster", "status": "Running", "clusterType": "COMPUTE",
 			"cloudProvider": "aliyun", "region": "cn-beijing", "zone": "cn-beijing-k",
 			"billingModel": "on_demand", "createdAt": now.Format(time.RFC3339),
 			"billingPools": map[string]any{
@@ -125,6 +124,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 			"connectionInfo": map[string]any{
 				"publicEndpoint": "cl-mock.selectdbcloud.com", "privateEndpoint": "cl-mock.internal", "listenerPort": 9030,
 			},
+			"autoPause": map[string]any{"enabled": true, "idleTimeoutMinutes": 15},
 		}
 	}
 
@@ -208,7 +208,7 @@ func TestAccWarehouseResource(t *testing.T) {
 				Config: testProviderConfig(ts) + `
 resource "velodb_warehouse" "test" {
   name            = "mock-warehouse"
-  deployment_mode = "SAAS"
+  deployment_mode = "SaaS"
   cloud_provider  = "aliyun"
   region          = "cn-beijing"
 
@@ -216,7 +216,6 @@ resource "velodb_warehouse" "test" {
   admin_password_version = 1
 
   initial_cluster {
-    name         = "default"
     zone         = "cn-beijing-k"
     compute_vcpu = 4
     cache_gb     = 1000
@@ -237,7 +236,7 @@ resource "velodb_warehouse" "test" {
 					resource.TestCheckResourceAttr("velodb_warehouse.test", "status", "Running"),
 					resource.TestCheckResourceAttr("velodb_warehouse.test", "cloud_provider", "aliyun"),
 					resource.TestCheckResourceAttr("velodb_warehouse.test", "region", "cn-beijing"),
-					resource.TestCheckResourceAttr("velodb_warehouse.test", "deployment_mode", "SAAS"),
+					resource.TestCheckResourceAttr("velodb_warehouse.test", "deployment_mode", "SaaS"),
 					resource.TestCheckResourceAttr("velodb_warehouse.test", "core_version", "3.0.3"),
 				),
 			},
@@ -247,6 +246,40 @@ resource "velodb_warehouse" "test" {
 				ImportState:             true,
 				ImportStateVerify:       true,
 				ImportStateVerifyIgnore: []string{"admin_password", "admin_password_version", "initial_cluster", "advanced_settings", "timeouts"},
+			},
+		},
+	})
+}
+
+func TestWarehouseAutoPauseRequiresTimeoutWhenEnabled(t *testing.T) {
+	ts := mockAPIServer(t)
+	defer ts.Close()
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(ts),
+		Steps: []resource.TestStep{
+			{
+				Config: testProviderConfig(ts) + `
+resource "velodb_warehouse" "test" {
+  name            = "mock-warehouse"
+  deployment_mode = "SaaS"
+  cloud_provider  = "aliyun"
+  region          = "cn-beijing"
+
+  admin_password         = "TestPass@123"
+  admin_password_version = 1
+
+  initial_cluster {
+    zone         = "cn-beijing-k"
+    compute_vcpu = 4
+    cache_gb     = 100
+    auto_pause {
+      enabled = true
+    }
+  }
+}
+`,
+				ExpectError: regexp.MustCompile("idle_timeout_minutes is required when auto_pause is enabled"),
 			},
 		},
 	})
@@ -263,7 +296,7 @@ func TestAccClusterResource(t *testing.T) {
 				Config: testProviderConfig(ts) + `
 resource "velodb_cluster" "test" {
   warehouse_id  = "WH-MOCK-001"
-  name          = "mock-cluster"
+  name          = "mock_cluster"
   cluster_type  = "COMPUTE"
   compute_vcpu  = 4
   cache_gb      = 100
@@ -282,7 +315,7 @@ resource "velodb_cluster" "test" {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("velodb_cluster.test", "id", "CL-MOCK-001"),
 					resource.TestCheckResourceAttr("velodb_cluster.test", "warehouse_id", "WH-MOCK-001"),
-					resource.TestCheckResourceAttr("velodb_cluster.test", "name", "mock-cluster"),
+					resource.TestCheckResourceAttr("velodb_cluster.test", "name", "mock_cluster"),
 					resource.TestCheckResourceAttr("velodb_cluster.test", "status", "Running"),
 					resource.TestCheckResourceAttr("velodb_cluster.test", "cluster_type", "COMPUTE"),
 					resource.TestCheckResourceAttr("velodb_cluster.test", "desired_state", "running"),
@@ -297,6 +330,33 @@ resource "velodb_cluster" "test" {
 				ImportStateId:           "WH-MOCK-001/CL-MOCK-001",
 				ImportStateVerify:       true,
 				ImportStateVerifyIgnore: []string{"desired_state", "auto_pause", "timeouts"},
+			},
+		},
+	})
+}
+
+func TestClusterAutoPauseRequiresTimeoutWhenEnabled(t *testing.T) {
+	ts := mockAPIServer(t)
+	defer ts.Close()
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(ts),
+		Steps: []resource.TestStep{
+			{
+				Config: testProviderConfig(ts) + `
+resource "velodb_cluster" "test" {
+  warehouse_id  = "WH-MOCK-001"
+  name          = "mock_cluster"
+  cluster_type  = "COMPUTE"
+  compute_vcpu  = 4
+  cache_gb      = 100
+
+  auto_pause {
+    enabled = true
+  }
+}
+`,
+				ExpectError: regexp.MustCompile("idle_timeout_minutes is required when auto_pause is enabled"),
 			},
 		},
 	})
@@ -322,6 +382,8 @@ data "velodb_warehouses" "test" {
 					resource.TestCheckResourceAttr("data.velodb_warehouses.test", "warehouses.0.warehouse_id", "WH-MOCK-001"),
 					resource.TestCheckResourceAttr("data.velodb_warehouses.test", "warehouses.0.name", "mock-warehouse"),
 					resource.TestCheckResourceAttr("data.velodb_warehouses.test", "warehouses.0.status", "Running"),
+					resource.TestCheckResourceAttr("data.velodb_warehouses.test", "warehouses.0.endpoint_service_id", "vpce-svc-mock"),
+					resource.TestCheckResourceAttr("data.velodb_warehouses.test", "warehouses.0.endpoint_service_name", "com.amazonaws.vpce.cn-beijing.vpce-svc-mock"),
 				),
 			},
 		},
@@ -345,7 +407,9 @@ data "velodb_clusters" "test" {
 					resource.TestCheckResourceAttr("data.velodb_clusters.test", "total", "1"),
 					resource.TestCheckResourceAttr("data.velodb_clusters.test", "clusters.#", "1"),
 					resource.TestCheckResourceAttr("data.velodb_clusters.test", "clusters.0.cluster_id", "CL-MOCK-001"),
-					resource.TestCheckResourceAttr("data.velodb_clusters.test", "clusters.0.name", "mock-cluster"),
+					resource.TestCheckResourceAttr("data.velodb_clusters.test", "clusters.0.name", "mock_cluster"),
+					resource.TestCheckResourceAttr("data.velodb_clusters.test", "clusters.0.auto_pause.0.enabled", "true"),
+					resource.TestCheckResourceAttr("data.velodb_clusters.test", "clusters.0.auto_pause.0.idle_timeout_minutes", "15"),
 				),
 			},
 		},
@@ -370,6 +434,8 @@ data "velodb_warehouse_connections" "test" {
 					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "public_endpoints.0.protocol", "jdbc"),
 					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "public_endpoints.0.host", "mock.selectdbcloud.com"),
 					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "public_endpoints.0.port", "9030"),
+					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "private_endpoints.#", "1"),
+					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "private_endpoints.0.endpoint_id", "vpce-mock"),
 					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "compute_clusters.#", "1"),
 					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "compute_clusters.0.cluster_id", "CL-MOCK-001"),
 				),

@@ -2,12 +2,12 @@
 page_title: "velodb_warehouse Resource - velodb"
 subcategory: ""
 description: |-
-  Manages a VeloDB Cloud SaaS warehouse with initial cluster provisioning, password management, and version upgrades.
+  Manages a VeloDB Cloud warehouse with initial cluster provisioning, password management, and version upgrades.
 ---
 
 # velodb_warehouse (Resource)
 
-Manages a SaaS warehouse on VeloDB Cloud. Only `deployment_mode = "SAAS"` is supported (BYOC is blocked at plan time).
+Manages a VeloDB Cloud warehouse. `deployment_mode` must be `SaaS` or `BYOC`.
 
 A warehouse is the primary unit of deployment. It belongs to an organization, runs on a specific cloud provider and region, and contains one or more clusters. The resource manages the full warehouse lifecycle including creation, updates, version upgrades, password rotation, and deletion.
 
@@ -17,7 +17,6 @@ Key capabilities:
 - **Initial cluster** created atomically with the warehouse
 - **Password rotation** — change `admin_password` and apply (no version bump needed)
 - **Version upgrades** triggered declaratively by changing `core_version_id` (lookup IDs via the [`velodb_warehouse_versions`](../data-sources/warehouse_versions.md) data source)
-- **Maintenance windows** and **upgrade policy** updatable in-place
 - **BYOC setup guidance** (shell commands, template URLs) exposed as computed `byoc_setup` block
 
 ## Supported / not supported features
@@ -30,8 +29,7 @@ Key capabilities:
 | Delete stuck BYOC `Creating` warehouse | ❌ Not supported by API | If guided-mode CFN is never executed, `DELETE` returns 500 "unfinished operations". Requires VeloDB admin intervention. |
 | Password rotation | ✅ Supported | Change `admin_password` — provider calls `POST /settings/password` automatically |
 | Version upgrade | ✅ Supported | Change `core_version_id` (int64) — provider calls `POST /settings/upgrade` and polls for completion. Use the `velodb_warehouse_versions` data source to discover valid IDs. |
-| Maintenance window update | ✅ Supported | New shape: `maintenance_window = { start_hour_utc = ..., end_hour_utc = ... }` (UTC hour, 0–23). Replaces the previous `maintainability_start_time` / `maintainability_end_time` strings. |
-| Upgrade policy | ✅ Supported | `upgrade_policy = "automatic"` — set alongside `maintenance_window`. |
+| Maintenance window / upgrade policy | ❌ Not in current API | The current management API does not expose these fields on warehouse create/update. |
 | Advanced settings update | ❌ Removed in API | The previous `/settings` `advancedSettings` field was dropped by the upstream Management API. No replacement at the resource level. |
 | Delete initial cluster | ✅ Supported | Import via `initial_cluster_id` and manage as `velodb_cluster`. See [Managing the Initial Cluster](#managing-the-initial-cluster). |
 | Delete warehouse with pre-paid clusters | ❌ Not supported until clusters expire | API billing semantics |
@@ -50,7 +48,6 @@ resource "velodb_warehouse" "analytics" {
   admin_password         = var.admin_password
 
   initial_cluster {
-    name         = "default"
     zone         = "cn-beijing-k"
     compute_vcpu = 4
     cache_gb     = 1000
@@ -78,32 +75,18 @@ resource "velodb_warehouse" "production" {
   region          = "cn-beijing"
   setup_mode     = "guided"
   vpc_mode        = "existing"
-  vpc_id          = "vpc-2ze1234567890abcdef"
 
   admin_password = var.admin_password
 
-  upgrade_policy = "automatic"
-  maintenance_window = {
-    start_hour_utc = 2
-    end_hour_utc   = 6
-  }
-
   initial_cluster {
-    name           = "default-compute"
-    zone           = "cn-beijing-k"
-    compute_vcpu   = 8
-    cache_gb       = 400
-    billing_model = "monthly"
+    zone         = "cn-beijing-k"
+    compute_vcpu = 8
+    cache_gb     = 400
 
     auto_pause {
       enabled              = true
       idle_timeout_minutes = 30
     }
-  }
-
-  tags = {
-    environment = "production"
-    team        = "data-platform"
   }
 
   timeouts {
@@ -131,16 +114,10 @@ resource "velodb_warehouse" "aws_byoc" {
 
   credential_id            = 12345
   network_config_id        = 67890
-  bucket_name              = "my-velodb-bucket"
-  data_credential_arn      = "arn:aws:iam::123456789012:role/velodb-data"
-  deployment_credential_arn = "arn:aws:iam::123456789012:role/velodb-deploy"
-  subnet_id                = "subnet-0abc123def456"
-  security_group_id        = "sg-0abc123def456"
 
   admin_password         = var.admin_password
 
   initial_cluster {
-    name         = "sql-primary"
     zone         = "us-east-1a"
     compute_vcpu = 16
     cache_gb     = 800
@@ -200,7 +177,6 @@ resource "velodb_warehouse" "main" {
   admin_password  = var.admin_password
 
   initial_cluster {
-    name         = "bootstrap"
     zone         = "us-east-1a"
     compute_vcpu = 4
     cache_gb     = 100
@@ -218,10 +194,8 @@ resource "velodb_cluster" "etl" {
   name         = "etl"
   cluster_type = "COMPUTE"
   zone         = "us-east-1a"
-  on_demand {
-    compute_vcpu = 16
-    cache_gb     = 100
-  }
+  compute_vcpu = 16
+  cache_gb     = 400
 }
 
 # Import the initial cluster so it becomes a first-class managed resource
@@ -235,10 +209,8 @@ resource "velodb_cluster" "initial" {
   name         = "bootstrap"
   cluster_type = "COMPUTE"
   zone         = "us-east-1a"
-  on_demand {
-    compute_vcpu = 4
-    cache_gb     = 100
-  }
+  compute_vcpu = 4
+  cache_gb     = 100
 }
 ```
 
@@ -251,7 +223,7 @@ To **destroy the initial cluster later**:
 ~> **Important constraints on initial cluster deletion:**
 > - The warehouse's **last cluster cannot be deleted** — add another cluster first, or destroy the whole warehouse.
 > - **Prepaid (subscription) clusters cannot be deleted until they expire** — this is an API billing constraint, not a Terraform limitation.
-> - The initial cluster is created with `billing_model = "on_demand"` by default, so it's normally deletable.
+> - The initial cluster is created with the API default billing model, so it's normally deletable when it is not prepaid.
 
 <!-- schema generated by tfplugindocs -->
 ## Schema
@@ -259,7 +231,7 @@ To **destroy the initial cluster later**:
 ### Required
 
 - `cloud_provider` (String) Cloud provider for the warehouse (e.g., `aws`, `aliyun`). Changing this forces a new resource.
-- `deployment_mode` (String) Deployment mode: `BYOC` or `SAAS`. Changing this forces a new resource.
+- `deployment_mode` (String) Deployment mode: `BYOC` or `SaaS`. Changing this forces a new resource.
 - `name` (String) Warehouse display name.
 - `region` (String) Cloud region (e.g., `us-east-1`, `cn-beijing`). Changing this forces a new resource.
 
@@ -267,22 +239,12 @@ To **destroy the initial cluster later**:
 
 - `admin_password` (String, Sensitive) Administrator password. Set on creation and used for password rotation. The password is stored in state since it cannot be read back from the API.
 - `admin_password_version` (Number) Increment this value to trigger a password change. Must be used together with `admin_password`.
-- `bucket_name` (String) Existing object storage bucket name for Wizard mode. Changing this forces a new resource.
 - `core_version_id` (Number) Target engine version ID. Changing this triggers a warehouse upgrade. Discover valid values via the `velodb_warehouse_versions` data source.
-- `upgrade_policy` (String) Upgrade policy for the warehouse (e.g. `automatic`).
-- `maintenance_window` (Attribute, Single Nested) Maintenance window for automatic upgrades. Attributes: `start_hour_utc` (Number 0–23), `end_hour_utc` (Number 0–23).
 - `setup_mode` (String) BYOC creation mode: `Template` or `Wizard`. `Wizard` is only supported for `aws`. Changing this forces a new resource.
 - `credential_id` (Number) Credential identifier for Wizard mode. Changing this forces a new resource.
-- `data_credential_arn` (String) Data plane credential ARN for direct cloud-resource flows. Changing this forces a new resource.
-- `deployment_credential_arn` (String) Deployment credential ARN for direct cloud-resource flows. Changing this forces a new resource.
-- `endpoint_id` (String) Existing private endpoint identifier. Changing this forces a new resource.
 - `initial_cluster` (Block List, Max: 1) Initial cluster created together with the warehouse. This is a create-only configuration — after creation, manage the cluster lifecycle by importing it as a `velodb_cluster` resource. (see [below for nested schema](#nestedblock--initial_cluster))
 - `network_config_id` (Number) Existing network configuration identifier for Wizard mode. Changing this forces a new resource.
-- `security_group_id` (String) Existing security group identifier. Changing this forces a new resource.
-- `subnet_id` (String) Existing subnet identifier. Changing this forces a new resource.
-- `tags` (Map of String) Warehouse tags as key-value pairs. Set at creation time.
 - `timeouts` (Block, Optional) (see [below for nested schema](#nestedblock--timeouts))
-- `vpc_id` (String) Existing VPC identifier for Template mode. Changing this forces a new resource.
 - `vpc_mode` (String) VPC consistency hint for Template mode: `existing` or `new`. Changing this forces a new resource.
 
 ### Read-Only
@@ -293,6 +255,8 @@ To **destroy the initial cluster later**:
 - `expire_time` (String) Warehouse expiration time when available.
 - `id` (String) Warehouse identifier (e.g., `ALBJ07YE`).
 - `initial_cluster_id` (String) ID of the initial cluster created with the warehouse. Use this with an `import {}` block to manage the initial cluster as a `velodb_cluster` resource. See [Managing the Initial Cluster](#managing-the-initial-cluster).
+- `endpoint_service_id` (String) PrivateLink endpoint service ID when available.
+- `endpoint_service_name` (String) PrivateLink endpoint service name when available.
 - `pay_type` (String) Billing type: `PostPaid` or `PrePaid`.
 - `status` (String) Current warehouse status. One of: `Creating`, `Running`, `Resizing`, `Adjusting`, `Upgrading`, `Suspending`, `Resuming`, `Stopping`, `Starting`, `Restarting`, `Deleting`, `Suspended`, `Stopped`, `Deleted`, `CreateFailed`.
 - `zone` (String) Primary availability zone derived from the SQL cluster.
@@ -304,15 +268,11 @@ Required:
 
 - `cache_gb` (Number) Cache capacity in GB.
 - `compute_vcpu` (Number) Compute capacity in vCPUs.
-- `name` (String) Cluster name.
+- `zone` (String) Availability zone for the initial cluster.
 
 Optional:
 
 - `auto_pause` (Block List, Max: 1) Auto-pause configuration. (see [below for nested schema](#nestedblock--initial_cluster--auto_pause))
-- `billing_model` (String) Billing method (e.g., `monthly`, `on_demand`).
-- `period` (Number) Prepaid subscription length.
-- `period_unit` (String) Period unit: `Month`, `Year`, or `Week`.
-- `zone` (String) Availability zone for the initial cluster.
 
 <a id="nestedblock--initial_cluster--auto_pause"></a>
 ### Nested Schema for `initial_cluster.auto_pause`

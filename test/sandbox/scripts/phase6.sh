@@ -3,8 +3,7 @@
 # Captures warehouse_id and cluster_id from the phase1 workspace, then
 # spins up a separate workspace and imports them. Asserts that the
 # post-import plan only mentions write-only fields (admin_password,
-# initial_cluster, reboot_trigger, connection_info) — never the new
-# v1 fields (maintenance_window, upgrade_policy, etc.).
+# initial_cluster, reboot_trigger, connection_info).
 set -euo pipefail
 PHASE1_DIR="$(cd "$(dirname "$0")/../phase1" && pwd)"
 PHASE6_DIR=$(mktemp -d -t tfmig-phase6-XXXXXX)
@@ -16,7 +15,8 @@ cd "$PHASE1_DIR"
 WH_ID=$(terraform output -raw warehouse_id)
 CL_ID=$(terraform output -raw cluster_id)
 WH_NAME=$(terraform state show velodb_warehouse.t | grep '^    name' | head -1 | awk -F'"' '{print $2}')
-echo "Importing warehouse=$WH_ID cluster=$CL_ID name=$WH_NAME"
+CL_NAME=$(terraform state show 'velodb_cluster.od[0]' | grep '^    name' | head -1 | awk -F'"' '{print $2}')
+echo "Importing warehouse=$WH_ID cluster=$CL_ID warehouse_name=$WH_NAME cluster_name=$CL_NAME"
 
 cat > "$PHASE6_DIR/main.tf" <<HCL
 terraform {
@@ -26,7 +26,7 @@ terraform {
 }
 
 provider "velodb" {
-  host    = "sandbox.velodb.io"
+  host    = "sandbox-api.velodb.io"
   api_key = var.api_key
 }
 
@@ -42,14 +42,7 @@ resource "velodb_warehouse" "imp" {
   region          = "us-east-1"
   admin_password  = "Tf@Rotated9876"
 
-  upgrade_policy = "automatic"
-  maintenance_window = {
-    start_hour_utc = 6
-    end_hour_utc   = 7
-  }
-
   initial_cluster {
-    name         = "default"
     zone         = "us-east-1d"
     compute_vcpu = 4
     cache_gb     = 100
@@ -59,16 +52,13 @@ resource "velodb_warehouse" "imp" {
 
 resource "velodb_cluster" "imp_od" {
   warehouse_id   = velodb_warehouse.imp.id
-  name           = "od-ci"
+  name           = "$CL_NAME"
   cluster_type   = "COMPUTE"
   zone           = "us-east-1d"
   desired_state  = "running"
   reboot_trigger = 1
-
-  on_demand {
-    compute_vcpu = 8
-    cache_gb     = 400
-  }
+  compute_vcpu   = 8
+  cache_gb       = 400
 }
 HCL
 
@@ -89,8 +79,6 @@ terraform plan -no-color > /tmp/p6.log 2>&1 || true
 
 # Forbid drift on these v1-migrated fields.
 forbidden=(
-  "maintenance_window"
-  "upgrade_policy"
   "core_version_id"
   "core_version "
   "compute_vcpu"
@@ -100,10 +88,12 @@ forbidden=(
   "region"
 )
 for f in "${forbidden[@]}"; do
-  # Only block "X = " or "X -> " lines that appear inside a `~` change diff.
-  if grep -E "^[[:space:]]*~ ${f}" /tmp/p6.log > /dev/null; then
+  # Only block concrete value-to-value drift. Computed attributes may become
+  # "(known after apply)" because the imported resource has write-only config
+  # differences; that is not persistent drift in the migrated fields.
+  if grep -E "^[[:space:]]*~ ${f}" /tmp/p6.log | grep -v "(known after apply)" > /dev/null; then
     echo "FAIL: 6.3 — phantom drift on '$f' after import:"
-    grep -E "^[[:space:]]*~ ${f}" /tmp/p6.log
+    grep -E "^[[:space:]]*~ ${f}" /tmp/p6.log | grep -v "(known after apply)"
     exit 1
   fi
 done

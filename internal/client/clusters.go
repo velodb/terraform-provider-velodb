@@ -45,17 +45,17 @@ func (c *FormationClient) ListClusters(ctx context.Context, warehouseID string, 
 	q := url.Values{}
 	if opts != nil {
 		addPagination(q, opts.Page, opts.Size)
-		if opts.Keyword != "" {
-			q.Set("keyword", opts.Keyword)
+		if opts.ClusterID != "" {
+			q.Set("clusterId", opts.ClusterID)
+		}
+		if opts.ClusterName != "" {
+			q.Set("clusterName", opts.ClusterName)
 		}
 		if opts.Status != "" {
 			q.Set("status", opts.Status)
 		}
 		if opts.ClusterType != "" {
 			q.Set("clusterType", opts.ClusterType)
-		}
-		if opts.BillingModel != "" {
-			q.Set("billingModel", opts.BillingModel)
 		}
 	}
 	resp, err := c.get(ctx, clustersBasePath(warehouseID), q)
@@ -87,10 +87,14 @@ func (c *FormationClient) DeleteCluster(ctx context.Context, warehouseID, cluste
 	return parseResponse[any](resp, nil)
 }
 
-// OperateCluster performs a cluster action (pause, resume, reboot) via POST /actions.
+// OperateCluster performs a cluster action via the operation-specific endpoint.
 func (c *FormationClient) OperateCluster(ctx context.Context, warehouseID, clusterID, action string) error {
-	req := &ClusterActionRequest{Action: action}
-	resp, err := c.post(ctx, fmt.Sprintf("%s/actions", clusterPath(warehouseID, clusterID)), req)
+	switch action {
+	case "pause", "resume", "reboot":
+	default:
+		return fmt.Errorf("unsupported cluster action %q", action)
+	}
+	resp, err := c.post(ctx, fmt.Sprintf("%s/%s", clusterPath(warehouseID, clusterID), action), nil)
 	if err != nil {
 		return err
 	}
@@ -101,4 +105,3 @@ func (c *FormationClient) OperateCluster(ctx context.Context, warehouseID, clust
 func (c *FormationClient) RebootCluster(ctx context.Context, warehouseID, clusterID string) error {
 	return c.OperateCluster(ctx, warehouseID, clusterID, "reboot")
 }
-

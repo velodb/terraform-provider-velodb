@@ -22,9 +22,11 @@ func NewWarehouseConnectionsDataSource() datasource.DataSource {
 }
 
 type WarehouseConnectionsModel struct {
-	WarehouseID     types.String              `tfsdk:"warehouse_id"`
-	PublicEndpoints []ConnectionEndpointModel `tfsdk:"public_endpoints"`
-	ComputeClusters []ConnectionClusterModel  `tfsdk:"compute_clusters"`
+	WarehouseID      types.String                     `tfsdk:"warehouse_id"`
+	PublicEndpoints  []ConnectionEndpointModel        `tfsdk:"public_endpoints"`
+	PrivateEndpoints []PrivateConnectionEndpointModel `tfsdk:"private_endpoints"`
+	ComputeClusters  []ConnectionClusterModel         `tfsdk:"compute_clusters"`
+	ObserverGroups   []ObserverGroupModel             `tfsdk:"observer_groups"`
 }
 
 type ConnectionEndpointModel struct {
@@ -38,6 +40,20 @@ type ConnectionClusterModel struct {
 	ClusterID   types.String `tfsdk:"cluster_id"`
 	ClusterName types.String `tfsdk:"cluster_name"`
 	HTTPPort    types.Int64  `tfsdk:"http_port"`
+}
+
+type PrivateConnectionEndpointModel struct {
+	Protocol   types.String `tfsdk:"protocol"`
+	Host       types.String `tfsdk:"host"`
+	Port       types.Int64  `tfsdk:"port"`
+	URL        types.String `tfsdk:"url"`
+	EndpointID types.String `tfsdk:"endpoint_id"`
+}
+
+type ObserverGroupModel struct {
+	ClusterID types.String `tfsdk:"cluster_id"`
+	Name      types.String `tfsdk:"name"`
+	JdbcPort  types.Int64  `tfsdk:"jdbc_port"`
 }
 
 func (d *WarehouseConnectionsDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -64,6 +80,19 @@ func (d *WarehouseConnectionsDataSource) Schema(_ context.Context, _ datasource.
 					},
 				},
 			},
+			"private_endpoints": schema.ListNestedAttribute{
+				Description: "Private connection endpoints grouped by protocol.",
+				Computed:    true,
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"protocol":    schema.StringAttribute{Computed: true, Description: "Protocol name (jdbc, http, stream_load, adbc, studio, mcp)."},
+						"host":        schema.StringAttribute{Computed: true, Description: "Endpoint host."},
+						"port":        schema.Int64Attribute{Computed: true, Description: "Endpoint port."},
+						"url":         schema.StringAttribute{Computed: true, Description: "Full connection URL."},
+						"endpoint_id": schema.StringAttribute{Computed: true, Description: "Cloud private endpoint ID when available."},
+					},
+				},
+			},
 			"compute_clusters": schema.ListNestedAttribute{
 				Description: "Compute cluster connection details.",
 				Computed:    true,
@@ -72,6 +101,17 @@ func (d *WarehouseConnectionsDataSource) Schema(_ context.Context, _ datasource.
 						"cluster_id":   schema.StringAttribute{Computed: true, Description: "Cluster identifier."},
 						"cluster_name": schema.StringAttribute{Computed: true, Description: "Cluster name."},
 						"http_port":    schema.Int64Attribute{Computed: true, Description: "HTTP port for this cluster."},
+					},
+				},
+			},
+			"observer_groups": schema.ListNestedAttribute{
+				Description: "Observer group connection details.",
+				Computed:    true,
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"cluster_id": schema.StringAttribute{Computed: true, Description: "Observer cluster identifier when available."},
+						"name":       schema.StringAttribute{Computed: true, Description: "Observer group name."},
+						"jdbc_port":  schema.Int64Attribute{Computed: true, Description: "JDBC port for this observer group."},
 					},
 				},
 			},
@@ -114,12 +154,36 @@ func (d *WarehouseConnectionsDataSource) Read(ctx context.Context, req datasourc
 		})
 	}
 
+	config.PrivateEndpoints = make([]PrivateConnectionEndpointModel, 0, len(conns.PrivateEndpoints))
+	for _, ep := range conns.PrivateEndpoints {
+		config.PrivateEndpoints = append(config.PrivateEndpoints, PrivateConnectionEndpointModel{
+			Protocol:   stringOrNull(ep.Protocol),
+			Host:       stringOrNull(ep.Host),
+			Port:       types.Int64Value(int64(ep.Port)),
+			URL:        stringOrNull(ep.URL),
+			EndpointID: stringOrNull(ep.EndpointID),
+		})
+	}
+
 	config.ComputeClusters = make([]ConnectionClusterModel, 0, len(conns.ComputeClusters))
 	for _, cl := range conns.ComputeClusters {
 		config.ComputeClusters = append(config.ComputeClusters, ConnectionClusterModel{
 			ClusterID:   stringOrNull(cl.ClusterID),
 			ClusterName: stringOrNull(cl.ClusterName),
 			HTTPPort:    types.Int64Value(int64(cl.HTTPPort)),
+		})
+	}
+
+	config.ObserverGroups = make([]ObserverGroupModel, 0, len(conns.ObserverGroups))
+	for _, group := range conns.ObserverGroups {
+		jdbcPort := types.Int64Null()
+		if group.JdbcPort != nil {
+			jdbcPort = types.Int64Value(int64(*group.JdbcPort))
+		}
+		config.ObserverGroups = append(config.ObserverGroups, ObserverGroupModel{
+			ClusterID: stringOrNull(group.ClusterID),
+			Name:      stringOrNull(group.Name),
+			JdbcPort:  jdbcPort,
 		})
 	}
 

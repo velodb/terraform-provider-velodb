@@ -19,15 +19,15 @@ data "velodb_warehouse_connections" "prod" {
 }
 
 output "jdbc_url" {
-  value = "jdbc:mysql://${data.velodb_warehouse_connections.prod.clusters[0].public_endpoint}:${data.velodb_warehouse_connections.prod.clusters[0].jdbc_port}"
+  value = [for ep in data.velodb_warehouse_connections.prod.public_endpoints : ep.url if ep.protocol == "jdbc"][0]
 }
 
 output "http_url" {
-  value = "http://${data.velodb_warehouse_connections.prod.clusters[0].public_endpoint}:${data.velodb_warehouse_connections.prod.clusters[0].http_port}"
+  value = [for ep in data.velodb_warehouse_connections.prod.public_endpoints : ep.url if ep.protocol == "http"][0]
 }
 
 output "stream_load_url" {
-  value = "http://${data.velodb_warehouse_connections.prod.clusters[0].public_endpoint}:${data.velodb_warehouse_connections.prod.clusters[0].stream_load_port}"
+  value = [for ep in data.velodb_warehouse_connections.prod.public_endpoints : ep.url if ep.protocol == "stream_load"][0]
 }
 ```
 
@@ -39,7 +39,7 @@ data "velodb_warehouse_connections" "internal" {
 }
 
 output "private_jdbc_url" {
-  value = "jdbc:mysql://${data.velodb_warehouse_connections.internal.clusters[0].private_endpoint}:${data.velodb_warehouse_connections.internal.clusters[0].jdbc_port}"
+  value = [for ep in data.velodb_warehouse_connections.internal.private_endpoints : ep.url if ep.protocol == "jdbc"][0]
 }
 ```
 
@@ -52,13 +52,14 @@ data "velodb_warehouse_connections" "all" {
 
 output "all_endpoints" {
   value = {
-    for cl in data.velodb_warehouse_connections.all.clusters :
-    cl.cluster_id => {
-      type             = cl.type
-      public_endpoint  = cl.public_endpoint
-      private_endpoint = cl.private_endpoint
-      jdbc_port        = cl.jdbc_port
-      http_port        = cl.http_port
+    public  = data.velodb_warehouse_connections.all.public_endpoints
+    private = data.velodb_warehouse_connections.all.private_endpoints
+    compute = {
+      for cl in data.velodb_warehouse_connections.all.compute_clusters :
+      cl.cluster_id => {
+        cluster_name = cl.cluster_name
+        http_port    = cl.http_port
+      }
     }
   }
 }
@@ -73,7 +74,10 @@ output "all_endpoints" {
 
 ### Read-Only
 
-- `clusters` (Attributes List) Connection information per cluster. (see [below for nested schema](#nestedatt--clusters))
+- `compute_clusters` (Attributes List) Compute cluster connection details.
+- `observer_groups` (Attributes List) Observer group connection details.
+- `private_endpoints` (Attributes List) Private connection endpoints grouped by protocol.
+- `public_endpoints` (Attributes List) Public connection endpoints grouped by protocol.
 
 <a id="nestedatt--clusters"></a>
 ### Nested Schema for `clusters`

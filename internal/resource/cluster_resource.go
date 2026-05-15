@@ -3,6 +3,7 @@ package resource
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -97,6 +99,10 @@ func (r *ClusterResource) Schema(ctx context.Context, _ resource.SchemaRequest, 
 			"name": schema.StringAttribute{
 				Description: "Cluster display name.",
 				Required:    true,
+				Validators: []validator.String{
+					stringvalidator.LengthBetween(1, 32),
+					stringvalidator.RegexMatches(regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]{0,31}$`), "must start with a letter and contain only letters, numbers, and underscores"),
+				},
 			},
 			"cluster_type": schema.StringAttribute{
 				Description: "Cluster type. Only COMPUTE is supported.",
@@ -127,8 +133,7 @@ func (r *ClusterResource) Schema(ctx context.Context, _ resource.SchemaRequest, 
 				Validators:  []validator.Int64{int64validator.AtLeast(100)},
 			},
 			"billing_method": schema.StringAttribute{
-				Description: "Billing method: on_demand.",
-				Optional:    true,
+				Description: "Observed billing method.",
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
@@ -184,7 +189,13 @@ func (r *ClusterResource) Schema(ctx context.Context, _ resource.SchemaRequest, 
 					Attributes: map[string]schema.Attribute{
 						"enabled": schema.BoolAttribute{Required: true, Description: "Whether auto-pause is enabled."},
 						"idle_timeout_minutes": schema.Int64Attribute{
-							Optional: true, Description: "Idle minutes before auto-pause.",
+							Optional: true, Computed: true, Description: "Idle minutes before auto-pause.",
+							PlanModifiers: []planmodifier.Int64{
+								int64planmodifier.UseStateForUnknown(),
+							},
+							Validators: []validator.Int64{
+								int64validator.AtLeast(0),
+							},
 						},
 					},
 				},
@@ -199,6 +210,11 @@ func (r *ClusterResource) ValidateConfig(ctx context.Context, req resource.Valid
 	var cacheGb types.Int64
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("compute_vcpu"), &computeVcpu)...)
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("cache_gb"), &cacheGb)...)
+	validateClusterCapacity(&resp.Diagnostics, "cluster", computeVcpu, cacheGb)
+
+	var autoPause types.List
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("auto_pause"), &autoPause)...)
+	validateAutoPauseRequiresTimeout(ctx, &resp.Diagnostics, "cluster", autoPause)
 }
 
 func (r *ClusterResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -237,11 +253,6 @@ func (r *ClusterResource) Create(ctx context.Context, req resource.CreateRequest
 		ClusterType: plan.ClusterType.ValueString(),
 		ComputeVcpu: int(plan.ComputeVcpu.ValueInt64()),
 		CacheGb:     int(plan.CacheGb.ValueInt64()),
-	}
-	if !plan.BillingMethod.IsNull() && !plan.BillingMethod.IsUnknown() {
-		createReq.BillingModel = stringPtr(plan.BillingMethod.ValueString())
-	} else {
-		createReq.BillingModel = stringPtr("on_demand")
 	}
 	setOptionalString(&createReq.Zone, plan.Zone)
 	createReq.AutoPause = r.buildAutoPause(ctx, plan.AutoPause, &resp.Diagnostics)
@@ -285,6 +296,9 @@ func (r *ClusterResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	r.readClusterIntoState(ctx, warehouseID, clusterID, &plan, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -296,7 +310,6 @@ func (r *ClusterResource) Read(ctx context.Context, req resource.ReadRequest, re
 	}
 
 	// Preserve only what truly can't be read back
-	priorAutoPause := state.AutoPause
 	priorRebootTrigger := state.RebootTrigger
 	priorTimeouts := state.Timeouts
 
@@ -305,7 +318,6 @@ func (r *ClusterResource) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 
-	state.AutoPause = priorAutoPause
 	state.RebootTrigger = priorRebootTrigger
 	state.Timeouts = priorTimeouts
 
@@ -331,14 +343,56 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 	warehouseID := state.WarehouseID.ValueString()
 	clusterID := state.ID.ValueString()
 
-	// Block simultaneous CPU and disk changes
 	cpuChanged := !plan.ComputeVcpu.Equal(state.ComputeVcpu)
 	diskChanged := !plan.CacheGb.Equal(state.CacheGb)
-	if cpuChanged && diskChanged {
+	cacheChangeHandledByCPU := false
+	apiCacheAfterCPUResize := int64(0)
+	hasAPIResizeCache := cpuChanged &&
+		!plan.ComputeVcpu.IsUnknown() && !state.ComputeVcpu.IsUnknown() &&
+		!plan.CacheGb.IsUnknown() && !state.CacheGb.IsUnknown()
+	if hasAPIResizeCache {
+		apiCacheAfterCPUResize = cacheGbAfterCPUResize(
+			state.ComputeVcpu.ValueInt64(),
+			state.CacheGb.ValueInt64(),
+			plan.ComputeVcpu.ValueInt64(),
+		)
+	}
+	if cpuChanged && diskChanged && hasAPIResizeCache && plan.CacheGb.ValueInt64() == apiCacheAfterCPUResize {
+		cacheChangeHandledByCPU = true
+	} else if diskChanged && !plan.CacheGb.IsUnknown() && !state.CacheGb.IsUnknown() &&
+		plan.CacheGb.ValueInt64() < state.CacheGb.ValueInt64() {
+		resp.Diagnostics.AddError(
+			"cache_gb cannot be decreased",
+			"VeloDB does not support shrinking cluster cache_gb. "+
+				"Increase cache_gb only, or recreate the cluster if you need a smaller disk.",
+		)
+		return
+	} else if cpuChanged && diskChanged {
 		resp.Diagnostics.AddError(
 			"Simultaneous compute_vcpu and cache_gb changes are not supported",
-			"VeloDB does not allow changing both compute_vcpu and cache_gb in the same apply. "+
-				"Please apply them in separate steps: change one value, apply, then change the other.",
+			fmt.Sprintf(
+				"VeloDB automatically adjusts cache_gb to %d when resizing compute_vcpu from %d to %d. "+
+					"Set cache_gb to %d for the CPU resize, then apply any additional cache_gb change in a later apply.",
+				apiCacheAfterCPUResize,
+				state.ComputeVcpu.ValueInt64(),
+				plan.ComputeVcpu.ValueInt64(),
+				apiCacheAfterCPUResize,
+			),
+		)
+		return
+	}
+	if cpuChanged && !diskChanged && hasAPIResizeCache && apiCacheAfterCPUResize != plan.CacheGb.ValueInt64() {
+		resp.Diagnostics.AddError(
+			"compute_vcpu resize requires cache_gb update",
+			fmt.Sprintf(
+				"VeloDB automatically adjusts cache_gb to %d when resizing compute_vcpu from %d to %d. "+
+					"Set cache_gb to %d and apply again. Keeping cache_gb at %d requires a later cache-only apply after the API cooldown.",
+				apiCacheAfterCPUResize,
+				state.ComputeVcpu.ValueInt64(),
+				plan.ComputeVcpu.ValueInt64(),
+				apiCacheAfterCPUResize,
+				plan.CacheGb.ValueInt64(),
+			),
 		)
 		return
 	}
@@ -406,10 +460,13 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 			return
 		}
 		r.waitStable(ctx, warehouseID, clusterID, updateTimeout, &resp.Diagnostics)
+		if resp.Diagnostics.HasError() {
+			return
+		}
 	}
 
 	// 4. Resize cache_gb
-	if !plan.CacheGb.Equal(state.CacheGb) {
+	if !cacheChangeHandledByCPU && !plan.CacheGb.Equal(state.CacheGb) {
 		v := int(plan.CacheGb.ValueInt64())
 		updateReq := &client.UpdateClusterRequest{
 			CacheGb: &v,
@@ -445,6 +502,9 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 
 	r.readClusterIntoState(ctx, warehouseID, clusterID, &plan, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -623,6 +683,9 @@ func (r *ClusterResource) readClusterIntoState(ctx context.Context, warehouseID,
 	}
 
 	state.DesiredState = types.StringValue(statusToDesiredState(cl.Status))
+	if !state.AutoPause.IsNull() && !state.AutoPause.IsUnknown() {
+		state.AutoPause = autoPauseToList(cl.AutoPause, diags)
+	}
 
 	// Connection info
 	if cl.ConnectionInfo != nil {
@@ -639,7 +702,3 @@ func (r *ClusterResource) readClusterIntoState(ctx context.Context, warehouseID,
 		state.ConnectionInfo = types.ListNull(types.ObjectType{AttrTypes: connectionInfoAttrTypes()})
 	}
 }
-
-// --- Simple helpers ---
-
-func stringPtr(s string) *string { return &s }

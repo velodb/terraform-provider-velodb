@@ -1,17 +1,14 @@
 # SaaS warehouse with initial cluster
 resource "velodb_warehouse" "saas" {
   name            = "analytics-saas"
-  deployment_mode = "SAAS"
+  deployment_mode = "SaaS"
   cloud_provider  = "aliyun"
   region          = "cn-beijing"
 
   admin_password         = var.admin_password
   admin_password_version = 1
 
-  advanced_settings = jsonencode({ enableTde = 0 })
-
   initial_cluster {
-    name         = "default"
     zone         = "cn-beijing-k"
     compute_vcpu = 4
     cache_gb     = 1000
@@ -34,17 +31,14 @@ resource "velodb_warehouse" "byoc" {
   region          = "cn-beijing"
   setup_mode     = "guided"
   vpc_mode        = "existing"
-  vpc_id          = "vpc-xxxxxx"
 
   admin_password         = var.admin_password
   admin_password_version = 1
 
   initial_cluster {
-    name           = "default-compute"
-    zone           = "cn-beijing-k"
-    compute_vcpu   = 8
-    cache_gb       = 400
-    billing_method = "monthly"
+    zone         = "cn-beijing-k"
+    compute_vcpu = 8
+    cache_gb     = 400
     auto_pause {
       enabled              = true
       idle_timeout_minutes = 30

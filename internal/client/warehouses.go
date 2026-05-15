@@ -39,8 +39,11 @@ func (c *FormationClient) ListWarehouses(ctx context.Context, opts *ListWarehous
 	q := url.Values{}
 	if opts != nil {
 		addPagination(q, opts.Page, opts.Size)
-		if opts.Keyword != "" {
-			q.Set("keyword", opts.Keyword)
+		if opts.WarehouseID != "" {
+			q.Set("warehouseId", opts.WarehouseID)
+		}
+		if opts.Name != "" {
+			q.Set("name", opts.Name)
 		}
 		if opts.CloudProvider != "" {
 			q.Set("cloudProvider", opts.CloudProvider)
@@ -114,19 +117,6 @@ func (c *FormationClient) ChangeWarehousePassword(ctx context.Context, warehouse
 		return err
 	}
 	return parseResponse[any](resp, nil)
-}
-
-// GetWarehouseByocSetup returns BYOC setup guidance for a warehouse.
-func (c *FormationClient) GetWarehouseByocSetup(ctx context.Context, warehouseID string) (*WarehouseByocSetup, error) {
-	resp, err := c.get(ctx, fmt.Sprintf("%s/%s/byoc-setup", warehousesBasePath, warehouseID), nil)
-	if err != nil {
-		return nil, err
-	}
-	var result APIResponse[WarehouseByocSetup]
-	if err := parseResponse(resp, &result); err != nil {
-		return nil, err
-	}
-	return &result.Data, nil
 }
 
 // GetWarehouseConnections is defined in connections.go.

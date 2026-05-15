@@ -2,7 +2,7 @@
 page_title: "velodb_clusters Data Source - velodb"
 subcategory: ""
 description: |-
-  Lists VeloDB Cloud clusters within a warehouse, with optional filters for status, cluster type, pay type, and keyword search.
+  Lists VeloDB Cloud clusters within a warehouse, with optional filters for cluster ID, cluster name, status, cluster type, billing model, and legacy keyword search.
 ---
 
 # velodb_clusters (Data Source)
@@ -33,12 +33,12 @@ data "velodb_clusters" "running_compute" {
 }
 ```
 
-### Filter by Pay Type
+### Filter by Billing Model
 
 ```terraform
 data "velodb_clusters" "postpaid" {
   warehouse_id = velodb_warehouse.main.id
-  pay_type     = "PostPaid"
+  billing_model = "on_demand"
 }
 ```
 
@@ -52,8 +52,10 @@ data "velodb_clusters" "postpaid" {
 ### Optional
 
 - `cluster_type` (String) Cluster type filter: `SQL`, `COMPUTE`, or `OBSERVER`.
-- `keyword` (String) Fuzzy match against cluster name or identifier.
-- `pay_type` (String) Pay type filter: `PostPaid` or `PrePaid`.
+- `billing_model` (String) Local billing model filter.
+- `cluster_id` (String) Exact cluster ID filter.
+- `cluster_name` (String) Partial cluster name filter.
+- `keyword` (String) Legacy local fuzzy match against cluster name or exact ID.
 - `status` (String) Cluster status filter (e.g., `Running`, `Suspended`, `Stopped`).
 
 ### Read-Only
@@ -73,9 +75,18 @@ Read-Only:
 - `disk_sum_size` (Number) Current disk capacity in GB.
 - `expire_time` (String) Expiration time when available.
 - `name` (String) Cluster display name.
-- `pay_type` (String) Billing type.
+- `billing_model` (String) Billing model.
+- `auto_pause` (Attributes List) Auto-pause configuration when returned by the API. (see [below for nested schema](#nestedatt--clusters--auto_pause))
 - `region` (String) Cloud region.
 - `started_at` (String) Start time in ISO 8601 / RFC 3339 format.
 - `status` (String) Current cluster status.
 - `warehouse_id` (String) Parent warehouse identifier.
 - `zone` (String) Availability zone.
+
+<a id="nestedatt--clusters--auto_pause"></a>
+### Nested Schema for `clusters.auto_pause`
+
+Read-Only:
+
+- `enabled` (Boolean) Whether auto-pause is enabled.
+- `idle_timeout_minutes` (Number) Idle minutes before auto-pause.

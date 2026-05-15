@@ -15,10 +15,10 @@ The VeloDB provider allows you to manage [VeloDB Cloud](https://www.velodb.cloud
 
 | Resource | Purpose |
 |---|---|
-| [`velodb_warehouse`](./resources/warehouse.md) | SaaS warehouse lifecycle (password, version) |
+| [`velodb_warehouse`](./resources/warehouse.md) | SaaS/BYOC warehouse lifecycle (password, version) |
 | [`velodb_cluster`](./resources/cluster.md) | COMPUTE cluster with flat compute_vcpu/cache_gb, pause/resume/reboot |
 | [`velodb_warehouse_public_access_policy`](./resources/warehouse_public_access_policy.md) | IP allowlist for public access |
-| [`velodb_warehouse_private_endpoint`](./resources/warehouse_private_endpoint.md) | Custom DNS on inbound PrivateLink endpoints |
+| [`velodb_warehouse_private_endpoint`](./resources/warehouse_private_endpoint.md) | Register warehouse PrivateLink endpoints |
 | [`velodb_private_link_endpoint_service`](./resources/private_link_endpoint_service.md) | Outbound PrivateLink service registration |
 
 **Data Sources** (read existing state):
@@ -35,19 +35,19 @@ The VeloDB provider allows you to manage [VeloDB Cloud](https://www.velodb.cloud
 | Feature | Status |
 |---|---|
 | SaaS warehouse lifecycle | Supported |
-| BYOC deployment mode | Not supported — blocked at plan time |
-| COMPUTE cluster (on_demand) | Supported |
+| BYOC deployment mode | Supported by current API shape |
+| COMPUTE cluster | Supported |
 | SQL / OBSERVER cluster types | Not supported — blocked at plan time |
 | Mixed billing (subscription + on_demand pools) | Not supported — removed |
 | Simultaneous CPU + disk resize | Not supported — must apply separately |
 | Pause / resume / reboot | Supported |
 | Password rotation | Supported |
-| Version upgrade (`core_version`) | Supported |
+| Version upgrade (`core_version_id`) | Supported |
 | Import all resources | Supported |
 | IP allowlist (public access policy) | Supported |
-| PrivateLink inbound custom DNS | Supported |
+| PrivateLink warehouse endpoint registration | Supported |
 | PrivateLink outbound service | Supported |
-| maintenance_window / upgrade_policy | Not supported — use `maintainability_start_time`/`end_time` |
+| maintenance_window / upgrade_policy | Not supported by current Management API |
 
 ## Authentication
 

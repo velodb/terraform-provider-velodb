@@ -1,12 +1,11 @@
 # Compute cluster — always running
 resource "velodb_cluster" "etl" {
   warehouse_id   = velodb_warehouse.saas.id
-  name           = "compute-etl"
+  name           = "compute_etl"
   cluster_type   = "COMPUTE"
   zone           = "cn-beijing-k"
   compute_vcpu   = 4
   cache_gb       = 100
-  billing_method = "on_demand"
   desired_state  = "running"
 
   auto_pause {
@@ -23,12 +22,11 @@ resource "velodb_cluster" "etl" {
 # Dev cluster — paused by default for cost savings
 resource "velodb_cluster" "dev" {
   warehouse_id   = velodb_warehouse.saas.id
-  name           = "compute-dev"
+  name           = "compute_dev"
   cluster_type   = "COMPUTE"
   zone           = "cn-beijing-k"
   compute_vcpu   = 4
   cache_gb       = 100
-  billing_method = "on_demand"
   desired_state  = "paused"
 
   auto_pause {

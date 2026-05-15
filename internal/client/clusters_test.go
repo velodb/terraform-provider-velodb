@@ -49,15 +49,13 @@ func TestCreateCluster(t *testing.T) {
 	})
 
 	zone := "cn-beijing-k"
-	billingMethod := "on_demand"
 	timeout := 50
 	result, err := client.CreateCluster(context.Background(), "WH-001", &CreateClusterRequest{
-		Name:          "compute-etl",
-		ClusterType:   "COMPUTE",
-		Zone:          &zone,
-		ComputeVcpu:   4,
-		CacheGb:       100,
-		BillingModel: &billingMethod,
+		Name:        "compute-etl",
+		ClusterType: "COMPUTE",
+		Zone:        &zone,
+		ComputeVcpu: 4,
+		CacheGb:     100,
 		AutoPause: &AutoPauseConfig{
 			Enabled:            false,
 			IdleTimeoutMinutes: &timeout,
@@ -257,14 +255,9 @@ func TestClusterActions(t *testing.T) {
 			defer ts.Close()
 			client := newTestClient(t, ts)
 
-			mux.HandleFunc("/v1/warehouses/WH-001/clusters/CL-001/actions", func(w http.ResponseWriter, r *http.Request) {
+			mux.HandleFunc("/v1/warehouses/WH-001/clusters/CL-001/"+action, func(w http.ResponseWriter, r *http.Request) {
 				if !requireMethod(t, w, r, http.MethodPost) {
 					return
-				}
-				var req ClusterActionRequest
-				json.NewDecoder(r.Body).Decode(&req)
-				if req.Action != action {
-					t.Errorf("expected action %s, got %s", action, req.Action)
 				}
 				jsonResponse(w, 200, APIResponse[struct{}]{
 					Success:   true,

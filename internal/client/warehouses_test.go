@@ -33,8 +33,8 @@ func TestCreateWarehouse(t *testing.T) {
 		if req.Name != "test-warehouse" {
 			t.Errorf("expected name 'test-warehouse', got %q", req.Name)
 		}
-		if req.DeploymentMode != "SAAS" {
-			t.Errorf("expected deploymentMode 'SAAS', got %q", req.DeploymentMode)
+		if req.DeploymentMode != "SaaS" {
+			t.Errorf("expected deploymentMode 'SaaS', got %q", req.DeploymentMode)
 		}
 		if req.CloudProvider != "aliyun" {
 			t.Errorf("expected cloudProvider 'aliyun', got %q", req.CloudProvider)
@@ -61,17 +61,15 @@ func TestCreateWarehouse(t *testing.T) {
 	zone := "cn-beijing-k"
 	result, err := client.CreateWarehouse(context.Background(), &CreateWarehouseRequest{
 		Name:           "test-warehouse",
-		DeploymentMode: "SAAS",
+		DeploymentMode: "SaaS",
 		CloudProvider:  "aliyun",
 		Region:         "cn-beijing",
 		InitialCluster: &InitialClusterRequest{
-			Name:        "default",
-			Zone:        &zone,
+			Zone:        zone,
 			ComputeVcpu: 4,
 			CacheGb:     1000,
 			AutoPause:   &AutoPauseConfig{Enabled: false},
 		},
-		AdvancedSettings: map[string]any{"enableTde": 0},
 	})
 	if err != nil {
 		t.Fatalf("CreateWarehouse: %v", err)
@@ -100,11 +98,11 @@ func TestCreateWarehouseBYOC(t *testing.T) {
 		if req.VpcMode == nil || *req.VpcMode != "existing" {
 			t.Error("expected vpcMode 'existing'")
 		}
-		if req.VpcID == nil || *req.VpcID != "vpc-xxxxxx" {
-			t.Error("expected vpcId 'vpc-xxxxxx'")
-		}
 		if req.SetupMode == nil || *req.SetupMode != "guided" {
 			t.Error("expected setupMode 'guided'")
+		}
+		if req.InitialCluster == nil || req.InitialCluster.Zone != "cn-beijing-k" {
+			t.Error("expected initialCluster.zone 'cn-beijing-k'")
 		}
 
 		jsonResponse(w, 200, APIResponse[CreateWarehouseResult]{
@@ -112,31 +110,29 @@ func TestCreateWarehouseBYOC(t *testing.T) {
 			RequestID: "req-002",
 			Data: CreateWarehouseResult{
 				WarehouseID: "WH-BYOC-001",
-				ByocSetup: &WarehouseByocSetup{
-					Token:        "tok-abc123",
+				SetupGuide: &WarehouseSetupGuide{
 					ShellCommand: "curl https://setup.example.com | bash",
-					URL:          "https://setup.example.com/template",
-					DocURL:       "https://docs.example.com/byoc",
+					SetupURL:     "https://setup.example.com/template",
+					GuideURL:     "https://docs.example.com/byoc",
 				},
 			},
 		})
 	})
 
 	vpcMode := "existing"
-	vpcID := "vpc-xxxxxx"
 	setupMode := "guided"
 	pw := "asdAAQQ123"
+	zone := "cn-beijing-k"
 	result, err := client.CreateWarehouse(context.Background(), &CreateWarehouseRequest{
 		Name:           "My_Warehouse",
 		DeploymentMode: "BYOC",
 		CloudProvider:  "aliyun",
 		Region:         "cn-beijing",
 		VpcMode:        &vpcMode,
-		VpcID:          &vpcID,
-		SetupMode:     &setupMode,
+		SetupMode:      &setupMode,
 		AdminPassword:  &pw,
 		InitialCluster: &InitialClusterRequest{
-			Name:        "default-compute",
+			Zone:        zone,
 			ComputeVcpu: 8,
 			CacheGb:     400,
 		},
@@ -147,10 +143,10 @@ func TestCreateWarehouseBYOC(t *testing.T) {
 	if result.WarehouseID != "WH-BYOC-001" {
 		t.Errorf("expected 'WH-BYOC-001', got %q", result.WarehouseID)
 	}
-	if result.ByocSetup == nil {
-		t.Fatal("expected byocSetup to be returned")
+	if result.SetupGuide == nil {
+		t.Fatal("expected setupGuide to be returned")
 	}
-	if result.ByocSetup.ShellCommand == "" {
+	if result.SetupGuide.ShellCommand == "" {
 		t.Error("expected shellCommand in BYOC setup")
 	}
 }
@@ -380,40 +376,6 @@ func TestChangeWarehousePassword(t *testing.T) {
 	}
 }
 
-func TestGetWarehouseByocSetup(t *testing.T) {
-	ts, mux := newTestServer(t)
-	defer ts.Close()
-	client := newTestClient(t, ts)
-
-	mux.HandleFunc("/v1/warehouses/WH-BYOC/byoc-setup", func(w http.ResponseWriter, r *http.Request) {
-		if !requireMethod(t, w, r, http.MethodGet) {
-			return
-		}
-		jsonResponse(w, 200, APIResponse[WarehouseByocSetup]{
-			Success:   true,
-			RequestID: "req-012",
-			Data: WarehouseByocSetup{
-				Token:                 "tok-abc",
-				ShellCommand:          "curl https://setup.example.com | bash",
-				ShellCommandForNewVpc: "curl https://setup.example.com/new-vpc | bash",
-				URL:                   "https://setup.example.com/template",
-				DocURL:                "https://docs.example.com/byoc",
-			},
-		})
-	})
-
-	setup, err := client.GetWarehouseByocSetup(context.Background(), "WH-BYOC")
-	if err != nil {
-		t.Fatalf("GetWarehouseByocSetup: %v", err)
-	}
-	if setup.Token != "tok-abc" {
-		t.Errorf("expected token 'tok-abc', got %q", setup.Token)
-	}
-	if setup.ShellCommand == "" {
-		t.Error("expected shellCommand")
-	}
-}
-
 func TestGetWarehouseConnections(t *testing.T) {
 	ts, mux := newTestServer(t)
 	defer ts.Close()
@@ -430,6 +392,9 @@ func TestGetWarehouseConnections(t *testing.T) {
 				PublicEndpoints: []ConnectionEndpoint{
 					{Protocol: "jdbc", Host: "wh-001.selectdbcloud.com", Port: 9030},
 					{Protocol: "http", Host: "wh-001.selectdbcloud.com", Port: 8030},
+				},
+				PrivateEndpoints: []PrivateConnectionEndpoint{
+					{ConnectionEndpoint: ConnectionEndpoint{Protocol: "jdbc", Host: "wh-001.internal", Port: 9030}, EndpointID: "vpce-001"},
 				},
 				ComputeClusters: []ConnectionCluster{
 					{ClusterID: "CL-001", ClusterName: "default", HTTPPort: 9050},
@@ -450,6 +415,12 @@ func TestGetWarehouseConnections(t *testing.T) {
 	}
 	if conns.PublicEndpoints[0].Port != 9030 {
 		t.Errorf("expected port 9030, got %d", conns.PublicEndpoints[0].Port)
+	}
+	if len(conns.PrivateEndpoints) != 1 {
+		t.Fatalf("expected 1 private endpoint, got %d", len(conns.PrivateEndpoints))
+	}
+	if conns.PrivateEndpoints[0].EndpointID != "vpce-001" {
+		t.Errorf("expected endpoint ID 'vpce-001', got %q", conns.PrivateEndpoints[0].EndpointID)
 	}
 }
 

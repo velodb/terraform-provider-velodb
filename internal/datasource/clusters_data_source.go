@@ -3,14 +3,14 @@ package datasource
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-
-	"strings"
 
 	"github.com/velodb/terraform-provider-velodb/internal/client"
 )
@@ -26,13 +26,15 @@ func NewClustersDataSource() datasource.DataSource {
 }
 
 type ClustersDataSourceModel struct {
-	WarehouseID types.String `tfsdk:"warehouse_id"`
-	Keyword     types.String `tfsdk:"keyword"`
-	Status      types.String `tfsdk:"status"`
-	ClusterType types.String `tfsdk:"cluster_type"`
+	WarehouseID  types.String `tfsdk:"warehouse_id"`
+	ClusterID    types.String `tfsdk:"cluster_id"`
+	ClusterName  types.String `tfsdk:"cluster_name"`
+	Keyword      types.String `tfsdk:"keyword"`
+	Status       types.String `tfsdk:"status"`
+	ClusterType  types.String `tfsdk:"cluster_type"`
 	BillingModel types.String `tfsdk:"billing_model"`
-	Clusters    types.List   `tfsdk:"clusters"`
-	Total       types.Int64  `tfsdk:"total"`
+	Clusters     types.List   `tfsdk:"clusters"`
+	Total        types.Int64  `tfsdk:"total"`
 }
 
 func (d *ClustersDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -47,8 +49,16 @@ func (d *ClustersDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 				Description: "Parent warehouse identifier.",
 				Required:    true,
 			},
+			"cluster_id": schema.StringAttribute{
+				Description: "Exact cluster ID filter.",
+				Optional:    true,
+			},
+			"cluster_name": schema.StringAttribute{
+				Description: "Partial cluster name filter.",
+				Optional:    true,
+			},
 			"keyword": schema.StringAttribute{
-				Description: "Fuzzy match on cluster name or ID.",
+				Description: "Legacy local fuzzy match on cluster name or exact ID. Prefer cluster_id or cluster_name.",
 				Optional:    true,
 			},
 			"status": schema.StringAttribute{
@@ -81,10 +91,20 @@ func (d *ClustersDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 						"region":         schema.StringAttribute{Computed: true},
 						"zone":           schema.StringAttribute{Computed: true},
 						"disk_sum_size":  schema.Int64Attribute{Computed: true},
-						"billing_model":       schema.StringAttribute{Computed: true},
-						"created_at":     schema.StringAttribute{Computed: true},
-						"started_at":     schema.StringAttribute{Computed: true},
-						"expire_time":    schema.StringAttribute{Computed: true},
+						"billing_model":  schema.StringAttribute{Computed: true},
+						"auto_pause": schema.ListNestedAttribute{
+							Description: "Auto-pause configuration when returned by the API.",
+							Computed:    true,
+							NestedObject: schema.NestedAttributeObject{
+								Attributes: map[string]schema.Attribute{
+									"enabled":              schema.BoolAttribute{Computed: true},
+									"idle_timeout_minutes": schema.Int64Attribute{Computed: true},
+								},
+							},
+						},
+						"created_at":  schema.StringAttribute{Computed: true},
+						"started_at":  schema.StringAttribute{Computed: true},
+						"expire_time": schema.StringAttribute{Computed: true},
 					},
 				},
 			},
@@ -115,17 +135,17 @@ func (d *ClustersDataSource) Read(ctx context.Context, req datasource.ReadReques
 		Page: 1,
 		Size: 100,
 	}
-	if !config.Keyword.IsNull() {
-		opts.Keyword = config.Keyword.ValueString()
+	if !config.ClusterID.IsNull() {
+		opts.ClusterID = config.ClusterID.ValueString()
+	}
+	if !config.ClusterName.IsNull() {
+		opts.ClusterName = config.ClusterName.ValueString()
 	}
 	if !config.Status.IsNull() {
 		opts.Status = config.Status.ValueString()
 	}
 	if !config.ClusterType.IsNull() {
 		opts.ClusterType = config.ClusterType.ValueString()
-	}
-	if !config.BillingModel.IsNull() {
-		opts.BillingModel = config.BillingModel.ValueString()
 	}
 
 	result, err := d.client.ListClusters(ctx, config.WarehouseID.ValueString(), opts)
@@ -144,19 +164,19 @@ func (d *ClustersDataSource) Read(ctx context.Context, req datasource.ReadReques
 		"region":         types.StringType,
 		"zone":           types.StringType,
 		"disk_sum_size":  types.Int64Type,
-		"billing_model":       types.StringType,
+		"billing_model":  types.StringType,
+		"auto_pause":     types.ListType{ElemType: types.ObjectType{AttrTypes: dataSourceAutoPauseAttrTypes()}},
 		"created_at":     types.StringType,
 		"started_at":     types.StringType,
 		"expire_time":    types.StringType,
 	}
 
-	// Filter out internal/system clusters (e.g., "meta" cluster with m- prefix)
-	var filtered []client.ClusterItem
-	for _, cl := range result.Data {
-		if strings.HasPrefix(cl.ClusterID, "m-") {
-			continue
-		}
-		filtered = append(filtered, cl)
+	filtered := result.Data
+	if !config.Keyword.IsNull() && !config.Keyword.IsUnknown() {
+		filtered = filterClustersByKeyword(filtered, config.Keyword.ValueString())
+	}
+	if !config.BillingModel.IsNull() && !config.BillingModel.IsUnknown() {
+		filtered = filterClustersByBillingModel(filtered, config.BillingModel.ValueString())
 	}
 
 	var items []attr.Value
@@ -178,6 +198,7 @@ func (d *ClustersDataSource) Read(ctx context.Context, req datasource.ReadReques
 		if cl.DiskSumSize > 0 {
 			diskSize = types.Int64Value(int64(cl.DiskSumSize))
 		}
+		autoPause := dataSourceAutoPauseToList(cl.AutoPause, &resp.Diagnostics)
 
 		obj, diags := types.ObjectValue(clusterAttrTypes, map[string]attr.Value{
 			"cluster_id":     types.StringValue(cl.ClusterID),
@@ -189,7 +210,8 @@ func (d *ClustersDataSource) Read(ctx context.Context, req datasource.ReadReques
 			"region":         stringVal(cl.Region),
 			"zone":           stringVal(cl.Zone),
 			"disk_sum_size":  diskSize,
-			"billing_model":       stringVal(cl.BillingModel),
+			"billing_model":  stringVal(cl.BillingModel),
+			"auto_pause":     autoPause,
 			"created_at":     createdAt,
 			"started_at":     startedAt,
 			"expire_time":    expireTime,
@@ -205,4 +227,57 @@ func (d *ClustersDataSource) Read(ctx context.Context, req datasource.ReadReques
 	config.Total = types.Int64Value(int64(len(filtered)))
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &config)...)
+}
+
+func filterClustersByKeyword(clusters []client.ClusterItem, keyword string) []client.ClusterItem {
+	needle := strings.ToLower(strings.TrimSpace(keyword))
+	if needle == "" {
+		return clusters
+	}
+	filtered := make([]client.ClusterItem, 0, len(clusters))
+	for _, cl := range clusters {
+		if strings.EqualFold(cl.ClusterID, keyword) || strings.Contains(strings.ToLower(cl.Name), needle) {
+			filtered = append(filtered, cl)
+		}
+	}
+	return filtered
+}
+
+func filterClustersByBillingModel(clusters []client.ClusterItem, billingModel string) []client.ClusterItem {
+	filtered := make([]client.ClusterItem, 0, len(clusters))
+	for _, cl := range clusters {
+		if strings.EqualFold(cl.BillingModel, billingModel) {
+			filtered = append(filtered, cl)
+		}
+	}
+	return filtered
+}
+
+func dataSourceAutoPauseAttrTypes() map[string]attr.Type {
+	return map[string]attr.Type{
+		"enabled":              types.BoolType,
+		"idle_timeout_minutes": types.Int64Type,
+	}
+}
+
+func dataSourceAutoPauseToList(autoPause *client.AutoPauseConfig, diags *diag.Diagnostics) types.List {
+	objectType := types.ObjectType{AttrTypes: dataSourceAutoPauseAttrTypes()}
+	if autoPause == nil {
+		return types.ListNull(objectType)
+	}
+
+	idleTimeout := types.Int64Null()
+	if autoPause.IdleTimeoutMinutes != nil {
+		idleTimeout = types.Int64Value(int64(*autoPause.IdleTimeoutMinutes))
+	}
+
+	obj, d := types.ObjectValue(dataSourceAutoPauseAttrTypes(), map[string]attr.Value{
+		"enabled":              types.BoolValue(autoPause.Enabled),
+		"idle_timeout_minutes": idleTimeout,
+	})
+	diags.Append(d...)
+
+	list, d := types.ListValue(objectType, []attr.Value{obj})
+	diags.Append(d...)
+	return list
 }

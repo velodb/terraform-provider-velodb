@@ -1,8 +1,8 @@
-# List all SAAS warehouses in cn-beijing
+# List all SaaS warehouses in cn-beijing
 data "velodb_warehouses" "beijing_saas" {
   cloud_provider  = "aliyun"
   region          = "cn-beijing"
-  deployment_mode = "SAAS"
+  deployment_mode = "SaaS"
 }
 
 output "warehouse_count" {
