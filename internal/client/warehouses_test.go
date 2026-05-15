@@ -253,6 +253,53 @@ func TestGetWarehouseNotFound(t *testing.T) {
 	}
 }
 
+func TestGetWarehouseFallsBackToListWhenDetailNotFound(t *testing.T) {
+	ts, mux := newTestServer(t)
+	defer ts.Close()
+	client := newTestClient(t, ts)
+
+	mux.HandleFunc("/v1/warehouses/WH-BYOC-001", func(w http.ResponseWriter, r *http.Request) {
+		jsonResponse(w, 404, map[string]any{
+			"code":      "WarehouseNotFound",
+			"message":   "The warehouse [WH-BYOC-001] not found",
+			"success":   false,
+			"requestId": "req-detail-not-found",
+		})
+	})
+
+	mux.HandleFunc("/v1/warehouses", func(w http.ResponseWriter, r *http.Request) {
+		if !requireMethod(t, w, r, http.MethodGet) {
+			return
+		}
+		if got := r.URL.Query().Get("warehouseId"); got != "WH-BYOC-001" {
+			t.Fatalf("expected warehouseId filter, got %q", got)
+		}
+		wh := mockWarehouse("WH-BYOC-001", "byoc-warehouse")
+		wh.DeploymentMode = "BYOC"
+		wh.CloudProvider = "aws"
+		wh.Region = "us-east-1"
+		jsonResponse(w, 200, PageResponse[WarehouseItem]{
+			Success:   true,
+			RequestID: "req-list-fallback",
+			Data:      []WarehouseItem{wh},
+			Page:      1,
+			Size:      100,
+			Total:     1,
+		})
+	})
+
+	wh, err := client.GetWarehouse(context.Background(), "WH-BYOC-001")
+	if err != nil {
+		t.Fatalf("GetWarehouse fallback: %v", err)
+	}
+	if wh.WarehouseID != "WH-BYOC-001" {
+		t.Fatalf("expected fallback warehouse ID, got %q", wh.WarehouseID)
+	}
+	if wh.DeploymentMode != "BYOC" {
+		t.Fatalf("expected BYOC deployment mode, got %q", wh.DeploymentMode)
+	}
+}
+
 func TestListWarehouses(t *testing.T) {
 	ts, mux := newTestServer(t)
 	defer ts.Close()

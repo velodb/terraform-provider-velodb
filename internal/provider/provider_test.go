@@ -32,7 +32,14 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 		switch r.Method {
 		case http.MethodGet:
 			data := []map[string]any{}
-			if !whDeleted {
+			if r.URL.Query().Get("warehouseId") == "WH-BYOC-LIST" {
+				data = append(data, map[string]any{
+					"warehouseId": "WH-BYOC-LIST", "name": "mock-byoc-list", "status": "Running",
+					"cloudProvider": "aws", "region": "us-east-1", "zone": "us-east-1a",
+					"deploymentMode": "BYOC", "coreVersion": "26.0.2", "payType": "PostPaid",
+					"createdAt": now.Format(time.RFC3339),
+				})
+			} else if !whDeleted {
 				data = append(data, map[string]any{
 					"warehouseId": "WH-MOCK-001", "name": "mock-warehouse", "status": "Running",
 					"cloudProvider": "aliyun", "region": "cn-beijing", "zone": "cn-beijing-k",
@@ -53,6 +60,14 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 		default:
 			w.WriteHeader(405)
 		}
+	})
+
+	mux.HandleFunc("/v1/warehouses/WH-BYOC-LIST", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]any{
+			"code": "WarehouseNotFound", "message": "not found", "success": false, "requestId": "mock-byoc-list-not-found",
+		})
 	})
 
 	mux.HandleFunc("/v1/warehouses/WH-MOCK-001", func(w http.ResponseWriter, r *http.Request) {
@@ -124,6 +139,23 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 			"data": []map[string]any{{
 				"clusterId": "CL-BYOC-001", "warehouseId": "WH-BYOC-001",
 				"name": "byoc_cluster", "status": "Running", "clusterType": "COMPUTE",
+				"cloudProvider": "aws", "region": "us-east-1", "zone": "us-east-1a",
+			}},
+		})
+	})
+
+	mux.HandleFunc("/v1/warehouses/WH-BYOC-LIST/clusters", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method != http.MethodGet {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]any{
+			"success": true, "requestId": "mock-list-byoc-list-cl", "page": 1, "size": 20,
+			"total": 1,
+			"data": []map[string]any{{
+				"clusterId": "CL-BYOC-LIST", "warehouseId": "WH-BYOC-LIST",
+				"name": "byoc_list_cluster", "status": "Running", "clusterType": "COMPUTE",
 				"cloudProvider": "aws", "region": "us-east-1", "zone": "us-east-1a",
 			}},
 		})
@@ -399,6 +431,38 @@ resource "velodb_warehouse" "byoc" {
 					resource.TestCheckResourceAttr("velodb_warehouse.byoc", "region", "us-east-1"),
 					resource.TestCheckResourceAttr("velodb_warehouse.byoc", "initial_cluster_id", "CL-BYOC-001"),
 					resource.TestCheckResourceAttr("velodb_warehouse.byoc", "byoc_setup.0.shell_command", "curl https://setup.example.com | bash"),
+				),
+			},
+		},
+	})
+}
+
+func TestWarehouseImportBYOCFallsBackToList(t *testing.T) {
+	ts := mockAPIServer(t)
+	defer ts.Close()
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(ts),
+		Steps: []resource.TestStep{
+			{
+				Config: testProviderConfig(ts) + `
+resource "velodb_warehouse" "byoc" {
+  name            = "mock-byoc-list"
+  deployment_mode = "BYOC"
+  cloud_provider  = "aws"
+  region          = "us-east-1"
+}
+`,
+				ResourceName:            "velodb_warehouse.byoc",
+				ImportState:             true,
+				ImportStateId:           "WH-BYOC-LIST",
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"timeouts"},
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("velodb_warehouse.byoc", "id", "WH-BYOC-LIST"),
+					resource.TestCheckResourceAttr("velodb_warehouse.byoc", "name", "mock-byoc-list"),
+					resource.TestCheckResourceAttr("velodb_warehouse.byoc", "deployment_mode", "BYOC"),
+					resource.TestCheckResourceAttr("velodb_warehouse.byoc", "initial_cluster_id", "CL-BYOC-LIST"),
 				),
 			},
 		},

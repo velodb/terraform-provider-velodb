@@ -29,10 +29,56 @@ func (c *FormationClient) GetWarehouse(ctx context.Context, warehouseID string) 
 	}
 	var result APIResponse[WarehouseItem]
 	if err := parseResponse(resp, &result); err != nil {
+		if apiErr, ok := err.(*APIError); ok && apiErr.IsNotFound() {
+			if wh, fallbackErr := c.findWarehouseByID(ctx, warehouseID); fallbackErr == nil {
+				return wh, nil
+			}
+		}
 		return nil, err
 	}
 	normalizeWarehouseItem(&result.Data)
 	return &result.Data, nil
+}
+
+func (c *FormationClient) findWarehouseByID(ctx context.Context, warehouseID string) (*WarehouseItem, error) {
+	result, err := c.ListWarehouses(ctx, &ListWarehousesOptions{
+		Page:        1,
+		Size:        100,
+		WarehouseID: warehouseID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if wh := findWarehouseInList(result.Data, warehouseID); wh != nil {
+		return wh, nil
+	}
+
+	result, err = c.ListWarehouses(ctx, &ListWarehousesOptions{
+		Page: 1,
+		Size: 100,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if wh := findWarehouseInList(result.Data, warehouseID); wh != nil {
+		return wh, nil
+	}
+
+	return nil, &APIError{
+		StatusCode: 404,
+		Code:       "WarehouseNotFound",
+		Message:    fmt.Sprintf("warehouse %s not found in list response", warehouseID),
+	}
+}
+
+func findWarehouseInList(warehouses []WarehouseItem, warehouseID string) *WarehouseItem {
+	for i := range warehouses {
+		if warehouses[i].WarehouseID == warehouseID {
+			normalizeWarehouseItem(&warehouses[i])
+			return &warehouses[i]
+		}
+	}
+	return nil
 }
 
 // ListWarehouses returns a paginated list of warehouses.
