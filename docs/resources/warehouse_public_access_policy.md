@@ -17,15 +17,14 @@ Three policy modes:
 | `ALLOW_ALL` | Allow anyone on the internet (not recommended for production). |
 | `ALLOWLIST_ONLY` | Allow only specific CIDR ranges (specify via `rules`). |
 
-## Supported / not supported features
+## Behavior
 
-| Feature | Status | Notes |
-|---|---|---|
-| `DENY_ALL` / `ALLOW_ALL` / `ALLOWLIST_ONLY` | ✅ Supported | |
-| Add / remove CIDR rules | ✅ Supported | |
-| Public CIDR ranges | ✅ Supported | e.g., `203.0.113.0/24`, `198.51.100.5/32` |
-| Private CIDR ranges (10.x, 172.16.x, 192.168.x) | ⚠️ Silently dropped by API | The API accepts them but removes them server-side since they can't match public traffic |
-| Destroy behavior | Resets policy to `DENY_ALL` | Safer default than leaving `ALLOW_ALL` |
+| Feature | Notes |
+|---|---|
+| Policy modes | `DENY_ALL`, `ALLOW_ALL`, and `ALLOWLIST_ONLY` are supported. |
+| CIDR rules | Use public CIDR ranges such as `203.0.113.0/24` or `198.51.100.5/32`. |
+| Private CIDR ranges | The API may accept private ranges such as `10.0.0.0/8`, but removes them server-side because they cannot match public traffic. |
+| Destroy behavior | Destroying this resource resets the warehouse policy to `DENY_ALL`. |
 
 ## Example Usage
 

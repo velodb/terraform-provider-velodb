@@ -9,13 +9,15 @@ description: |-
 
 Manages a COMPUTE cluster within a VeloDB Cloud warehouse.
 
-Key capabilities:
+## Behavior
 
-- **Flat billing** — `compute_vcpu` and `cache_gb` as top-level attributes (on_demand only)
-- **Declarative lifecycle** — `desired_state` = `running` or `paused`
-- **Auto-pause** — configure idle timeout for automatic pause to save costs
-- **Observed billing** — `billing_method` is read from the API; billing selection is not part of the current create/update schema
-- **Connection info** — public/private endpoints and ports exposed as computed attributes
+| Feature | Notes |
+|---|---|
+| Capacity | Configure `compute_vcpu` and `cache_gb` as top-level attributes. |
+| Lifecycle state | Set `desired_state` to `running` or `paused`. |
+| Auto-pause | Configure idle timeout for automatic pause. |
+| Billing | `billing_method` is read from the API. Billing selection is not part of the current create/update schema. |
+| Connection info | Public and private endpoints are exposed as computed attributes. |
 
 ## Constraints
 
@@ -75,7 +77,7 @@ resource "velodb_cluster" "dev" {
 ```terraform
 resource "velodb_cluster" "etl" {
   # ...
-  compute_vcpu = 16   # was 8 — apply this first
+  compute_vcpu = 16   # was 8; apply this first
   cache_gb     = 400   # API-implied minimum for 16 vCPU
 }
 # After apply completes:
@@ -92,19 +94,19 @@ resource "velodb_cluster" "etl" {
 # Pause
 resource "velodb_cluster" "c" {
   # ...
-  desired_state = "paused"    # was "running" → calls POST /pause
+  desired_state = "paused"    # changing from "running" calls POST /pause
 }
 
 # Resume
 resource "velodb_cluster" "c" {
   # ...
-  desired_state = "running"   # was "paused" → calls POST /resume
+  desired_state = "running"   # changing from "paused" calls POST /resume
 }
 
 # Reboot (increment the trigger integer)
 resource "velodb_cluster" "c" {
   # ...
-  reboot_trigger = 1          # was 0 → calls POST /reboot
+  reboot_trigger = 1          # incrementing calls POST /reboot
 }
 ```
 

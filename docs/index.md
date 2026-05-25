@@ -2,57 +2,47 @@
 page_title: "Provider: VeloDB"
 subcategory: ""
 description: |-
-  The VeloDB provider manages warehouses, clusters, and related infrastructure on VeloDB Cloud using the Formation Management API v1.
+  The VeloDB provider manages warehouses, compute clusters, network access, PrivateLink, and connection metadata in VeloDB Cloud.
 ---
 
-# VeloDB Provider (v1.0.0)
+# VeloDB Provider
 
-The VeloDB provider allows you to manage [VeloDB Cloud](https://www.velodb.cloud/) warehouses, clusters, and infrastructure using Terraform.
+The VeloDB provider manages VeloDB Cloud infrastructure through the VeloDB Cloud
+Management API. Use it to create SaaS warehouses, manage compute clusters,
+control public access, register PrivateLink endpoints, read connection
+information, and import existing BYOC warehouses.
 
-## Resources and Data Sources
+To use this provider, you need a VeloDB Cloud account and a Management API key.
 
-**Resources** (manage lifecycle):
+## Get a VeloDB Cloud API Key
 
-| Resource | Purpose |
-|---|---|
-| [`velodb_warehouse`](./resources/warehouse.md) | SaaS/BYOC warehouse lifecycle (password, version) |
-| [`velodb_cluster`](./resources/cluster.md) | COMPUTE cluster with flat compute_vcpu/cache_gb, pause/resume/reboot |
-| [`velodb_warehouse_public_access_policy`](./resources/warehouse_public_access_policy.md) | IP allowlist for public access |
-| [`velodb_warehouse_private_endpoint`](./resources/warehouse_private_endpoint.md) | Register warehouse PrivateLink endpoints |
-| [`velodb_private_link_endpoint_service`](./resources/private_link_endpoint_service.md) | Outbound PrivateLink service registration |
+Go to the VeloDB Cloud console, then open **Organization -> API Keys**.
 
-**Data Sources** (read existing state):
+Console URL: [https://www.velodb.cloud/organization/api-keys](https://www.velodb.cloud/organization/api-keys)
 
-| Data Source | Purpose |
-|---|---|
-| [`velodb_warehouses`](./data-sources/warehouses.md) | List warehouses with filters |
-| [`velodb_clusters`](./data-sources/clusters.md) | List clusters in a warehouse |
-| [`velodb_warehouse_connections`](./data-sources/warehouse_connections.md) | Public host/ports + PrivateLink info |
-| [`velodb_warehouse_versions`](./data-sources/warehouse_versions.md) | Available engine versions |
-| [`velodb_private_link_endpoint_services`](./data-sources/private_link_endpoint_services.md) | Outbound PrivateLink endpoint services |
+Click **Create API Key**, choose the role and expiration, then copy the generated
+key. VeloDB shows the raw key only once. Keys start with `sk-`.
 
-## Supported / Not Supported
+Store the key in an environment variable:
 
-| Feature | Status |
-|---|---|
-| SaaS warehouse lifecycle | Supported |
-| BYOC deployment mode | Supported by current API shape |
-| COMPUTE cluster | Supported |
-| SQL / OBSERVER cluster types | Not supported — blocked at plan time |
-| Mixed billing (subscription + on_demand pools) | Not supported — removed |
-| Simultaneous CPU + disk resize | Not supported — must apply separately |
-| Pause / resume / reboot | Supported |
-| Password rotation | Supported |
-| Version upgrade (`core_version_id`) | Supported |
-| Import all resources | Supported |
-| IP allowlist (public access policy) | Supported |
-| PrivateLink warehouse endpoint registration | Supported |
-| PrivateLink outbound service | Supported |
-| maintenance_window / upgrade_policy | Not supported by current Management API |
+```shell
+export VELODB_API_KEY='sk-...'
+```
 
-## Authentication
+## API Host
 
-The provider authenticates using an API key passed via the `api_key` attribute or the `VELODB_API_KEY` environment variable.
+The default VeloDB Cloud Management API host is:
+
+```text
+api.velodb.cloud
+```
+
+`host` is a bare hostname. Do not include `https://`; the provider adds HTTPS
+for non-local hosts.
+
+```shell
+export VELODB_HOST='api.velodb.cloud'
+```
 
 ## Example Usage
 
@@ -61,21 +51,64 @@ terraform {
   required_providers {
     velodb = {
       source  = "velodb/velodb"
-      version = "~> 1.0"
+      version = "~> 1.1"
     }
   }
 }
 
 provider "velodb" {
-  host    = "api.velodb.io"
+  host    = var.velodb_host
   api_key = var.velodb_api_key
 }
 
+variable "velodb_host" {
+  type        = string
+  description = "VeloDB Cloud Management API host, without https://."
+  default     = "api.velodb.cloud"
+}
+
 variable "velodb_api_key" {
-  type      = string
-  sensitive = true
+  type        = string
+  description = "VeloDB Cloud API key."
+  sensitive   = true
 }
 ```
+
+## Resources
+
+| Resource | Purpose |
+|---|---|
+| [`velodb_warehouse`](./resources/warehouse.md) | Create, update, and delete SaaS warehouses; import and read existing BYOC warehouses. |
+| [`velodb_cluster`](./resources/cluster.md) | Manage COMPUTE clusters inside a warehouse, including resize, pause, resume, and reboot. |
+| [`velodb_warehouse_public_access_policy`](./resources/warehouse_public_access_policy.md) | Manage public endpoint access policy and CIDR allowlists. |
+| [`velodb_warehouse_private_endpoint`](./resources/warehouse_private_endpoint.md) | Register and describe inbound PrivateLink endpoints for warehouse access. |
+| [`velodb_private_link_endpoint_service`](./resources/private_link_endpoint_service.md) | Register external endpoint services that VeloDB Cloud can access through PrivateLink. |
+
+## Data Sources
+
+| Data Source | Purpose |
+|---|---|
+| [`velodb_warehouses`](./data-sources/warehouses.md) | List warehouses by ID, name, cloud provider, region, or deployment mode. |
+| [`velodb_clusters`](./data-sources/clusters.md) | List clusters in a warehouse by ID, name, status, type, or billing model. |
+| [`velodb_warehouse_connections`](./data-sources/warehouse_connections.md) | Read public/private endpoints, compute clusters, observer groups, and PrivateLink service names. |
+| [`velodb_warehouse_versions`](./data-sources/warehouse_versions.md) | List valid warehouse upgrade target version IDs. |
+| [`velodb_private_link_endpoint_services`](./data-sources/private_link_endpoint_services.md) | List outbound PrivateLink endpoint services and connected endpoints. |
+
+## Known Limitations
+
+- BYOC warehouses can be imported and read, but this provider does not create
+  new BYOC warehouses. Create BYOC warehouses in VeloDB Cloud, then import them
+  by warehouse ID.
+- `velodb_cluster` manages `COMPUTE` clusters. `SQL` and `OBSERVER` cluster
+  types are blocked at plan time.
+- CPU and cache resize are applied one dimension at a time. When increasing
+  `compute_vcpu`, set `cache_gb` to the API-implied minimum for the new CPU
+  size, then apply any additional cache-only change in a later run.
+- The current Management API does not accept `maintenance_window`,
+  `upgrade_policy`, mixed-billing request fields, or legacy
+  `advanced_settings` in Terraform warehouse or cluster create/update requests.
+- `admin_password` is write-only in the API and is stored in Terraform state as
+  a sensitive value so Terraform can detect password rotation.
 
 <!-- schema generated by tfplugindocs -->
 ## Schema
@@ -83,4 +116,4 @@ variable "velodb_api_key" {
 ### Optional
 
 - `api_key` (String, Sensitive) API key for authentication. Can also be set via the `VELODB_API_KEY` environment variable.
-- `host` (String) Formation API host (e.g., `api.velodb.io`). Can also be set via the `VELODB_HOST` environment variable.
+- `host` (String) VeloDB Cloud Management API host, without `https://`. Defaults to `api.velodb.cloud`. Can also be set via the `VELODB_HOST` environment variable.

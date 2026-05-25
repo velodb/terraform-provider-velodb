@@ -7,7 +7,9 @@ description: |-
 
 # velodb_private_link_endpoint_service (Resource)
 
-Use the *velodb_private_link_endpoint_service* resource to register an **outbound** PrivateLink endpoint service — a service that VeloDB's infrastructure should be able to connect TO (e.g., a private API your application exposes to VeloDB clusters for data lookup).
+Use the *velodb_private_link_endpoint_service* resource to register an outbound
+PrivateLink endpoint service. This is a service that VeloDB infrastructure can
+connect to, such as a private API exposed to VeloDB clusters for data lookup.
 
 Not to be confused with the warehouse's **inbound** PrivateLink service (auto-provisioned by VeloDB and managed via [`velodb_warehouse_private_endpoint`](./warehouse_private_endpoint.md)).
 
@@ -15,25 +17,25 @@ Not to be confused with the warehouse's **inbound** PrivateLink service (auto-pr
 
 AWS (`aws`), Aliyun (`aliyun`), Tencent Cloud (`tencent_cloud`), Huawei Cloud (`hwcloud`), AWS China (`aws-cn`).
 
-## ⚠️ Requirement — supply BOTH `endpoint_service_id` and `endpoint_service_name` for AWS
+## AWS Registration Requirements
 
-Despite the OpenAPI spec suggesting `endpoint_service_id` is optional ("some providers can infer from name"), the AWS sandbox API **requires both**. If you only provide one, the request fails with a generic `InternalError`.
+Despite the OpenAPI spec suggesting `endpoint_service_id` is optional ("some providers can infer from name"), the current API requires both fields for AWS registrations. If you only provide one, the request fails with a generic `InternalError`.
 
 Example AWS values:
 
 - `endpoint_service_id = "vpce-svc-0d7e3e0a7630ecc14"`
 - `endpoint_service_name = "com.amazonaws.vpce.us-east-1.vpce-svc-0d7e3e0a7630ecc14"`
 
-## Supported / not supported features
+## Behavior
 
-| Feature | Status | Notes |
-|---|---|---|
-| Register service (Create) | ✅ Supported | Must supply both `endpoint_service_id` + `endpoint_service_name` for AWS |
-| Duplicate service name | ❌ Returns `InternalError` `"Endpoint service already exists"` | Real error code: `409 Conflict` would be more appropriate; current API returns 500 |
-| Invalid / unowned service ID | ❌ Returns `InternalError` `"Endpoint service access denied"` | VeloDB validates access against the provided cloud service |
-| Update description | ✅ Supported | In-place update |
-| Delete | ✅ Supported | |
-| List (data source) | ✅ Supported | Use [`velodb_private_link_endpoint_services`](../data-sources/private_link_endpoint_services.md). |
+| Feature | Notes |
+|---|---|
+| Register service | Supported. For AWS, supply both `endpoint_service_id` and `endpoint_service_name`. |
+| Duplicate service name | The current API returns `InternalError` with `"Endpoint service already exists"`. |
+| Invalid or unowned service ID | The current API returns `InternalError` with `"Endpoint service access denied"`. |
+| Update description | Supported in place. |
+| Delete | Supported. |
+| List services | Use the [`velodb_private_link_endpoint_services`](../data-sources/private_link_endpoint_services.md) data source. |
 
 ## Example Usage
 
@@ -69,7 +71,7 @@ resource "velodb_private_link_endpoint_service" "corp" {
   region                = "us-east-1"
   endpoint_service_id   = aws_vpc_endpoint_service.corp.id
   endpoint_service_name = aws_vpc_endpoint_service.corp.service_name
-  description           = "Corp API — managed by Terraform"
+  description           = "Corp API managed by Terraform"
 }
 ```
 
@@ -82,12 +84,9 @@ resource "velodb_private_link_endpoint_service" "corp" {
 - `endpoint_service_name` (String) Cloud-side endpoint service name. For AWS: the full `com.amazonaws.vpce.<region>.<svc-id>` string. Changing forces new resource.
 - `region` (String) Cloud region. Changing forces new resource.
 
-### Optional (but effectively required for AWS — see warning above)
-
-- `endpoint_service_id` (String) Cloud-side endpoint service ID (e.g., `vpce-svc-0abc123`). For AWS, **must be supplied** alongside `endpoint_service_name` — omitting it causes the API to return an `InternalError`.
-
 ### Optional
 
+- `endpoint_service_id` (String) Cloud-side endpoint service ID (e.g., `vpce-svc-0abc123`). For AWS, supply this alongside `endpoint_service_name`.
 - `description` (String) Service description. Updatable in place.
 - `provider_account_id` (String) Cloud account ID that owns the endpoint service. Required by some providers. Changing forces new resource.
 - `zone` (String) Availability zone hint (provider-dependent). Changing forces new resource.

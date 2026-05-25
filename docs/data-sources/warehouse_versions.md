@@ -33,7 +33,7 @@ output "all_versions" {
 
 - `default_id` (Number) `version_id` of the default upgrade target, or `0` if none is marked default.
 - `versions` (List of Object) All valid target versions returned by the API. Each element has:
-  - `version_id` (Number) Engine version ID — pass this as `core_version_id`.
+  - `version_id` (Number) Engine version ID. Pass this as `core_version_id`.
   - `version` (String) Human-readable version (e.g. `3.0.8`).
   - `description` (String) Version description or release label.
   - `is_default` (Bool) Whether this is the default upgrade target.

@@ -81,17 +81,41 @@ output "all_endpoints" {
 - `private_endpoints` (Attributes List) Private connection endpoints grouped by protocol.
 - `public_endpoints` (Attributes List) Public connection endpoints grouped by protocol.
 
-<a id="nestedatt--clusters"></a>
-### Nested Schema for `clusters`
+<a id="nestedatt--public_endpoints"></a>
+### Nested Schema for `public_endpoints`
+
+Read-Only:
+
+- `host` (String) Endpoint host.
+- `port` (Number) Endpoint port.
+- `protocol` (String) Protocol name, such as `jdbc`, `http`, `stream_load`, `adbc`, `studio`, or `mcp`.
+- `url` (String) Full connection URL when returned by the API.
+
+<a id="nestedatt--private_endpoints"></a>
+### Nested Schema for `private_endpoints`
+
+Read-Only:
+
+- `endpoint_id` (String) Cloud private endpoint ID when available.
+- `host` (String) Endpoint host.
+- `port` (Number) Endpoint port.
+- `protocol` (String) Protocol name, such as `jdbc`, `http`, `stream_load`, `adbc`, `studio`, or `mcp`.
+- `url` (String) Full connection URL when returned by the API.
+
+<a id="nestedatt--compute_clusters"></a>
+### Nested Schema for `compute_clusters`
 
 Read-Only:
 
 - `cluster_id` (String) Cluster identifier.
-- `endpoint_service_id` (String) Endpoint service identifier for private link when available.
-- `http_port` (Number) HTTP API port.
-- `jdbc_port` (Number) JDBC port for SQL access.
-- `listener_port` (Number) TCP listener port.
-- `private_endpoint` (String) Private endpoint address for VPC-internal access.
-- `public_endpoint` (String) Public endpoint address.
-- `stream_load_port` (Number) Stream load port for bulk data ingestion.
-- `type` (String) Cluster type (`SQL`, `COMPUTE`, `OBSERVER`).
+- `cluster_name` (String) Cluster name.
+- `http_port` (Number) HTTP port for this cluster.
+
+<a id="nestedatt--observer_groups"></a>
+### Nested Schema for `observer_groups`
+
+Read-Only:
+
+- `cluster_id` (String) Observer cluster identifier when available.
+- `jdbc_port` (Number) JDBC port for this observer group.
+- `name` (String) Observer group name.

@@ -18,6 +18,8 @@ import (
 
 var _ provider.Provider = &VeloDBProvider{}
 
+const defaultHost = "api.velodb.cloud"
+
 type VeloDBProvider struct {
 	version string
 }
@@ -40,14 +42,14 @@ func (p *VeloDBProvider) Metadata(_ context.Context, _ provider.MetadataRequest,
 
 func (p *VeloDBProvider) Schema(_ context.Context, _ provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Terraform provider for VeloDB Cloud (Formation OpenAPI).",
+		Description: "Terraform provider for VeloDB Cloud Management API.",
 		Attributes: map[string]schema.Attribute{
 			"host": schema.StringAttribute{
-				Description: "Formation API host (e.g., api.selectdbcloud.com). Can also be set via VELODB_HOST env var.",
+				Description: "VeloDB Cloud Management API host without https://. Defaults to api.velodb.cloud. Can also be set via VELODB_HOST env var.",
 				Optional:    true,
 			},
 			"api_key": schema.StringAttribute{
-				Description: "API key for authentication. Can also be set via VELODB_API_KEY env var.",
+				Description: "VeloDB Cloud API key for authentication. Can also be set via VELODB_API_KEY env var.",
 				Optional:    true,
 				Sensitive:   true,
 			},
@@ -66,8 +68,7 @@ func (p *VeloDBProvider) Configure(ctx context.Context, req provider.ConfigureRe
 	apiKey := stringValueOrEnv(config.APIKey, "VELODB_API_KEY")
 
 	if host == "" {
-		resp.Diagnostics.AddError("Missing host", "Set 'host' in provider block or VELODB_HOST environment variable.")
-		return
+		host = defaultHost
 	}
 	if apiKey == "" {
 		resp.Diagnostics.AddError("Missing api_key", "Set 'api_key' in provider block or VELODB_API_KEY environment variable.")

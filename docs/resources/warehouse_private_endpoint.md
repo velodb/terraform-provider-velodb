@@ -11,22 +11,22 @@ Use the *velodb_warehouse_private_endpoint* resource to register an existing clo
 
 ~> The **PrivateLink endpoint itself is NOT managed by this resource**. The endpoint is created in your own AWS/cloud account (e.g., via `aws_vpc_endpoint`). The current management API exposes registration, but not deregistration; destroying this resource removes it from Terraform state only.
 
-## Supported / not supported features
+## Behavior
 
-| Feature | Status | Notes |
-|---|---|---|
-| Register endpoint | ✅ Supported | Calls `POST /v1/private-link/warehouses/{warehouseId}/endpoints` |
-| Set DNS name / description at registration | ✅ Supported | Changes require replacement |
-| Read endpoint protocol ports and host | ✅ Supported | Returned from `GET /v1/warehouses/{warehouseId}/connections` |
-| Create the cloud-side endpoint | ❌ Out of scope | Use `aws_vpc_endpoint` (AWS provider) or equivalent for other clouds |
-| Delete the cloud-side endpoint | ❌ Out of scope | Delete the cloud endpoint in its own provider |
-| AWS region support | ✅ AWS us-east-1 tested | |
+| Feature | Notes |
+|---|---|
+| Register endpoint | Supported through `POST /v1/private-link/warehouses/{warehouseId}/endpoints`. |
+| Set DNS name or description | Supported at registration time. Changes require replacement. |
+| Read protocol ports and host | Returned from `GET /v1/warehouses/{warehouseId}/connections`. |
+| Create the cloud-side endpoint | Out of scope. Use `aws_vpc_endpoint` or the equivalent resource for your cloud provider. |
+| Delete the cloud-side endpoint | Out of scope. Delete the cloud endpoint in its own provider. |
 
 ## Example Usage
 
 ### AWS: Create VPC endpoint and attach custom DNS
 
-This example shows the full flow — create the cloud-side endpoint via AWS provider, then use `velodb_warehouse_private_endpoint` to set custom DNS.
+This example shows the full flow: create the cloud-side endpoint via the AWS
+provider, then use `velodb_warehouse_private_endpoint` to set custom DNS.
 
 ```terraform
 # 1. Get the warehouse's inbound PrivateLink service name

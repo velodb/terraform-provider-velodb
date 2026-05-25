@@ -7,33 +7,12 @@ description: |-
 
 # velodb_warehouse (Resource)
 
-Manages a VeloDB Cloud warehouse. `deployment_mode` must be `SaaS` or `BYOC`.
+Manages a VeloDB Cloud warehouse.
 
-A warehouse is the primary unit of deployment. It belongs to an organization, runs on a specific cloud provider and region, and contains one or more clusters. The resource manages the full lifecycle for SaaS warehouses including creation, updates, version upgrades, password rotation, and deletion. For BYOC warehouses, the resource supports import/read of existing warehouses but does not create new BYOC warehouses.
-
-Key capabilities:
-
-- **SaaS warehouse lifecycle** management
-- **BYOC warehouse import/read** for warehouses created outside Terraform
-- **Initial cluster** created atomically with the warehouse
-- **Password rotation** — change `admin_password` and apply (no version bump needed)
-- **Version upgrades** triggered declaratively by changing `core_version_id` (lookup IDs via the [`velodb_warehouse_versions`](../data-sources/warehouse_versions.md) data source)
-- **BYOC setup guidance** exposed as computed `byoc_setup` block when returned by the API
-
-## Supported / not supported features
-
-| Feature | Status | Notes |
-|---|---|---|
-| SaaS warehouse | ✅ Supported | `deployment_mode = "SaaS"` |
-| Existing BYOC warehouse import/read | ✅ Supported | Use `terraform import velodb_warehouse.example <warehouse_id>` or an import block. |
-| BYOC warehouse creation | ❌ Not supported | The provider blocks new `deployment_mode = "BYOC"` warehouse creation. Create BYOC warehouses outside Terraform, then import them. |
-| Delete stuck BYOC `Creating` warehouse | ❌ Not supported by API | If guided-mode CFN is never executed, `DELETE` returns 500 "unfinished operations". Requires VeloDB admin intervention. |
-| Password rotation | ✅ Supported | Change `admin_password` — provider calls `POST /settings/password` automatically |
-| Version upgrade | ✅ Supported | Change `core_version_id` (int64) — provider calls `POST /settings/upgrade` and polls for completion. Use the `velodb_warehouse_versions` data source to discover valid IDs. |
-| Maintenance window / upgrade policy | ❌ Not in current API | The current management API does not expose these fields on warehouse create/update. |
-| Advanced settings update | ❌ Removed in API | The previous `/settings` `advancedSettings` field was dropped by the upstream Management API. No replacement at the resource level. |
-| Delete initial cluster | ✅ Supported | Import via `initial_cluster_id` and manage as `velodb_cluster`. See [Managing the Initial Cluster](#managing-the-initial-cluster). |
-| Delete warehouse with pre-paid clusters | ❌ Not supported until clusters expire | API billing semantics |
+For `deployment_mode = "SaaS"`, the resource creates, updates, upgrades,
+rotates the admin password for, and deletes warehouses. For
+`deployment_mode = "BYOC"`, the resource imports and reads existing warehouses;
+new BYOC warehouse creation is intentionally blocked by the provider.
 
 ## Example Usage
 
@@ -43,18 +22,18 @@ Key capabilities:
 resource "velodb_warehouse" "analytics" {
   name            = "analytics-saas"
   deployment_mode = "SaaS"
-  cloud_provider  = "aliyun"
-  region          = "cn-beijing"
+  cloud_provider  = "aws"
+  region          = "us-east-1"
 
-  admin_password         = var.admin_password
+  admin_password = var.admin_password
 
   initial_cluster {
-    zone         = "cn-beijing-k"
+    zone         = "us-east-1a"
     compute_vcpu = 4
-    cache_gb     = 1000
+    cache_gb     = 100
 
     auto_pause {
-      enabled              = false
+      enabled              = true
       idle_timeout_minutes = 30
     }
   }
@@ -92,33 +71,22 @@ terraform apply
 
 BYOC warehouses must already exist before import. The provider will read fields such as `status`, `zone`, `core_version`, `initial_cluster_id`, and `byoc_setup` when the API returns them.
 
-### BYOC Creation Is Blocked
+## Password Rotation
 
-```terraform
-resource "velodb_warehouse" "new_byoc" {
-  name            = "new-byoc"
-  deployment_mode = "BYOC"
-  cloud_provider  = "aws"
-  region          = "us-east-1"
-}
-```
-
-This plan fails with `BYOC warehouse creation is not supported`. Import the BYOC warehouse instead.
-
-### Password Rotation
-
-To rotate the warehouse admin password, just change `admin_password`. The provider detects the value change and calls the password-change API.
+To rotate the warehouse admin password, change `admin_password` and apply. The
+provider detects the sensitive value change and calls the password-change API.
 
 ```terraform
 resource "velodb_warehouse" "example" {
   # ...
-  admin_password = var.new_admin_password  # change to rotate
+  admin_password = var.new_admin_password
 }
 ```
 
-~> The `admin_password_version` attribute exists on the schema for backwards compatibility but is **not required** to trigger rotation. The provider detects changes to `admin_password` directly.
+`admin_password_version` remains in the schema for backward compatibility, but
+it is not required for password rotation.
 
-### Version Upgrade
+## Version Upgrade
 
 The warehouse upgrade API now requires a numeric `targetVersionId` instead of a version string. Use the `velodb_warehouse_versions` data source to discover valid IDs and pass one as `core_version_id`:
 
@@ -134,13 +102,14 @@ resource "velodb_warehouse" "example" {
 }
 ```
 
-The provider will call the upgrade API and wait for completion when `core_version_id` changes.
+The provider calls the upgrade API and waits for completion when
+`core_version_id` changes. The `core_version` string attribute is read-only.
 
-~> **Migration note:** The previous `core_version` (string) attribute is now read-only. Configurations that set `core_version = "3.1.0"` must switch to `core_version_id` referencing a `version_id` from the `velodb_warehouse_versions` data source. The string-based upgrade endpoint returns `400 InvalidParameter — targetVersionId is required` in the new API.
+## Managing the Initial Cluster
 
-### Managing the Initial Cluster
-
-The VeloDB API requires an `initial_cluster` block at warehouse creation — a warehouse cannot exist without at least one cluster. The `initial_cluster` block is **create-only** (changes to it after creation are ignored). To manage or delete the initial cluster later (resize, pause, destroy), import it into a separate `velodb_cluster` resource.
+The VeloDB API requires an `initial_cluster` block at SaaS warehouse creation.
+The `initial_cluster` block is create-only. To manage or delete the initial
+cluster later, import it into a separate `velodb_cluster` resource.
 
 The warehouse exposes `initial_cluster_id` as a computed output to simplify this workflow:
 
@@ -164,7 +133,7 @@ resource "velodb_warehouse" "main" {
   }
 }
 
-# Add a second cluster (required before the initial cluster can be deleted)
+# Add a second cluster before deleting the initial cluster.
 resource "velodb_cluster" "etl" {
   warehouse_id = velodb_warehouse.main.id
   name         = "etl"
@@ -190,16 +159,25 @@ resource "velodb_cluster" "initial" {
 }
 ```
 
-To **destroy the initial cluster later**:
+To destroy the initial cluster later:
 
 1. Confirm the warehouse has at least one other cluster (e.g. `velodb_cluster.etl` in the example above).
 2. Remove both the `resource "velodb_cluster" "initial" { ... }` block and the `import {}` block from your configuration.
-3. `terraform apply` — the initial cluster is deleted via the API.
+3. Run `terraform apply`.
 
-~> **Important constraints on initial cluster deletion:**
-> - The warehouse's **last cluster cannot be deleted** — add another cluster first, or destroy the whole warehouse.
-> - **Prepaid (subscription) clusters cannot be deleted until they expire** — this is an API billing constraint, not a Terraform limitation.
-> - The initial cluster is created with the API default billing model, so it's normally deletable when it is not prepaid.
+## Known Limitations
+
+- BYOC warehouses can be imported and read, but this provider does not create
+  new BYOC warehouses. Attempting to create `deployment_mode = "BYOC"` returns
+  `BYOC warehouse creation is not supported`.
+- The current Management API does not expose `maintenance_window`,
+  `upgrade_policy`, or legacy `advanced_settings` on warehouse create/update.
+- The warehouse's last cluster cannot be deleted. Add another cluster first, or
+  destroy the whole warehouse.
+- Prepaid clusters cannot be deleted until they expire. This is an API billing
+  constraint.
+- `admin_password` is write-only in the API and is stored in Terraform state as
+  a sensitive value so Terraform can detect password rotation.
 
 <!-- schema generated by tfplugindocs -->
 ## Schema
@@ -218,7 +196,7 @@ To **destroy the initial cluster later**:
 - `core_version_id` (Number) Target engine version ID. Changing this triggers a warehouse upgrade. Discover valid values via the `velodb_warehouse_versions` data source.
 - `setup_mode` (String) BYOC setup mode: `guided` or `advanced`. BYOC creation is blocked by this provider; this attribute remains for API compatibility. Changing this forces a new resource.
 - `credential_id` (Number) Credential identifier for Wizard mode. Changing this forces a new resource.
-- `initial_cluster` (Block List, Max: 1) Initial cluster created together with the warehouse. This is a create-only configuration — after creation, manage the cluster lifecycle by importing it as a `velodb_cluster` resource. (see [below for nested schema](#nestedblock--initial_cluster))
+- `initial_cluster` (Block List, Max: 1) Initial cluster created together with the warehouse. This is a create-only configuration. After creation, manage the cluster lifecycle by importing it as a `velodb_cluster` resource. (see [below for nested schema](#nestedblock--initial_cluster))
 - `network_config_id` (Number) Existing network configuration identifier for Wizard mode. Changing this forces a new resource.
 - `timeouts` (Block, Optional) (see [below for nested schema](#nestedblock--timeouts))
 - `vpc_mode` (String) VPC consistency hint for Template mode: `existing` or `new`. Changing this forces a new resource.
@@ -226,7 +204,7 @@ To **destroy the initial cluster later**:
 ### Read-Only
 
 - `byoc_setup` (Block List) BYOC setup guidance returned for BYOC warehouses. (see [below for nested schema](#nestedatt--byoc_setup))
-- `core_version` (String) Current human-readable engine version reported by the API (e.g. `3.0.8`). Read-only — set `core_version_id` to trigger upgrades.
+- `core_version` (String) Current human-readable engine version reported by the API (e.g. `3.0.8`). Read-only. Set `core_version_id` to trigger upgrades.
 - `created_at` (String) Warehouse creation time in ISO 8601 / RFC 3339 format.
 - `expire_time` (String) Warehouse expiration time when available.
 - `id` (String) Warehouse identifier (e.g., `ALBJ07YE`).

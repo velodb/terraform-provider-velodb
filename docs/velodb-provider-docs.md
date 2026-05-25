@@ -1,28 +1,63 @@
 # VeloDB Terraform Provider
 
-This provider is aligned to the current VeloDB Management API YAML.
+The VeloDB Terraform provider manages VeloDB Cloud warehouses, compute clusters,
+public access policy, PrivateLink registrations, and connection metadata through
+the VeloDB Cloud Management API.
 
-## Provider Configuration
+## Get a VeloDB Cloud API key
+
+Go to the VeloDB Cloud console, then open **Organization -> API Keys**.
+
+Console URL: <https://www.velodb.cloud/organization/api-keys>
+
+Click **Create API Key**, choose the role and expiration, then copy the generated
+key. VeloDB shows the raw key only once. Keys start with `sk-`.
+
+```bash
+export VELODB_API_KEY='sk-...'
+```
+
+## API host
+
+The default VeloDB Cloud Management API host is:
+
+```text
+api.velodb.cloud
+```
+
+`host` is a bare hostname. Do not include `https://`.
+
+```bash
+export VELODB_HOST='api.velodb.cloud'
+```
+
+## Provider configuration
 
 ```terraform
+terraform {
+  required_providers {
+    velodb = {
+      source  = "velodb/velodb"
+      version = "~> 1.1"
+    }
+  }
+}
+
 provider "velodb" {
-  host    = "sandbox-api.velodb.io"
+  host    = var.velodb_host
   api_key = var.velodb_api_key
 }
 ```
 
-`host` can also be set by `VELODB_HOST`; `api_key` can also be set by
-`VELODB_API_KEY`.
-
-## Supported Resources
+## Resources
 
 - `velodb_warehouse`
 - `velodb_cluster`
-- `velodb_public_access_policy`
+- `velodb_warehouse_public_access_policy`
 - `velodb_warehouse_private_endpoint`
 - `velodb_private_link_endpoint_service`
 
-## Supported Data Sources
+## Data sources
 
 - `velodb_warehouses`
 - `velodb_clusters`
@@ -30,22 +65,13 @@ provider "velodb" {
 - `velodb_warehouse_versions`
 - `velodb_private_link_endpoint_services`
 
-## Current API Notes
+## Known limitations
 
-- Warehouse `deployment_mode` is `SaaS` or `BYOC`.
-- Warehouse create/update does not accept `maintenance_window`,
-  `upgrade_policy`, or legacy `advanced_settings`.
-- Cluster create/update does not accept mixed-billing request fields. Terraform
-  exposes `billing_model` as observed data only.
-- Cluster pause/resume/reboot use explicit operation endpoints:
-  `/pause`, `/resume`, and `/reboot`.
-- Connections come from `GET /v1/warehouses/{warehouseId}/connections` and
-  include public endpoints, private endpoints, compute clusters, and observer
-  groups.
-- Warehouse private endpoint registration uses
-  `POST /v1/private-link/warehouses/{warehouseId}/endpoints`.
-- Outbound PrivateLink endpoint services are listed from
-  `GET /v1/private-link/endpoint-services`.
-
-See the resource and data-source pages under `docs/resources` and
-`docs/data-sources` for examples.
+- SaaS warehouses can be created, updated, upgraded, rotated, and deleted.
+- Existing BYOC warehouses can be imported and read; new BYOC warehouse creation
+  is blocked by the provider.
+- `velodb_cluster` manages `COMPUTE` clusters only.
+- CPU and cache resize are applied one dimension at a time.
+- The current Management API does not accept `maintenance_window`,
+  `upgrade_policy`, mixed-billing request fields, or legacy
+  `advanced_settings` in Terraform create/update requests.
