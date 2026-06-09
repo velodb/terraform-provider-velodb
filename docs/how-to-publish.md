@@ -21,6 +21,9 @@ The repository already has:
   namespace
 - The provider published at `registry.terraform.io/velodb/velodb`
 
+If the GitHub Actions secrets are missing, expired, or need to be rotated,
+contact the repository administrator: GitHub ID `morningman`.
+
 Use this guide when publishing the next provider version.
 
 ## 1. Choose the next version
@@ -186,4 +189,3 @@ version = "= 1.1.6"
 | Terraform Registry rejects the release signature. | The GPG public key in Terraform Registry does not match the private key used by GitHub Actions. | Add the matching public key to the `velodb` namespace in Terraform Registry. |
 | Terraform Registry does not show the new version. | The GitHub release webhook did not ingest the version, or required assets are missing. | Confirm the release assets, then use the Registry provider settings to resync. |
 | `terraform init` reports a protocol mismatch. | The Registry manifest has the wrong protocol version. | Keep `metadata.protocol_versions` set to `["6.0"]`. |
-
