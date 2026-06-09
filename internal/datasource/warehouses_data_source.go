@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 
 	"github.com/velodb/terraform-provider-velodb/internal/client"
 )
@@ -169,14 +170,26 @@ func (d *WarehousesDataSource) Read(ctx context.Context, req datasource.ReadRequ
 	}
 
 	var items []attr.Value
+	var enrichFailures []string
+	var firstEnrichErr error
 	for _, wh := range warehouses {
 		if wh.EndpointServiceID == "" || wh.EndpointServiceName == "" {
 			detail, err := d.client.GetWarehouse(ctx, wh.WarehouseID)
 			if err != nil {
-				resp.Diagnostics.AddWarning(
-					"Unable to enrich warehouse details",
-					fmt.Sprintf("Warehouse %s was listed, but detail lookup failed: %s", wh.WarehouseID, err.Error()),
-				)
+				// Best-effort enrichment: the list response already carries the
+				// core fields; only endpoint_service_id/name come from the detail
+				// endpoint. A failure here (e.g. a transient upstream 500) must not
+				// fail the read, and must not emit one warning per warehouse — that
+				// floods every plan on accounts with many warehouses. Collect the
+				// failures and surface a single aggregated warning below.
+				enrichFailures = append(enrichFailures, wh.WarehouseID)
+				if firstEnrichErr == nil {
+					firstEnrichErr = err
+				}
+				tflog.Debug(ctx, "warehouse detail enrichment failed", map[string]interface{}{
+					"warehouse_id": wh.WarehouseID,
+					"error":        err.Error(),
+				})
 			} else {
 				wh = mergeWarehouseDetails(wh, detail)
 			}
@@ -207,6 +220,17 @@ func (d *WarehousesDataSource) Read(ctx context.Context, req datasource.ReadRequ
 		})
 		resp.Diagnostics.Append(diags...)
 		items = append(items, obj)
+	}
+
+	if len(enrichFailures) > 0 {
+		resp.Diagnostics.AddWarning(
+			"Some warehouse details could not be enriched",
+			fmt.Sprintf(
+				"%d of %d warehouse(s) could not be enriched via the detail endpoint; listed fields are still "+
+					"populated, but endpoint_service_id/endpoint_service_name may be empty for: %s. First error: %s",
+				len(enrichFailures), len(warehouses), strings.Join(enrichFailures, ", "), firstEnrichErr.Error(),
+			),
+		)
 	}
 
 	list, diags := types.ListValue(types.ObjectType{AttrTypes: warehouseAttrTypes}, items)
