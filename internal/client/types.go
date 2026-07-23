@@ -26,16 +26,19 @@ type PageResponse[T any] struct {
 // --- Warehouse ---
 
 type CreateWarehouseRequest struct {
-	Name            string                 `json:"name"`
-	DeploymentMode  string                 `json:"deploymentMode"`
-	CloudProvider   string                 `json:"cloudProvider"`
-	Region          string                 `json:"region"`
-	VpcMode         *string                `json:"vpcMode,omitempty"`
-	SetupMode       *string                `json:"setupMode,omitempty"`
-	CredentialID    *int64                 `json:"credentialId,omitempty"`
-	NetworkConfigID *int64                 `json:"networkConfigId,omitempty"`
-	AdminPassword   *string                `json:"adminPassword,omitempty"`
-	InitialCluster  *InitialClusterRequest `json:"initialCluster,omitempty"`
+	Name               string                 `json:"name"`
+	DeploymentMode     string                 `json:"deploymentMode"`
+	CloudProvider      string                 `json:"cloudProvider"`
+	Region             string                 `json:"region"`
+	VpcMode            *string                `json:"vpcMode,omitempty"`
+	SetupMode          *string                `json:"setupMode,omitempty"`
+	CredentialID       *int64                 `json:"credentialId,omitempty"`
+	NetworkConfigID    *int64                 `json:"networkConfigId,omitempty"`
+	AdminPassword      *string                `json:"adminPassword,omitempty"`
+	InitialCluster     *InitialClusterRequest `json:"initialCluster,omitempty"`
+	Tags               map[string]string      `json:"tags,omitempty"`
+	TdeEncryptionKeyId *int64                 `json:"tdeEncryptionKeyId,omitempty"`
+	EbsEncryptionKeyId *int64                 `json:"ebsEncryptionKeyId,omitempty"`
 }
 
 type InitialClusterRequest struct {
