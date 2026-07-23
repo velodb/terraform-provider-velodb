@@ -68,13 +68,15 @@ type WarehouseResourceModel struct {
 	InitialCluster          types.List     `tfsdk:"initial_cluster"`
 	Timeouts                timeouts.Value `tfsdk:"timeouts"`
 	// Computed
-	Status           types.String `tfsdk:"status"`
-	Zone             types.String `tfsdk:"zone"`
-	PayType          types.String `tfsdk:"pay_type"`
-	CreatedAt        types.String `tfsdk:"created_at"`
-	ExpireTime       types.String `tfsdk:"expire_time"`
-	ByocSetup        types.List   `tfsdk:"byoc_setup"`
-	InitialClusterID types.String `tfsdk:"initial_cluster_id"`
+	Status             types.String `tfsdk:"status"`
+	Zone               types.String `tfsdk:"zone"`
+	PayType            types.String `tfsdk:"pay_type"`
+	CreatedAt          types.String `tfsdk:"created_at"`
+	ExpireTime         types.String `tfsdk:"expire_time"`
+	ByocSetup          types.List   `tfsdk:"byoc_setup"`
+	InitialClusterID   types.String `tfsdk:"initial_cluster_id"`
+	TdeEncryptionKeyId types.Int64  `tfsdk:"tde_encryption_key_id"`
+	EbsEncryptionKeyId types.Int64  `tfsdk:"ebs_encryption_key_id"`
 }
 
 type InitialClusterModel struct {
@@ -314,6 +316,14 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
+			"tde_encryption_key_id": schema.Int64Attribute{
+				Description: "TDE encryption key ID.",
+				Optional:    true,
+			},
+			"ebs_encryption_key_id": schema.Int64Attribute{
+				Description: "EBS encryption key ID.",
+				Optional:    true,
+			},
 		},
 		Blocks: map[string]schema.Block{
 			"initial_cluster": schema.ListNestedBlock{
@@ -407,14 +417,14 @@ func (r *WarehouseResource) ValidateConfig(ctx context.Context, req resource.Val
 	rejectUnsupportedString(ctx, req, resp, "subnet_id")
 	rejectUnsupportedString(ctx, req, resp, "security_group_id")
 	rejectUnsupportedString(ctx, req, resp, "endpoint_id")
-	var tags types.Map
-	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("tags"), &tags)...)
-	if !tags.IsNull() && !tags.IsUnknown() {
-		resp.Diagnostics.AddError(
-			"Unsupported tags",
-			"tags is not part of the current management API CreateWarehouseRequest.",
-		)
-	}
+	//var tags types.Map
+	//resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("tags"), &tags)...)
+	//if !tags.IsNull() && !tags.IsUnknown() {
+	//	resp.Diagnostics.AddError(
+	//		"Unsupported tags",
+	//		"tags is not part of the current management API CreateWarehouseRequest.",
+	//	)
+	//}
 }
 
 func (r *WarehouseResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
@@ -515,12 +525,16 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 		CloudProvider:  plan.CloudProvider.ValueString(),
 		Region:         plan.Region.ValueString(),
 	}
+	var tags map[string]string
+	plan.Tags.ElementsAs(ctx, &tags, false)
+	createReq.Tags = tags
 	setOptionalString(&createReq.VpcMode, plan.VpcMode)
 	setOptionalString(&createReq.SetupMode, plan.SetupMode)
 	setOptionalInt64(&createReq.CredentialID, plan.CredentialID)
 	setOptionalInt64(&createReq.NetworkConfigID, plan.NetworkConfigID)
 	setOptionalString(&createReq.AdminPassword, plan.AdminPassword)
-
+	setOptionalInt64(&createReq.TdeEncryptionKeyId, plan.TdeEncryptionKeyId)
+	setOptionalInt64(&createReq.EbsEncryptionKeyId, plan.EbsEncryptionKeyId)
 	// Initial cluster
 	if !plan.InitialCluster.IsNull() && !plan.InitialCluster.IsUnknown() {
 		var clusters []InitialClusterModel
