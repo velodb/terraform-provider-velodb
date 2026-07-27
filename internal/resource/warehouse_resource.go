@@ -438,13 +438,13 @@ func (r *WarehouseResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 		return
 	}
 
-	if normalizeDeploymentMode(deploymentMode.ValueString()) == "BYOC" {
-		resp.Diagnostics.AddError(
-			"BYOC warehouse creation is not supported",
-			"velodb_warehouse can import and read existing BYOC warehouses, but it cannot create new BYOC warehouses with the current Management API. Create the BYOC warehouse outside Terraform, then import it by warehouse ID.",
-		)
-		return
-	}
+	//if normalizeDeploymentMode(deploymentMode.ValueString()) == "BYOC" {
+	//	resp.Diagnostics.AddError(
+	//		"BYOC warehouse creation is not supported",
+	//		"velodb_warehouse can import and read existing BYOC warehouses, but it cannot create new BYOC warehouses with the current Management API. Create the BYOC warehouse outside Terraform, then import it by warehouse ID.",
+	//	)
+	//	return
+	//}
 
 	var adminPw types.String
 	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("admin_password"), &adminPw)...)
@@ -486,13 +486,13 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	if normalizeDeploymentMode(plan.DeploymentMode.ValueString()) == "BYOC" {
-		resp.Diagnostics.AddError(
-			"BYOC warehouse creation is not supported",
-			"velodb_warehouse can import and read existing BYOC warehouses, but it cannot create new BYOC warehouses with the current Management API. Create the BYOC warehouse outside Terraform, then import it by warehouse ID.",
-		)
-		return
-	}
+	//if normalizeDeploymentMode(plan.DeploymentMode.ValueString()) == "BYOC" {
+	//	resp.Diagnostics.AddError(
+	//		"BYOC warehouse creation is not supported",
+	//		"velodb_warehouse can import and read existing BYOC warehouses, but it cannot create new BYOC warehouses with the current Management API. Create the BYOC warehouse outside Terraform, then import it by warehouse ID.",
+	//	)
+	//	return
+	//}
 
 	if plan.AdminPassword.IsNull() || plan.AdminPassword.IsUnknown() {
 		resp.Diagnostics.AddError(
