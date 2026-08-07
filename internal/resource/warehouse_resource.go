@@ -77,6 +77,8 @@ type WarehouseResourceModel struct {
 	InitialClusterID   types.String `tfsdk:"initial_cluster_id"`
 	TdeEncryptionKeyId types.Int64  `tfsdk:"tde_encryption_key_id"`
 	EbsEncryptionKeyId types.Int64  `tfsdk:"ebs_encryption_key_id"`
+	EnableTls          types.Bool   `tfsdk:"enableTls"`
+	EnableHttps        types.Bool   `tfsdk:"enableHttps"`
 }
 
 type InitialClusterModel struct {
@@ -324,6 +326,14 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				Description: "EBS encryption key ID.",
 				Optional:    true,
 			},
+			"enableTls": schema.BoolAttribute{
+				Description: "MySQL/JDBC TLS switch",
+				Optional:    true,
+			},
+			"enableHttps": schema.BoolAttribute{
+				Description: "HTTP webserver HTTPS switch",
+				Optional:    true,
+			},
 		},
 		Blocks: map[string]schema.Block{
 			"initial_cluster": schema.ListNestedBlock{
@@ -535,6 +545,8 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 	setOptionalString(&createReq.AdminPassword, plan.AdminPassword)
 	setOptionalInt64(&createReq.TdeEncryptionKeyId, plan.TdeEncryptionKeyId)
 	setOptionalInt64(&createReq.EbsEncryptionKeyId, plan.EbsEncryptionKeyId)
+	setOptionalBool(&createReq.EnableTls, plan.EnableTls)
+	setOptionalBool(&createReq.EnableHttps, plan.EnableHttps)
 	// Initial cluster
 	if !plan.InitialCluster.IsNull() && !plan.InitialCluster.IsUnknown() {
 		var clusters []InitialClusterModel
@@ -911,6 +923,13 @@ func setOptionalInt64(target **int64, val types.Int64) {
 func setOptionalIntFromInt64(target **int, val types.Int64) {
 	if !val.IsNull() && !val.IsUnknown() {
 		i := int(val.ValueInt64())
+		*target = &i
+	}
+}
+
+func setOptionalBool(target **bool, val types.Bool) {
+	if !val.IsNull() && !val.IsUnknown() {
+		i := val.ValueBool()
 		*target = &i
 	}
 }
