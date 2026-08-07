@@ -39,6 +39,8 @@ type CreateWarehouseRequest struct {
 	Tags               map[string]string      `json:"tags,omitempty"`
 	TdeEncryptionKeyId *int64                 `json:"tdeEncryptionKeyId,omitempty"`
 	EbsEncryptionKeyId *int64                 `json:"ebsEncryptionKeyId,omitempty"`
+	EnableTls          *bool                  `json:"enableTls,omitempty"`
+	EnableHttps        *bool                  `json:"enableHttps,omitempty"`
 }
 
 type InitialClusterRequest struct {
