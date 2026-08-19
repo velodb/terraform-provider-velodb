@@ -77,8 +77,8 @@ type WarehouseResourceModel struct {
 	InitialClusterID   types.String `tfsdk:"initial_cluster_id"`
 	TdeEncryptionKeyId types.Int64  `tfsdk:"tde_encryption_key_id"`
 	EbsEncryptionKeyId types.Int64  `tfsdk:"ebs_encryption_key_id"`
-	EnableTls          types.Bool   `tfsdk:"enableTls"`
-	EnableHttps        types.Bool   `tfsdk:"enableHttps"`
+	EnableTls          types.Bool   `tfsdk:"enable_tls"`
+	EnableHttps        types.Bool   `tfsdk:"enable_https"`
 }
 
 type InitialClusterModel struct {
@@ -326,11 +326,11 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				Description: "EBS encryption key ID.",
 				Optional:    true,
 			},
-			"enableTls": schema.BoolAttribute{
+			"enable_tls": schema.BoolAttribute{
 				Description: "MySQL/JDBC TLS switch",
 				Optional:    true,
 			},
-			"enableHttps": schema.BoolAttribute{
+			"enable_https": schema.BoolAttribute{
 				Description: "HTTP webserver HTTPS switch",
 				Optional:    true,
 			},
