@@ -75,7 +75,7 @@ func validComputeVcpu(v int64) bool {
 }
 
 func minimumCacheGb(vcpu int64) int64 {
-	implied := vcpu * 25
+	implied := (vcpu / 32) * 100
 	if implied < 100 {
 		return 100
 	}
