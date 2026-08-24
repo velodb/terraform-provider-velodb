@@ -130,9 +130,9 @@ func (r *ClusterResource) Schema(ctx context.Context, _ resource.SchemaRequest, 
 				Validators:  []validator.Int64{int64validator.AtLeast(4)},
 			},
 			"ratio": schema.Int64Attribute{
-				Description: "Memory-to-vCPU ratio. Supported values are 2, 4, and 8. This value can be set only when creating a cluster.",
+				Description: "vCPU-to-memory ratio (1:4 or 1:8). Supported values are 4 and 8. This value can be set only when creating a cluster and does not control cache_gb.",
 				Optional:    true,
-				Validators:  []validator.Int64{int64validator.OneOf(2, 4, 8)},
+				Validators:  []validator.Int64{int64validator.OneOf(4, 8)},
 			},
 			"cache_gb": schema.Int64Attribute{
 				Description: "Cache disk size in GB (minimum 100).",
