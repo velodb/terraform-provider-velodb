@@ -126,7 +126,7 @@ resource "velodb_cluster" "c" {
 - `auto_pause` (Block List, Max: 1) Auto-pause configuration. (see [below for nested schema](#nestedblock--auto_pause))
 - `desired_state` (String) `running` or `paused`. Changing triggers the corresponding action.
 - `reboot_trigger` (Number) Increment to trigger a cluster reboot.
-- `ratio` (Number) Memory-to-vCPU ratio. Supported values are `2`, `4`, and `8`. This value can be set only when creating a cluster.
+- `ratio` (Number) vCPU-to-memory ratio (`1:4` or `1:8`). Supported values are `4` and `8`. This value can be set only when creating a cluster and does not control `cache_gb`.
 - `timeouts` (Block, Optional) (see [below for nested schema](#nestedblock--timeouts))
 - `zone` (String) Availability zone. Changing this forces a new resource.
 
