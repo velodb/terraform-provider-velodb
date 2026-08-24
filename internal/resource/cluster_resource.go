@@ -48,6 +48,7 @@ type ClusterResourceModel struct {
 	ClusterType   types.String   `tfsdk:"cluster_type"`
 	Zone          types.String   `tfsdk:"zone"`
 	ComputeVcpu   types.Int64    `tfsdk:"compute_vcpu"`
+	Ratio         types.Int64    `tfsdk:"ratio"`
 	CacheGb       types.Int64    `tfsdk:"cache_gb"`
 	BillingMethod types.String   `tfsdk:"billing_method"`
 	DesiredState  types.String   `tfsdk:"desired_state"`
@@ -128,6 +129,11 @@ func (r *ClusterResource) Schema(ctx context.Context, _ resource.SchemaRequest, 
 				Required:    true,
 				Validators:  []validator.Int64{int64validator.AtLeast(4)},
 			},
+			"ratio": schema.Int64Attribute{
+				Description: "Memory-to-vCPU ratio. Supported values are 2, 4, and 8. This value can be set only when creating a cluster.",
+				Optional:    true,
+				Validators:  []validator.Int64{int64validator.OneOf(2, 4, 8)},
+			},
 			"cache_gb": schema.Int64Attribute{
 				Description: "Cache disk size in GB (minimum 100).",
 				Required:    true,
@@ -207,12 +213,6 @@ func (r *ClusterResource) Schema(ctx context.Context, _ resource.SchemaRequest, 
 }
 
 func (r *ClusterResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	var computeVcpu types.Int64
-	var cacheGb types.Int64
-	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("compute_vcpu"), &computeVcpu)...)
-	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("cache_gb"), &cacheGb)...)
-	validateClusterCapacity(&resp.Diagnostics, "cluster", computeVcpu, cacheGb)
-
 	var autoPause types.List
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("auto_pause"), &autoPause)...)
 	validateAutoPauseRequiresTimeout(ctx, &resp.Diagnostics, "cluster", autoPause)
@@ -249,12 +249,7 @@ func (r *ClusterResource) Create(ctx context.Context, req resource.CreateRequest
 
 	warehouseID := plan.WarehouseID.ValueString()
 
-	createReq := &client.CreateClusterRequest{
-		Name:        plan.Name.ValueString(),
-		ClusterType: plan.ClusterType.ValueString(),
-		ComputeVcpu: int(plan.ComputeVcpu.ValueInt64()),
-		CacheGb:     int(plan.CacheGb.ValueInt64()),
-	}
+	createReq := buildCreateClusterRequest(plan)
 	setOptionalString(&createReq.Zone, plan.Zone)
 	createReq.AutoPause = r.buildAutoPause(ctx, plan.AutoPause, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
@@ -303,6 +298,20 @@ func (r *ClusterResource) Create(ctx context.Context, req resource.CreateRequest
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
+func buildCreateClusterRequest(plan ClusterResourceModel) *client.CreateClusterRequest {
+	request := &client.CreateClusterRequest{
+		Name:        plan.Name.ValueString(),
+		ClusterType: plan.ClusterType.ValueString(),
+		ComputeVcpu: int(plan.ComputeVcpu.ValueInt64()),
+		CacheGb:     int(plan.CacheGb.ValueInt64()),
+	}
+	if !plan.Ratio.IsNull() && !plan.Ratio.IsUnknown() {
+		ratio := int(plan.Ratio.ValueInt64())
+		request.Ratio = &ratio
+	}
+	return request
+}
+
 func (r *ClusterResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state ClusterResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -346,6 +355,10 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 
 	cpuChanged := !plan.ComputeVcpu.Equal(state.ComputeVcpu)
 	diskChanged := !plan.CacheGb.Equal(state.CacheGb)
+	validateCreateOnlyRatio(&resp.Diagnostics, plan.Ratio, state.Ratio)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	cacheChangeHandledByCPU := false
 	apiCacheAfterCPUResize := int64(0)
 	hasAPIResizeCache := cpuChanged &&

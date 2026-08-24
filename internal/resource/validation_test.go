@@ -11,6 +11,30 @@ import (
 	"github.com/velodb/terraform-provider-velodb/internal/client"
 )
 
+func TestValidateCreateOnlyRatio(t *testing.T) {
+	tests := []struct {
+		name  string
+		plan  types.Int64
+		state types.Int64
+		want  bool
+	}{
+		{name: "unchanged configured ratio", plan: types.Int64Value(4), state: types.Int64Value(4)},
+		{name: "unchanged unspecified ratio", plan: types.Int64Null(), state: types.Int64Null()},
+		{name: "changed ratio", plan: types.Int64Value(8), state: types.Int64Value(4), want: true},
+		{name: "sets ratio after creation", plan: types.Int64Value(4), state: types.Int64Null(), want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var diags diag.Diagnostics
+			validateCreateOnlyRatio(&diags, tt.plan, tt.state)
+			if got := diags.HasError(); got != tt.want {
+				t.Fatalf("HasError() = %t, want %t", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestCacheGbAfterCPUResize(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -22,6 +46,7 @@ func TestCacheGbAfterCPUResize(t *testing.T) {
 		{name: "expand from minimum", oldVcpu: 4, oldCacheGb: 100, newVcpu: 8, want: 200},
 		{name: "shrink preserves ratio", oldVcpu: 8, oldCacheGb: 400, newVcpu: 4, want: 200},
 		{name: "shrink applies minimum", oldVcpu: 8, oldCacheGb: 200, newVcpu: 4, want: 100},
+		{name: "expand applies elastic cache minimum", oldVcpu: 32, oldCacheGb: 100, newVcpu: 64, want: 400},
 	}
 
 	for _, tt := range tests {
@@ -31,6 +56,24 @@ func TestCacheGbAfterCPUResize(t *testing.T) {
 				t.Fatalf("expected %d, got %d", tt.want, got)
 			}
 		})
+	}
+}
+
+func TestMinimumCacheGb(t *testing.T) {
+	tests := []struct {
+		vcpu int64
+		want int64
+	}{
+		{vcpu: 4, want: 100},
+		{vcpu: 16, want: 100},
+		{vcpu: 32, want: 200},
+		{vcpu: 64, want: 400},
+	}
+
+	for _, tt := range tests {
+		if got := minimumCacheGb(tt.vcpu); got != tt.want {
+			t.Errorf("minimumCacheGb(%d) = %d, want %d", tt.vcpu, got, tt.want)
+		}
 	}
 }
 
