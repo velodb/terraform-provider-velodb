@@ -416,7 +416,6 @@ func (r *WarehouseResource) ValidateConfig(ctx context.Context, req resource.Val
 		if resp.Diagnostics.HasError() {
 			return
 		}
-		validateClusterCapacity(&resp.Diagnostics, "initial_cluster", clusters[0].ComputeVcpu, clusters[0].CacheGb)
 		validateAutoPauseRequiresTimeout(ctx, &resp.Diagnostics, "initial_cluster", clusters[0].AutoPause)
 	}
 

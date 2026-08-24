@@ -14,36 +14,14 @@ import (
 	"github.com/velodb/terraform-provider-velodb/internal/client"
 )
 
-func validateClusterCapacity(diags *diag.Diagnostics, label string, computeVcpu, cacheGb types.Int64) {
-	if computeVcpu.IsNull() || computeVcpu.IsUnknown() || cacheGb.IsNull() || cacheGb.IsUnknown() {
+func validateCreateOnlyRatio(diags *diag.Diagnostics, planRatio, stateRatio types.Int64) {
+	if planRatio.IsUnknown() || stateRatio.IsUnknown() || planRatio.Equal(stateRatio) {
 		return
 	}
-
-	vcpu := computeVcpu.ValueInt64()
-	cache := cacheGb.ValueInt64()
-
-	if !validComputeVcpu(vcpu) {
-		diags.AddError(
-			"Invalid compute_vcpu",
-			fmt.Sprintf("%s compute_vcpu must be 4, 8, 16, or a multiple of 16 above 16.", label),
-		)
-		return
-	}
-
-	minCache := minimumCacheGb(vcpu)
-	if cache < minCache {
-		diags.AddError(
-			"Invalid cache_gb",
-			fmt.Sprintf("%s cache_gb must be at least %d for compute_vcpu=%d.", label, minCache, vcpu),
-		)
-	}
-	maxCache := vcpu * 100
-	if cache > maxCache {
-		diags.AddError(
-			"Invalid cache_gb",
-			fmt.Sprintf("%s cache_gb must be no more than compute_vcpu * 100 (%d).", label, maxCache),
-		)
-	}
+	diags.AddError(
+		"ratio cannot be updated",
+		"VeloDB accepts ratio only when creating a cluster. Keep the existing ratio value or create a new cluster with the desired ratio.",
+	)
 }
 
 func validateAutoPauseRequiresTimeout(ctx context.Context, diags *diag.Diagnostics, label string, autoPause types.List) {
@@ -70,12 +48,8 @@ func validateAutoPauseRequiresTimeout(ctx context.Context, diags *diag.Diagnosti
 	}
 }
 
-func validComputeVcpu(v int64) bool {
-	return v == 4 || v == 8 || v == 16 || (v > 16 && v%16 == 0)
-}
-
 func minimumCacheGb(vcpu int64) int64 {
-	implied := (vcpu / 32) * 100
+	implied := (vcpu / 16) * 100
 	if implied < 100 {
 		return 100
 	}

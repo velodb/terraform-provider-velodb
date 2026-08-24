@@ -130,6 +130,7 @@ type CreateClusterRequest struct {
 	ClusterType string           `json:"clusterType"`
 	Zone        *string          `json:"zone,omitempty"`
 	ComputeVcpu int              `json:"computeVcpu"`
+	Ratio       *int             `json:"ratio,omitempty"`
 	CacheGb     int              `json:"cacheGb"`
 	AutoPause   *AutoPauseConfig `json:"autoPause,omitempty"`
 }
