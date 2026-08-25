@@ -387,6 +387,7 @@ resource "velodb_warehouse" "test" {
   initial_cluster {
     zone         = "cn-beijing-k"
     compute_vcpu = 4
+    ratio        = 8
     cache_gb     = 1000
     auto_pause {
       enabled              = false
@@ -403,6 +404,7 @@ resource "velodb_warehouse" "test" {
 					resource.TestCheckResourceAttr("velodb_warehouse.test", "id", "WH-MOCK-001"),
 					resource.TestCheckResourceAttr("velodb_warehouse.test", "name", "mock-warehouse"),
 					resource.TestCheckResourceAttr("velodb_warehouse.test", "status", "Running"),
+					resource.TestCheckResourceAttr("velodb_warehouse.test", "initial_cluster.0.ratio", "8"),
 					resource.TestCheckResourceAttr("velodb_warehouse.test", "cloud_provider", "aliyun"),
 					resource.TestCheckResourceAttr("velodb_warehouse.test", "region", "cn-beijing"),
 					resource.TestCheckResourceAttr("velodb_warehouse.test", "deployment_mode", "SaaS"),

@@ -48,6 +48,9 @@ func TestCreateWarehouse(t *testing.T) {
 		if req.InitialCluster.ComputeVcpu != 4 {
 			t.Errorf("expected computeVcpu 4, got %d", req.InitialCluster.ComputeVcpu)
 		}
+		if req.InitialCluster.Ratio == nil || *req.InitialCluster.Ratio != 8 {
+			t.Errorf("expected ratio 8, got %v", req.InitialCluster.Ratio)
+		}
 
 		jsonResponse(w, 200, APIResponse[CreateWarehouseResult]{
 			Success:   true,
@@ -59,6 +62,7 @@ func TestCreateWarehouse(t *testing.T) {
 	})
 
 	zone := "cn-beijing-k"
+	ratio := 8
 	result, err := client.CreateWarehouse(context.Background(), &CreateWarehouseRequest{
 		Name:           "test-warehouse",
 		DeploymentMode: "SaaS",
@@ -67,6 +71,7 @@ func TestCreateWarehouse(t *testing.T) {
 		InitialCluster: &InitialClusterRequest{
 			Zone:        zone,
 			ComputeVcpu: 4,
+			Ratio:       &ratio,
 			CacheGb:     1000,
 			AutoPause:   &AutoPauseConfig{Enabled: false},
 		},

@@ -84,6 +84,7 @@ type WarehouseResourceModel struct {
 type InitialClusterModel struct {
 	Zone        types.String `tfsdk:"zone"`
 	ComputeVcpu types.Int64  `tfsdk:"compute_vcpu"`
+	Ratio       types.Int64  `tfsdk:"ratio"`
 	CacheGb     types.Int64  `tfsdk:"cache_gb"`
 	AutoPause   types.List   `tfsdk:"auto_pause"`
 }
@@ -351,6 +352,13 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 								int64validator.AtLeast(4),
 							},
 						},
+						"ratio": schema.Int64Attribute{
+							Description: "vCPU-to-memory ratio (1:4 or 1:8). Create-only; omit to use the Manager default (1:8).",
+							Optional:    true,
+							Validators: []validator.Int64{
+								int64validator.OneOf(4, 8),
+							},
+						},
 						"cache_gb": schema.Int64Attribute{
 							Description: "Cache capacity in GB.",
 							Required:    true,
@@ -560,6 +568,7 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 				ComputeVcpu: int(ic.ComputeVcpu.ValueInt64()),
 				CacheGb:     int(ic.CacheGb.ValueInt64()),
 			}
+			setOptionalIntFromInt64(&clReq.Ratio, ic.Ratio)
 
 			if !ic.AutoPause.IsNull() && !ic.AutoPause.IsUnknown() {
 				var apModels []AutoPauseModel
@@ -680,6 +689,10 @@ func (r *WarehouseResource) Update(ctx context.Context, req resource.UpdateReque
 	defer cancel()
 
 	warehouseID := state.ID.ValueString()
+	validateInitialClusterCreateOnlyRatio(ctx, &resp.Diagnostics, plan.InitialCluster, state.InitialCluster)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	// Rename via PATCH /warehouses/{id}
 	if !plan.Name.Equal(state.Name) {

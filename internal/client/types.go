@@ -46,6 +46,7 @@ type CreateWarehouseRequest struct {
 type InitialClusterRequest struct {
 	Zone        string           `json:"zone"`
 	ComputeVcpu int              `json:"computeVcpu"`
+	Ratio       *int             `json:"ratio,omitempty"`
 	CacheGb     int              `json:"cacheGb"`
 	AutoPause   *AutoPauseConfig `json:"autoPause,omitempty"`
 }
