@@ -24,6 +24,31 @@ func validateCreateOnlyRatio(diags *diag.Diagnostics, planRatio, stateRatio type
 	)
 }
 
+func validateInitialClusterCreateOnlyRatio(ctx context.Context, diags *diag.Diagnostics, plan, state types.List) {
+	planRatio := initialClusterRatio(ctx, diags, plan)
+	stateRatio := initialClusterRatio(ctx, diags, state)
+	if diags.HasError() {
+		return
+	}
+	validateCreateOnlyRatio(diags, planRatio, stateRatio)
+}
+
+func initialClusterRatio(ctx context.Context, diags *diag.Diagnostics, initialCluster types.List) types.Int64 {
+	if initialCluster.IsNull() {
+		return types.Int64Null()
+	}
+	if initialCluster.IsUnknown() {
+		return types.Int64Unknown()
+	}
+
+	var clusters []InitialClusterModel
+	diags.Append(initialCluster.ElementsAs(ctx, &clusters, false)...)
+	if diags.HasError() || len(clusters) == 0 {
+		return types.Int64Null()
+	}
+	return clusters[0].Ratio
+}
+
 func validateAutoPauseRequiresTimeout(ctx context.Context, diags *diag.Diagnostics, label string, autoPause types.List) {
 	if autoPause.IsNull() || autoPause.IsUnknown() {
 		return

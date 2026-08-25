@@ -11,6 +11,7 @@ resource "velodb_warehouse" "saas" {
   initial_cluster {
     zone         = "cn-beijing-k"
     compute_vcpu = 4
+    ratio        = 4
     cache_gb     = 1000
     auto_pause {
       enabled              = false

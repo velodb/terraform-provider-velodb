@@ -35,6 +35,30 @@ func TestValidateCreateOnlyRatio(t *testing.T) {
 	}
 }
 
+func TestValidateInitialClusterCreateOnlyRatio(t *testing.T) {
+	tests := []struct {
+		name  string
+		plan  types.List
+		state types.List
+		want  bool
+	}{
+		{name: "unchanged configured ratio", plan: initialClusterListForTest(types.Int64Value(4)), state: initialClusterListForTest(types.Int64Value(4))},
+		{name: "changed ratio", plan: initialClusterListForTest(types.Int64Value(8)), state: initialClusterListForTest(types.Int64Value(4)), want: true},
+		{name: "sets ratio after creation", plan: initialClusterListForTest(types.Int64Value(4)), state: initialClusterListForTest(types.Int64Null()), want: true},
+		{name: "removes ratio after creation", plan: initialClusterListForTest(types.Int64Null()), state: initialClusterListForTest(types.Int64Value(4)), want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var diags diag.Diagnostics
+			validateInitialClusterCreateOnlyRatio(context.Background(), &diags, tt.plan, tt.state)
+			if got := diags.HasError(); got != tt.want {
+				t.Fatalf("HasError() = %t, want %t", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestCacheGbAfterCPUResize(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -139,6 +163,25 @@ func autoPauseListForTest(enabled types.Bool, idleTimeout types.Int64) types.Lis
 		"idle_timeout_minutes": idleTimeout,
 	})
 	return types.ListValueMust(types.ObjectType{AttrTypes: autoPauseAttrTypes()}, []attr.Value{obj})
+}
+
+func initialClusterListForTest(ratio types.Int64) types.List {
+	autoPauseType := types.ObjectType{AttrTypes: autoPauseAttrTypes()}
+	attrTypes := map[string]attr.Type{
+		"zone":         types.StringType,
+		"compute_vcpu": types.Int64Type,
+		"ratio":        types.Int64Type,
+		"cache_gb":     types.Int64Type,
+		"auto_pause":   types.ListType{ElemType: autoPauseType},
+	}
+	obj := types.ObjectValueMust(attrTypes, map[string]attr.Value{
+		"zone":         types.StringValue("us-east-1a"),
+		"compute_vcpu": types.Int64Value(4),
+		"ratio":        ratio,
+		"cache_gb":     types.Int64Value(100),
+		"auto_pause":   types.ListNull(autoPauseType),
+	})
+	return types.ListValueMust(types.ObjectType{AttrTypes: attrTypes}, []attr.Value{obj})
 }
 
 func TestPreserveConfiguredPublicAccessRules(t *testing.T) {

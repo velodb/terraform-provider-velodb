@@ -90,6 +90,7 @@ resource "velodb_warehouse" "analytics" {
   initial_cluster {
     zone         = "us-east-1a"
     compute_vcpu = 4
+    ratio        = 4 # optional; defaults to 8 (1:8) when omitted
     cache_gb     = 100
 
     auto_pause {

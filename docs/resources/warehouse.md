@@ -30,6 +30,7 @@ resource "velodb_warehouse" "analytics" {
   initial_cluster {
     zone         = "us-east-1a"
     compute_vcpu = 4
+    ratio        = 4 # optional; defaults to 8 (1:8) when omitted
     cache_gb     = 100
 
     auto_pause {
@@ -227,6 +228,7 @@ Required:
 Optional:
 
 - `auto_pause` (Block List, Max: 1) Auto-pause configuration. (see [below for nested schema](#nestedblock--initial_cluster--auto_pause))
+- `ratio` (Number) vCPU-to-memory ratio. Supported values are `4` (1:4) and `8` (1:8). This value is create-only. If omitted, Manager defaults to `8` (1:8).
 
 <a id="nestedblock--initial_cluster--auto_pause"></a>
 ### Nested Schema for `initial_cluster.auto_pause`
