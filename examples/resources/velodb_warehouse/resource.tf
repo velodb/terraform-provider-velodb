@@ -23,22 +23,22 @@ resource "velodb_warehouse" "saas" {
   }
 }
 
-# Existing BYOC warehouse imported into Terraform state
-import {
-  to = velodb_warehouse.byoc
-  id = "AWVA7PYB"
-}
-
+# AWS BYOC warehouse using registered custom infrastructure
 resource "velodb_warehouse" "byoc" {
-  name            = "test_cli"
-  deployment_mode = "BYOC"
-  cloud_provider  = "aws"
-  region          = "us-east-1"
-}
+  name              = "analytics-byoc"
+  deployment_mode   = "BYOC"
+  cloud_provider    = "aws"
+  region            = "us-east-1"
+  setup_mode        = "advanced"
+  credential_id     = velodb_byoc_credential.aws.id
+  network_config_id = velodb_byoc_network.aws.id
+  admin_password    = var.admin_password
 
-# Output BYOC setup shell command when returned by the API
-output "byoc_shell_command" {
-  value = velodb_warehouse.byoc.byoc_setup[0].shell_command
+  initial_cluster {
+    zone         = "us-east-1a"
+    compute_vcpu = 4
+    cache_gb     = 100
+  }
 }
 
 variable "admin_password" {

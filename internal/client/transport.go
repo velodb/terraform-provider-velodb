@@ -1,6 +1,7 @@
 package client
 
 import (
+	"fmt"
 	"math"
 	"math/rand"
 	"net/http"
@@ -37,6 +38,15 @@ func (t *formationTransport) RoundTrip(req *http.Request) (*http.Response, error
 	var err error
 	for attempt := 0; attempt <= t.maxRetries; attempt++ {
 		if attempt > 0 {
+			if req.Body != nil {
+				if req.GetBody == nil {
+					return nil, fmt.Errorf("cannot retry %s request with a non-replayable body", req.Method)
+				}
+				req.Body, err = req.GetBody()
+				if err != nil {
+					return nil, fmt.Errorf("replaying %s request body: %w", req.Method, err)
+				}
+			}
 			wait := backoffDuration(attempt, resp)
 			select {
 			case <-req.Context().Done():
@@ -47,10 +57,16 @@ func (t *formationTransport) RoundTrip(req *http.Request) (*http.Response, error
 
 		resp, err = t.base.RoundTrip(req)
 		if err != nil {
+			if resp != nil && resp.Body != nil {
+				resp.Body.Close()
+			}
 			continue // network error, retry
 		}
 		if !isRetryableStatus(resp.StatusCode) {
 			break
+		}
+		if attempt < t.maxRetries && resp.Body != nil {
+			resp.Body.Close()
 		}
 	}
 	return resp, err

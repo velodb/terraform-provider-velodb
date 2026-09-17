@@ -88,6 +88,8 @@ func (p *VeloDBProvider) Resources(_ context.Context) []func() resource.Resource
 		velodb_resource.NewPublicAccessPolicyResource,
 		velodb_resource.NewPrivateLinkEndpointServiceResource,
 		velodb_resource.NewWarehousePrivateEndpointResource,
+		velodb_resource.NewBYOCCredentialResource,
+		velodb_resource.NewBYOCNetworkResource,
 	}
 }
 
@@ -98,6 +100,7 @@ func (p *VeloDBProvider) DataSources(_ context.Context) []func() datasource.Data
 		velodb_datasource.NewWarehouseConnectionsDataSource,
 		velodb_datasource.NewWarehouseVersionsDataSource,
 		velodb_datasource.NewPrivateLinkEndpointServicesDataSource,
+		velodb_datasource.NewBYOCPrerequisitesDataSource,
 	}
 }
 

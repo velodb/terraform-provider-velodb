@@ -44,11 +44,14 @@ nav:
   - Single-page reference: velodb-provider-docs.md
   - Resources:
     - velodb_warehouse: resources/warehouse.md
+    - velodb_byoc_credential: resources/byoc_credential.md
+    - velodb_byoc_network: resources/byoc_network.md
     - velodb_cluster: resources/cluster.md
     - velodb_warehouse_public_access_policy: resources/warehouse_public_access_policy.md
     - velodb_warehouse_private_endpoint: resources/warehouse_private_endpoint.md
     - velodb_private_link_endpoint_service: resources/private_link_endpoint_service.md
   - Data Sources:
+    - velodb_byoc_prerequisites: data-sources/byoc_prerequisites.md
     - velodb_warehouses: data-sources/warehouses.md
     - velodb_clusters: data-sources/clusters.md
     - velodb_warehouse_connections: data-sources/warehouse_connections.md

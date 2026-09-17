@@ -129,19 +129,50 @@ output "jdbc_urls" {
 }
 ```
 
-Import an existing BYOC warehouse:
+Create an AWS BYOC warehouse from registered cloud resources:
 
 ```terraform
-import {
-  to = velodb_warehouse.byoc
-  id = "AWVA7PYB"
+data "velodb_byoc_prerequisites" "aws" {
+  cloud_provider = "aws"
+  region         = "us-east-1"
+}
+
+resource "velodb_byoc_credential" "aws" {
+  cloud_provider            = "aws"
+  name                      = "production-credential"
+  region                    = "us-east-1"
+  bucket_name               = var.bucket_name
+  data_credential_arn       = var.data_credential_arn
+  deployment_credential_arn = var.deployment_credential_arn
+}
+
+resource "velodb_byoc_network" "aws" {
+  cloud_provider    = "aws"
+  name              = "production-network"
+  credential_id     = velodb_byoc_credential.aws.id
+  security_group_id = var.security_group_id
+
+  zone_mappings = [{
+    zone_id   = "us-east-1a"
+    subnet_id = var.subnet_id
+  }]
 }
 
 resource "velodb_warehouse" "byoc" {
-  name            = "test_cli"
-  deployment_mode = "BYOC"
-  cloud_provider  = "aws"
-  region          = "us-east-1"
+  name              = "analytics-byoc"
+  deployment_mode   = "BYOC"
+  cloud_provider    = "aws"
+  region            = "us-east-1"
+  setup_mode        = "advanced"
+  credential_id     = velodb_byoc_credential.aws.id
+  network_config_id = velodb_byoc_network.aws.id
+  admin_password    = var.admin_password
+
+  initial_cluster {
+    zone         = "us-east-1a"
+    compute_vcpu = 4
+    cache_gb     = 100
+  }
 }
 ```
 
@@ -149,7 +180,9 @@ resource "velodb_warehouse" "byoc" {
 
 | Resource | Purpose |
 |---|---|
-| `velodb_warehouse` | Create, update, and delete SaaS warehouses; import and read existing BYOC warehouses. |
+| `velodb_warehouse` | Manage SaaS warehouses and advanced AWS BYOC warehouses. |
+| `velodb_byoc_credential` | Register AWS storage and deployment credentials for BYOC. |
+| `velodb_byoc_network` | Register AWS VPC network configuration for BYOC. |
 | `velodb_cluster` | Manage COMPUTE clusters inside a warehouse, including resize, pause, resume, and reboot. |
 | `velodb_warehouse_public_access_policy` | Manage public endpoint access policy and CIDR allowlists. |
 | `velodb_warehouse_private_endpoint` | Register and describe inbound PrivateLink endpoints for warehouse access. |
@@ -164,12 +197,13 @@ resource "velodb_warehouse" "byoc" {
 | `velodb_warehouse_connections` | Read public/private endpoints, compute clusters, observer groups, and PrivateLink service names. |
 | `velodb_warehouse_versions` | List valid warehouse upgrade target version IDs. |
 | `velodb_private_link_endpoint_services` | List outbound PrivateLink endpoint services and connected endpoints. |
+| `velodb_byoc_prerequisites` | Discover AWS BYOC external ID, VeloDB principal, PrivateLink service, and supported zones. |
 
 ## Known Limitations
 
-- BYOC warehouses can be imported and read, but this provider does not create
-  new BYOC warehouses. Create BYOC warehouses in VeloDB Cloud, then import the
-  warehouse ID into Terraform.
+- New BYOC warehouse creation supports AWS custom infrastructure through
+  `setup_mode = "advanced"`. Guided/template setup and other cloud providers are
+  not supported yet.
 - `velodb_cluster` manages `COMPUTE` clusters. `SQL` and `OBSERVER` cluster
   types are blocked at plan time.
 - CPU and cache resize are applied one dimension at a time. When increasing

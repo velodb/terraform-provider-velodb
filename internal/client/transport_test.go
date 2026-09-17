@@ -2,9 +2,27 @@ package client
 
 import (
 	"context"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+type trackedReadCloser struct {
+	io.Reader
+	closed bool
+}
+
+func (r *trackedReadCloser) Close() error {
+	r.closed = true
+	return nil
+}
 
 func TestTransportInjectsAPIKey(t *testing.T) {
 	ts, mux := newTestServer(t)
@@ -115,5 +133,67 @@ func TestTransportRetryOn503(t *testing.T) {
 	}
 	if attempt != 2 {
 		t.Errorf("expected 2 attempts, got %d", attempt)
+	}
+}
+
+func TestTransportReplaysWriteBodyAndClosesRetryResponse(t *testing.T) {
+	retryBody := &trackedReadCloser{Reader: strings.NewReader(`{"success":false}`)}
+	var requestBodies []string
+	var requestIDs []string
+	attempt := 0
+	base := roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		attempt++
+		body, err := io.ReadAll(req.Body)
+		if err != nil {
+			t.Fatalf("reading request body: %v", err)
+		}
+		requestBodies = append(requestBodies, string(body))
+		requestIDs = append(requestIDs, req.Header.Get("RequestId"))
+		if attempt == 1 {
+			return &http.Response{
+				StatusCode: http.StatusServiceUnavailable,
+				Header:     http.Header{"Retry-After": []string{"0"}},
+				Body:       retryBody,
+				Request:    req,
+			}, nil
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body: io.NopCloser(strings.NewReader(
+				`{"success":true,"requestId":"req-retry","data":{"warehouseId":"WH-RETRY"}}`,
+			)),
+			Request: req,
+		}, nil
+	})
+	c := &FormationClient{
+		BaseURL: "https://example.invalid",
+		HTTPClient: &http.Client{Transport: &formationTransport{
+			base:       base,
+			apiKey:     "test-api-key",
+			maxRetries: 1,
+		}},
+	}
+
+	result, err := c.CreateWarehouse(context.Background(), &CreateWarehouseRequest{
+		Name:           "retry-test",
+		DeploymentMode: "BYOC",
+		CloudProvider:  "aws",
+		Region:         "us-east-1",
+	})
+	if err != nil {
+		t.Fatalf("CreateWarehouse: %v", err)
+	}
+	if result.WarehouseID != "WH-RETRY" {
+		t.Fatalf("unexpected warehouse ID %q", result.WarehouseID)
+	}
+	if len(requestBodies) != 2 || requestBodies[0] == "" || requestBodies[0] != requestBodies[1] {
+		t.Fatalf("request body was not replayed unchanged: %#v", requestBodies)
+	}
+	if requestIDs[0] == "" || requestIDs[0] != requestIDs[1] {
+		t.Fatalf("RequestId changed across retry: %#v", requestIDs)
+	}
+	if !retryBody.closed {
+		t.Fatal("retry response body was not closed")
 	}
 }

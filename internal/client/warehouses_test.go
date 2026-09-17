@@ -94,20 +94,41 @@ func TestCreateWarehouseBYOC(t *testing.T) {
 			return
 		}
 
+		var raw map[string]json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
+			t.Fatalf("decoding request: %v", err)
+		}
+		body, err := json.Marshal(raw)
+		if err != nil {
+			t.Fatalf("encoding request for typed assertion: %v", err)
+		}
 		var req CreateWarehouseRequest
-		json.NewDecoder(r.Body).Decode(&req)
+		if err := json.Unmarshal(body, &req); err != nil {
+			t.Fatalf("decoding typed request: %v", err)
+		}
 
 		if req.DeploymentMode != "BYOC" {
 			t.Errorf("expected BYOC, got %q", req.DeploymentMode)
 		}
-		if req.VpcMode == nil || *req.VpcMode != "existing" {
-			t.Error("expected vpcMode 'existing'")
+		if req.CloudProvider != "aws" {
+			t.Errorf("expected aws, got %q", req.CloudProvider)
 		}
-		if req.SetupMode == nil || *req.SetupMode != "guided" {
-			t.Error("expected setupMode 'guided'")
+		if req.SetupMode == nil || *req.SetupMode != "advanced" {
+			t.Error("expected setupMode 'advanced'")
 		}
-		if req.InitialCluster == nil || req.InitialCluster.Zone != "cn-beijing-k" {
-			t.Error("expected initialCluster.zone 'cn-beijing-k'")
+		if req.CredentialID == nil || *req.CredentialID != 123 {
+			t.Error("expected credentialId 123")
+		}
+		if req.NetworkConfigID == nil || *req.NetworkConfigID != 456 {
+			t.Error("expected networkConfigId 456")
+		}
+		if req.InitialCluster == nil || req.InitialCluster.Zone != "us-east-1a" {
+			t.Error("expected initialCluster.zone 'us-east-1a'")
+		}
+		for _, field := range []string{"vpcMode", "vpcId", "bucketName", "dataCredentialArn", "deploymentCredentialArn", "subnetId", "securityGroupId", "endpointId"} {
+			if _, exists := raw[field]; exists {
+				t.Errorf("advanced BYOC request must not contain legacy field %q", field)
+			}
 		}
 
 		jsonResponse(w, 200, APIResponse[CreateWarehouseResult]{
@@ -115,27 +136,24 @@ func TestCreateWarehouseBYOC(t *testing.T) {
 			RequestID: "req-002",
 			Data: CreateWarehouseResult{
 				WarehouseID: "WH-BYOC-001",
-				SetupGuide: &WarehouseSetupGuide{
-					ShellCommand: "curl https://setup.example.com | bash",
-					SetupURL:     "https://setup.example.com/template",
-					GuideURL:     "https://docs.example.com/byoc",
-				},
 			},
 		})
 	})
 
-	vpcMode := "existing"
-	setupMode := "guided"
+	setupMode := "advanced"
 	pw := "asdAAQQ123"
-	zone := "cn-beijing-k"
+	zone := "us-east-1a"
+	credentialID := int64(123)
+	networkConfigID := int64(456)
 	result, err := client.CreateWarehouse(context.Background(), &CreateWarehouseRequest{
-		Name:           "My_Warehouse",
-		DeploymentMode: "BYOC",
-		CloudProvider:  "aliyun",
-		Region:         "cn-beijing",
-		VpcMode:        &vpcMode,
-		SetupMode:      &setupMode,
-		AdminPassword:  &pw,
+		Name:            "My_Warehouse",
+		DeploymentMode:  "BYOC",
+		CloudProvider:   "aws",
+		Region:          "us-east-1",
+		SetupMode:       &setupMode,
+		CredentialID:    &credentialID,
+		NetworkConfigID: &networkConfigID,
+		AdminPassword:   &pw,
 		InitialCluster: &InitialClusterRequest{
 			Zone:        zone,
 			ComputeVcpu: 8,
@@ -148,11 +166,43 @@ func TestCreateWarehouseBYOC(t *testing.T) {
 	if result.WarehouseID != "WH-BYOC-001" {
 		t.Errorf("expected 'WH-BYOC-001', got %q", result.WarehouseID)
 	}
-	if result.SetupGuide == nil {
-		t.Fatal("expected setupGuide to be returned")
+}
+
+func TestCreateWarehouseAcceptedIsNotComplete(t *testing.T) {
+	ts, mux := newTestServer(t)
+	defer ts.Close()
+	client := newTestClient(t, ts)
+
+	mux.HandleFunc("/v1/warehouses", func(w http.ResponseWriter, r *http.Request) {
+		jsonResponse(w, http.StatusAccepted, map[string]any{
+			"success":   true,
+			"requestId": "req-response",
+			"data": map[string]any{
+				"status":    "processing",
+				"requestId": "req-original",
+				"taskId":    "task-001",
+			},
+		})
+	})
+
+	result, err := client.CreateWarehouse(context.Background(), &CreateWarehouseRequest{
+		Name:           "accepted-warehouse",
+		DeploymentMode: "BYOC",
+		CloudProvider:  "aws",
+		Region:         "us-east-1",
+	})
+	if err == nil {
+		t.Fatal("expected an incomplete-operation error")
 	}
-	if result.SetupGuide.ShellCommand == "" {
-		t.Error("expected shellCommand in BYOC setup")
+	if result != nil {
+		t.Fatalf("expected no create result, got %#v", result)
+	}
+	apiErr, ok := err.(*APIError)
+	if !ok {
+		t.Fatalf("expected *APIError, got %T", err)
+	}
+	if apiErr.StatusCode != http.StatusAccepted || apiErr.RequestID != "req-original" {
+		t.Fatalf("unexpected accepted error: %#v", apiErr)
 	}
 }
 

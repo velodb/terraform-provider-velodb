@@ -41,6 +41,21 @@ Run against `sandbox-api.velodb.io` with `TF_VAR_api_key` set.
 | 6 | Import warehouse and cluster; assert no drift on read-back fields |
 | 7 | Validate removed/stale fields fail loudly without API calls |
 
+## AWS BYOC Live Test
+
+Run with a development override for the local provider binary and an API key
+that can read the organization profile and manage warehouses.
+
+1. Read `velodb_byoc_prerequisites` for the target AWS region.
+2. Create or reference the AWS bucket, IAM roles, VPC, subnet, security group,
+   and optional VPC endpoint.
+3. Create `velodb_byoc_credential` and `velodb_byoc_network`.
+4. Create an advanced AWS BYOC `velodb_warehouse` and its initial cluster.
+5. Run `terraform plan` again and require no drift.
+6. Add and verify a second `velodb_cluster`.
+7. Destroy in dependency order: clusters, warehouse, network registration,
+   credential registration, then AWS resources.
+
 ## Known API Limits
 
 - `maintenance_window` and `upgrade_policy` are not in the current create/update

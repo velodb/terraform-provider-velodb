@@ -23,6 +23,8 @@ func (e *APIError) Error() string {
 func (e *APIError) UserMessage() string {
 	base := e.Error()
 	switch {
+	case e.StatusCode == http.StatusAccepted:
+		return base + "\n\nThe operation is still processing and did not return a resource ID. Retry after it completes."
 	case e.StatusCode == 401:
 		return base + "\n\nAuthentication failed — verify your api_key is correct and not expired."
 	case e.StatusCode == 403:
@@ -67,6 +69,31 @@ func parseResponse[T any](resp *http.Response, result *T) error {
 		return fmt.Errorf("reading response body: %w", err)
 	}
 
+	if resp.StatusCode == http.StatusAccepted {
+		var accepted struct {
+			RequestID string `json:"requestId"`
+			Data      struct {
+				RequestID string `json:"requestId"`
+				TaskID    string `json:"taskId"`
+			} `json:"data"`
+		}
+		_ = json.Unmarshal(body, &accepted)
+		requestID := accepted.Data.RequestID
+		if requestID == "" {
+			requestID = accepted.RequestID
+		}
+		message := "the original idempotent request is still being processed"
+		if accepted.Data.TaskID != "" {
+			message += fmt.Sprintf(" (taskId=%s)", accepted.Data.TaskID)
+		}
+		return &APIError{
+			StatusCode: resp.StatusCode,
+			Code:       "IdempotencyProcessing",
+			Message:    message,
+			RequestID:  requestID,
+		}
+	}
+
 	if resp.StatusCode >= 400 {
 		var errResp struct {
 			Code      string `json:"code"`
@@ -80,14 +107,6 @@ func parseResponse[T any](resp *http.Response, result *T) error {
 			Message:    errResp.Message,
 			RequestID:  errResp.RequestID,
 		}
-	}
-
-	// 202 Accepted — idempotent request still in flight, not an error but callers should handle
-	if resp.StatusCode == 202 && result != nil {
-		if err := json.Unmarshal(body, result); err != nil {
-			return fmt.Errorf("decoding 202 response: %w", err)
-		}
-		return nil
 	}
 
 	if result != nil {
