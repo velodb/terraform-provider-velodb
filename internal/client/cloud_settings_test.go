@@ -3,9 +3,11 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"testing"
+	"time"
 )
 
 func TestCloudSettingCredentialLifecycle(t *testing.T) {
@@ -194,5 +196,33 @@ func TestCloudSettingNetworkConfigLifecycle(t *testing.T) {
 
 	if err := client.DeleteCloudSettingNetworkConfig(context.Background(), "aws", network.NetworkConfigID); err != nil {
 		t.Fatalf("DeleteCloudSettingNetworkConfig: %v", err)
+	}
+}
+
+func TestRetryCloudSettingDelete(t *testing.T) {
+	for _, code := range []string{"NetworkConfigInUse", "CredentialInUse"} {
+		t.Run(code, func(t *testing.T) {
+			attempts := 0
+			err := retryCloudSettingDelete(context.Background(), code, time.Nanosecond, func(context.Context) error {
+				attempts++
+				if attempts == 1 {
+					return &APIError{StatusCode: http.StatusConflict, Code: code, Message: "still associated"}
+				}
+				return nil
+			})
+			if err != nil || attempts != 2 {
+				t.Fatalf("retryCloudSettingDelete: attempts=%d error=%v", attempts, err)
+			}
+		})
+	}
+
+	attempts := 0
+	want := &APIError{StatusCode: http.StatusConflict, Code: "OperationConflict", Message: "not retryable"}
+	err := retryCloudSettingDelete(context.Background(), "NetworkConfigInUse", time.Nanosecond, func(context.Context) error {
+		attempts++
+		return want
+	})
+	if !errors.Is(err, want) || attempts != 1 {
+		t.Fatalf("unexpected conflict retry: attempts=%d error=%v", attempts, err)
 	}
 }

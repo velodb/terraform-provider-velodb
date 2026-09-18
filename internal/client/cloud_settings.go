@@ -2,9 +2,15 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"time"
+)
+
+const (
+	cloudSettingDeleteRetryInterval = 2 * time.Second
+	cloudSettingDeleteRetryTimeout  = 5 * time.Minute
 )
 
 type CreateCloudSettingCredentialRequest struct {
@@ -126,11 +132,7 @@ func (c *FormationClient) ListCloudSettingCredentials(ctx context.Context, cloud
 }
 
 func (c *FormationClient) DeleteCloudSettingCredential(ctx context.Context, cloudProvider string, credentialID int64) error {
-	resp, err := c.delete(ctx, fmt.Sprintf("%s/%d", cloudSettingsPath(cloudProvider, "credentials"), credentialID))
-	if err != nil {
-		return err
-	}
-	return parseResponse[any](resp, nil)
+	return c.deleteCloudSetting(ctx, fmt.Sprintf("%s/%d", cloudSettingsPath(cloudProvider, "credentials"), credentialID), "CredentialInUse")
 }
 
 func (c *FormationClient) CreateCloudSettingNetworkConfig(ctx context.Context, cloudProvider string, req *CreateCloudSettingNetworkConfigRequest) (*CreateCloudSettingNetworkConfigResult, error) {
@@ -177,9 +179,36 @@ func (c *FormationClient) ListCloudSettingNetworkConfigs(ctx context.Context, cl
 }
 
 func (c *FormationClient) DeleteCloudSettingNetworkConfig(ctx context.Context, cloudProvider string, networkConfigID int64) error {
-	resp, err := c.delete(ctx, fmt.Sprintf("%s/%d", cloudSettingsPath(cloudProvider, "network-configs"), networkConfigID))
-	if err != nil {
-		return err
+	return c.deleteCloudSetting(ctx, fmt.Sprintf("%s/%d", cloudSettingsPath(cloudProvider, "network-configs"), networkConfigID), "NetworkConfigInUse")
+}
+
+func (c *FormationClient) deleteCloudSetting(ctx context.Context, path, inUseCode string) error {
+	ctx, cancel := context.WithTimeout(ctx, cloudSettingDeleteRetryTimeout)
+	defer cancel()
+
+	return retryCloudSettingDelete(ctx, inUseCode, cloudSettingDeleteRetryInterval, func(ctx context.Context) error {
+		resp, err := c.delete(ctx, path)
+		if err != nil {
+			return err
+		}
+		return parseResponse[any](resp, nil)
+	})
+}
+
+func retryCloudSettingDelete(ctx context.Context, inUseCode string, interval time.Duration, deleteFn func(context.Context) error) error {
+	for {
+		err := deleteFn(ctx)
+		var apiErr *APIError
+		if err == nil || !errors.As(err, &apiErr) || apiErr.Code != inUseCode {
+			return err
+		}
+
+		timer := time.NewTimer(interval)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return fmt.Errorf("timed out waiting for cloud setting to become unused: %w", err)
+		case <-timer.C:
+		}
 	}
-	return parseResponse[any](resp, nil)
 }
