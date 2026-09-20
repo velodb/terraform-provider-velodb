@@ -52,6 +52,8 @@ provider "velodb" {
 ## Resources
 
 - `velodb_warehouse`
+- `velodb_byoc_credential`
+- `velodb_byoc_network`
 - `velodb_cluster`
 - `velodb_warehouse_public_access_policy`
 - `velodb_warehouse_private_endpoint`
@@ -64,12 +66,13 @@ provider "velodb" {
 - `velodb_warehouse_connections`
 - `velodb_warehouse_versions`
 - `velodb_private_link_endpoint_services`
+- `velodb_byoc_prerequisites`
 
 ## Known limitations
 
 - SaaS warehouses can be created, updated, upgraded, rotated, and deleted.
-- Existing BYOC warehouses can be imported and read; new BYOC warehouse creation
-  is blocked by the provider.
+- AWS BYOC warehouses can be created with custom infrastructure through the
+  advanced setup flow. Guided/template BYOC setup is not supported yet.
 - `velodb_cluster` manages `COMPUTE` clusters only.
 - CPU and cache resize are applied one dimension at a time.
 - The current Management API does not accept `maintenance_window`,

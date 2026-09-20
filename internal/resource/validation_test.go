@@ -2,6 +2,7 @@ package resource
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -154,6 +155,74 @@ func TestValidateAutoPauseRequiresTimeout(t *testing.T) {
 				t.Fatalf("unexpected validation error: %v", diags)
 			}
 		})
+	}
+}
+
+func TestValidateWarehouseCreation(t *testing.T) {
+	tests := []struct {
+		name         string
+		allowUnknown bool
+		change       func(*WarehouseResourceModel)
+		wantError    string
+	}{
+		{name: "advanced AWS BYOC", change: func(*WarehouseResourceModel) {}},
+		{
+			name:         "unknown registration IDs are valid while planning",
+			allowUnknown: true,
+			change: func(plan *WarehouseResourceModel) {
+				plan.CredentialID = types.Int64Unknown()
+				plan.NetworkConfigID = types.Int64Unknown()
+			},
+		},
+		{name: "rejects non-AWS", change: func(plan *WarehouseResourceModel) { plan.CloudProvider = types.StringValue("aliyun") }, wantError: "AWS is required"},
+		{name: "requires setup mode", change: func(plan *WarehouseResourceModel) { plan.SetupMode = types.StringNull() }, wantError: "setup_mode is required"},
+		{name: "rejects guided setup", change: func(plan *WarehouseResourceModel) { plan.SetupMode = types.StringValue("guided") }, wantError: "Only advanced BYOC"},
+		{name: "requires credential", change: func(plan *WarehouseResourceModel) { plan.CredentialID = types.Int64Null() }, wantError: "credential_id is required"},
+		{name: "requires network", change: func(plan *WarehouseResourceModel) { plan.NetworkConfigID = types.Int64Null() }, wantError: "network_config_id is required"},
+		{name: "rejects vpc mode", change: func(plan *WarehouseResourceModel) { plan.VpcMode = types.StringValue("existing") }, wantError: "vpc_mode is not supported"},
+		{name: "requires password", change: func(plan *WarehouseResourceModel) { plan.AdminPassword = types.StringNull() }, wantError: "admin_password is required"},
+		{
+			name: "requires exactly one initial cluster",
+			change: func(plan *WarehouseResourceModel) {
+				elements := plan.InitialCluster.Elements()
+				plan.InitialCluster = types.ListValueMust(plan.InitialCluster.ElementType(context.Background()), append(elements, elements[0]))
+			},
+			wantError: "exactly one initial_cluster",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			plan := validAdvancedBYOCWarehouseForTest()
+			tt.change(&plan)
+			var diags diag.Diagnostics
+			validateWarehouseCreation(&diags, &plan, tt.allowUnknown)
+			if tt.wantError == "" {
+				if diags.HasError() {
+					t.Fatalf("unexpected diagnostics: %v", diags)
+				}
+				return
+			}
+			for _, diagnostic := range diags.Errors() {
+				if strings.Contains(diagnostic.Summary(), tt.wantError) {
+					return
+				}
+			}
+			t.Fatalf("expected diagnostic containing %q, got %v", tt.wantError, diags)
+		})
+	}
+}
+
+func validAdvancedBYOCWarehouseForTest() WarehouseResourceModel {
+	return WarehouseResourceModel{
+		DeploymentMode:  types.StringValue("BYOC"),
+		CloudProvider:   types.StringValue("aws"),
+		SetupMode:       types.StringValue("advanced"),
+		VpcMode:         types.StringNull(),
+		CredentialID:    types.Int64Value(123),
+		NetworkConfigID: types.Int64Value(456),
+		AdminPassword:   types.StringValue("TestPass@123"),
+		InitialCluster:  initialClusterListForTest(types.Int64Null()),
 	}
 }
 

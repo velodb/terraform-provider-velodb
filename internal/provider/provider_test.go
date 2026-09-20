@@ -23,8 +23,152 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 	now := time.Date(2026, 4, 6, 10, 30, 0, 0, time.UTC)
 	whDeleted := false
 	clDeleted := false
+	byocCredentialDeleted := false
+	byocNetworkDeleted := false
+	byocWarehouseCreated := false
+	byocWarehouseDeleted := false
+	byocNetworkZoneMappings := []map[string]any{{"zoneId": "us-east-1a", "subnetId": "subnet-aaa"}}
 	publicPolicy := "DENY_ALL"
 	publicPolicyRules := []map[string]any{}
+
+	// -- BYOC discovery endpoints --
+	mux.HandleFunc("/v1/organization", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"success": true, "requestId": "mock-organization",
+			"data": map[string]any{
+				"organizationId": "o-mock", "organizationName": "Mock Organization",
+				"awsExternalId": "194819e8-e41d-afcb-7269-bcead94c1b55",
+			},
+		})
+	})
+
+	mux.HandleFunc("/v1/cloud-providers/aws/regions", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if got := r.URL.Query().Get("deploymentMode"); got != "BYOC" {
+			t.Errorf("expected deploymentMode=BYOC, got %q", got)
+		}
+		json.NewEncoder(w).Encode(map[string]any{
+			"success": true, "requestId": "mock-byoc-regions",
+			"data": []map[string]any{{
+				"region": "us-east-1", "displayName": "US East (N. Virginia)",
+				"endpointServiceId":   "vpce-svc-00c31b6d080ccb272",
+				"endpointServiceName": "com.amazonaws.vpce.us-east-1.vpce-svc-00c31b6d080ccb272",
+				"multiAzSupported":    true, "supportedDeploymentModes": []string{"BYOC"},
+				"zones": []map[string]any{{"zone": "us-east-1a", "displayName": "US East (N. Virginia) A"}},
+			}},
+		})
+	})
+
+	// -- BYOC credential and network registration endpoints --
+	mux.HandleFunc("/v1/cloud-settings/aws/credentials", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("decode credential request: %v", err)
+		}
+		if body["name"] != "production-credential" || body["region"] != "us-east-1" || body["bucketName"] != "velodb-data" {
+			t.Errorf("unexpected credential request: %#v", body)
+		}
+		byocCredentialDeleted = false
+		json.NewEncoder(w).Encode(map[string]any{
+			"success": true, "requestId": "mock-create-credential",
+			"data": map[string]any{"credentialId": 123},
+		})
+	})
+
+	mux.HandleFunc("/v1/cloud-settings/aws/credentials/123", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if byocCredentialDeleted && r.Method == http.MethodGet {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]any{"success": false, "code": "CredentialNotFound", "message": "not found"})
+			return
+		}
+		switch r.Method {
+		case http.MethodGet:
+			json.NewEncoder(w).Encode(map[string]any{
+				"success": true, "requestId": "mock-get-credential",
+				"data": map[string]any{
+					"credentialId": 123, "name": "production-credential", "cloudProvider": "aws", "region": "us-east-1",
+					"bucketName": "velodb-data", "dataCredentialArn": "arn:aws:iam::111122223333:role/velodb-data",
+					"deploymentCredentialArn": "arn:aws:iam::111122223333:role/velodb-deployment",
+					"externalId":              "external-123", "warehouseCount": 0, "warehouseIds": []string{},
+					"createdAt": now.Format(time.RFC3339), "updatedAt": now.Format(time.RFC3339),
+				},
+			})
+		case http.MethodDelete:
+			if byocWarehouseCreated && (!byocWarehouseDeleted || !byocNetworkDeleted) {
+				t.Error("credential configuration deleted before its warehouse and network dependencies")
+			}
+			byocCredentialDeleted = true
+			json.NewEncoder(w).Encode(map[string]any{"success": true, "requestId": "mock-delete-credential", "data": map[string]any{}})
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/v1/cloud-settings/aws/network-configs", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		var body struct {
+			CredentialID int64 `json:"credentialId"`
+			ZoneMappings []struct {
+				ZoneID   string `json:"zoneId"`
+				SubnetID string `json:"subnetId"`
+			} `json:"zoneMappings"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("decode network request: %v", err)
+		}
+		if body.CredentialID != 123 || (len(body.ZoneMappings) != 1 && len(body.ZoneMappings) != 3) {
+			t.Errorf("unexpected network request: %#v", body)
+		}
+		byocNetworkZoneMappings = make([]map[string]any, 0, len(body.ZoneMappings))
+		for _, mapping := range body.ZoneMappings {
+			byocNetworkZoneMappings = append(byocNetworkZoneMappings, map[string]any{"zoneId": mapping.ZoneID, "subnetId": mapping.SubnetID})
+		}
+		byocNetworkDeleted = false
+		json.NewEncoder(w).Encode(map[string]any{
+			"success": true, "requestId": "mock-create-network",
+			"data": map[string]any{"networkConfigId": 456},
+		})
+	})
+
+	mux.HandleFunc("/v1/cloud-settings/aws/network-configs/456", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if byocNetworkDeleted && r.Method == http.MethodGet {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]any{"success": false, "code": "NetworkConfigNotFound", "message": "not found"})
+			return
+		}
+		switch r.Method {
+		case http.MethodGet:
+			json.NewEncoder(w).Encode(map[string]any{
+				"success": true, "requestId": "mock-get-network",
+				"data": map[string]any{
+					"networkConfigId": 456, "name": "production-network", "cloudProvider": "aws", "region": "us-east-1",
+					"vpcId": "vpc-123", "zoneMappings": byocNetworkZoneMappings,
+					"securityGroupId": "sg-123", "endpointId": "vpce-123", "warehouseCount": 0, "warehouseIds": []string{},
+					"createdAt": now.Format(time.RFC3339), "updatedAt": now.Format(time.RFC3339),
+				},
+			})
+		case http.MethodDelete:
+			if byocWarehouseCreated && !byocWarehouseDeleted {
+				t.Error("network configuration deleted before its warehouse dependency")
+			}
+			byocNetworkDeleted = true
+			json.NewEncoder(w).Encode(map[string]any{"success": true, "requestId": "mock-delete-network", "data": map[string]any{}})
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
+	})
 
 	// -- Warehouse endpoints --
 	mux.HandleFunc("/v1/warehouses", func(w http.ResponseWriter, r *http.Request) {
@@ -52,6 +196,22 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 				"total": len(data), "data": data,
 			})
 		case http.MethodPost:
+			var body map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Errorf("decode warehouse request: %v", err)
+			}
+			if body["deploymentMode"] == "BYOC" {
+				if body["cloudProvider"] != "aws" || body["setupMode"] != "advanced" || body["credentialId"] != float64(123) || body["networkConfigId"] != float64(456) {
+					t.Errorf("unexpected advanced BYOC warehouse request: %#v", body)
+				}
+				byocWarehouseCreated = true
+				byocWarehouseDeleted = false
+				json.NewEncoder(w).Encode(map[string]any{
+					"success": true, "requestId": "mock-create-byoc-wh",
+					"data": map[string]any{"warehouseId": "WH-BYOC-CREATE-001"},
+				})
+				return
+			}
 			whDeleted = false
 			json.NewEncoder(w).Encode(map[string]any{
 				"success": true, "requestId": "mock-create-wh",
@@ -60,6 +220,44 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 		default:
 			w.WriteHeader(405)
 		}
+	})
+
+	mux.HandleFunc("/v1/warehouses/WH-BYOC-CREATE-001", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if byocWarehouseDeleted && r.Method == http.MethodGet {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]any{"success": false, "code": "WarehouseNotFound", "message": "not found"})
+			return
+		}
+		switch r.Method {
+		case http.MethodGet:
+			json.NewEncoder(w).Encode(map[string]any{
+				"success": true, "requestId": "mock-get-created-byoc-wh",
+				"data": map[string]any{
+					"warehouseId": "WH-BYOC-CREATE-001", "name": "advanced-byoc", "status": "Running",
+					"cloudProvider": "aws", "region": "us-east-1", "zone": "us-east-1a",
+					"deploymentMode": "BYOC", "coreVersion": "3.0.3", "payType": "PostPaid",
+					"createdAt": now.Format(time.RFC3339),
+				},
+			})
+		case http.MethodDelete:
+			byocWarehouseDeleted = true
+			json.NewEncoder(w).Encode(map[string]any{"success": true, "requestId": "mock-delete-created-byoc-wh", "data": map[string]any{}})
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/v1/warehouses/WH-BYOC-CREATE-001/clusters", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"success": true, "requestId": "mock-list-created-byoc-cl", "page": 1, "size": 20, "total": 1,
+			"data": []map[string]any{{
+				"clusterId": "CL-BYOC-CREATE-001", "warehouseId": "WH-BYOC-CREATE-001",
+				"name": "initial_cluster", "status": "Running", "clusterType": "COMPUTE",
+				"cloudProvider": "aws", "region": "us-east-1", "zone": "us-east-1a",
+			}},
+		})
 	})
 
 	mux.HandleFunc("/v1/warehouses/WH-BYOC-LIST", func(w http.ResponseWriter, r *http.Request) {
@@ -526,7 +724,68 @@ resource "velodb_warehouse" "byoc" {
 	})
 }
 
-func TestWarehouseCreateBYOCFails(t *testing.T) {
+func TestAccWarehouseAdvancedBYOC(t *testing.T) {
+	ts := mockAPIServer(t)
+	defer ts.Close()
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(ts),
+		Steps: []resource.TestStep{{
+			Config: testProviderConfig(ts) + `
+resource "velodb_byoc_credential" "test" {
+  cloud_provider            = "aws"
+  name                      = "production-credential"
+  region                    = "us-east-1"
+  bucket_name               = "velodb-data"
+  data_credential_arn       = "arn:aws:iam::111122223333:role/velodb-data"
+  deployment_credential_arn = "arn:aws:iam::111122223333:role/velodb-deployment"
+}
+
+resource "velodb_byoc_network" "test" {
+  cloud_provider    = "aws"
+  name              = "production-network"
+  credential_id     = velodb_byoc_credential.test.id
+  security_group_id = "sg-123"
+  endpoint_id       = "vpce-123"
+  zone_mappings = [{
+    zone_id   = "us-east-1a"
+    subnet_id = "subnet-aaa"
+  }]
+}
+
+resource "velodb_warehouse" "test" {
+  name              = "advanced-byoc"
+  deployment_mode   = "BYOC"
+  cloud_provider    = "aws"
+  region            = "us-east-1"
+  setup_mode        = "advanced"
+  credential_id     = velodb_byoc_credential.test.id
+  network_config_id = velodb_byoc_network.test.id
+  admin_password    = "TestPass@123"
+  tags               = { environment = "test" }
+
+  initial_cluster {
+    zone         = "us-east-1a"
+    compute_vcpu = 8
+    cache_gb     = 400
+  }
+}
+`,
+			Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttr("velodb_byoc_credential.test", "id", "123"),
+				resource.TestCheckResourceAttr("velodb_byoc_network.test", "id", "456"),
+				resource.TestCheckResourceAttr("velodb_warehouse.test", "id", "WH-BYOC-CREATE-001"),
+				resource.TestCheckResourceAttr("velodb_warehouse.test", "deployment_mode", "BYOC"),
+				resource.TestCheckResourceAttr("velodb_warehouse.test", "setup_mode", "advanced"),
+				resource.TestCheckResourceAttr("velodb_warehouse.test", "credential_id", "123"),
+				resource.TestCheckResourceAttr("velodb_warehouse.test", "network_config_id", "456"),
+				resource.TestCheckResourceAttr("velodb_warehouse.test", "initial_cluster_id", "CL-BYOC-CREATE-001"),
+			),
+		}},
+	})
+}
+
+func TestWarehouseCreateBYOCRejectsGuided(t *testing.T) {
 	ts := mockAPIServer(t)
 	defer ts.Close()
 
@@ -552,7 +811,7 @@ resource "velodb_warehouse" "byoc" {
   }
 }
 `,
-				ExpectError: regexp.MustCompile("BYOC warehouse creation is not supported"),
+				ExpectError: regexp.MustCompile("Only advanced BYOC setup is supported"),
 			},
 		},
 	})
@@ -722,6 +981,223 @@ data "velodb_warehouses" "test" {
 				),
 			},
 		},
+	})
+}
+
+func TestAccBYOCPrerequisitesDataSource(t *testing.T) {
+	ts := mockAPIServer(t)
+	defer ts.Close()
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(ts),
+		Steps: []resource.TestStep{{
+			Config: testProviderConfig(ts) + `
+data "velodb_byoc_prerequisites" "test" {
+  cloud_provider = "aws"
+  region         = "us-east-1"
+}
+`,
+			Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttr("data.velodb_byoc_prerequisites.test", "cloud_provider", "aws"),
+				resource.TestCheckResourceAttr("data.velodb_byoc_prerequisites.test", "region", "us-east-1"),
+				resource.TestCheckResourceAttr("data.velodb_byoc_prerequisites.test", "external_id", "194819e8-e41d-afcb-7269-bcead94c1b55"),
+				resource.TestCheckResourceAttr("data.velodb_byoc_prerequisites.test", "deployment_assumer_role_arn", "arn:aws:iam::757278738533:role/VeloDBDeploymentAssumer"),
+				resource.TestCheckResourceAttr("data.velodb_byoc_prerequisites.test", "endpoint_service_id", "vpce-svc-00c31b6d080ccb272"),
+				resource.TestCheckResourceAttr("data.velodb_byoc_prerequisites.test", "endpoint_service_name", "com.amazonaws.vpce.us-east-1.vpce-svc-00c31b6d080ccb272"),
+				resource.TestCheckResourceAttr("data.velodb_byoc_prerequisites.test", "multi_az_supported", "true"),
+				resource.TestCheckResourceAttr("data.velodb_byoc_prerequisites.test", "zones.#", "1"),
+				resource.TestCheckResourceAttr("data.velodb_byoc_prerequisites.test", "zones.0.zone", "us-east-1a"),
+			),
+		}},
+	})
+}
+
+func TestAccBYOCCredentialResource(t *testing.T) {
+	ts := mockAPIServer(t)
+	defer ts.Close()
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(ts),
+		Steps: []resource.TestStep{
+			{
+				Config: testProviderConfig(ts) + `
+resource "velodb_byoc_credential" "test" {
+  cloud_provider            = "aws"
+  name                      = "production-credential"
+  region                    = "us-east-1"
+  bucket_name               = "velodb-data"
+  data_credential_arn       = "arn:aws:iam::111122223333:role/velodb-data"
+  deployment_credential_arn = "arn:aws:iam::111122223333:role/velodb-deployment"
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("velodb_byoc_credential.test", "id", "123"),
+					resource.TestCheckResourceAttr("velodb_byoc_credential.test", "external_id", "external-123"),
+					resource.TestCheckResourceAttr("velodb_byoc_credential.test", "warehouse_count", "0"),
+					resource.TestCheckResourceAttr("velodb_byoc_credential.test", "warehouse_ids.#", "0"),
+				),
+			},
+			{
+				ResourceName:      "velodb_byoc_credential.test",
+				ImportState:       true,
+				ImportStateId:     "aws/123",
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+func TestAccBYOCNetworkResource(t *testing.T) {
+	ts := mockAPIServer(t)
+	defer ts.Close()
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(ts),
+		Steps: []resource.TestStep{
+			{
+				Config: testProviderConfig(ts) + `
+resource "velodb_byoc_network" "test" {
+  cloud_provider    = "aws"
+  name              = "production-network"
+  credential_id     = 123
+  security_group_id = "sg-123"
+  endpoint_id       = "vpce-123"
+
+  zone_mappings = [{
+    zone_id   = "us-east-1a"
+    subnet_id = "subnet-aaa"
+  }]
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("velodb_byoc_network.test", "id", "456"),
+					resource.TestCheckResourceAttr("velodb_byoc_network.test", "region", "us-east-1"),
+					resource.TestCheckResourceAttr("velodb_byoc_network.test", "vpc_id", "vpc-123"),
+					resource.TestCheckResourceAttr("velodb_byoc_network.test", "zone_mappings.#", "1"),
+					resource.TestCheckResourceAttr("velodb_byoc_network.test", "zone_mappings.0.zone_id", "us-east-1a"),
+				),
+			},
+			{
+				ResourceName:      "velodb_byoc_network.test",
+				ImportState:       true,
+				ImportStateId:     "aws/456/123",
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+func TestBYOCNetworkRejectsTwoZoneMappings(t *testing.T) {
+	ts := mockAPIServer(t)
+	defer ts.Close()
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(ts),
+		Steps: []resource.TestStep{{
+			Config: testProviderConfig(ts) + `
+resource "velodb_byoc_network" "test" {
+  cloud_provider = "aws"
+  name = "production-network"
+  credential_id = 123
+  security_group_id = "sg-123"
+  zone_mappings = [
+    { zone_id = "us-east-1a", subnet_id = "subnet-aaa" },
+    { zone_id = "us-east-1b", subnet_id = "subnet-bbb" }
+  ]
+}
+`,
+			ExpectError: regexp.MustCompile("Invalid number of zone mappings"),
+		}},
+	})
+}
+
+func TestAccBYOCNetworkResourceAcceptsThreeZoneMappings(t *testing.T) {
+	ts := mockAPIServer(t)
+	defer ts.Close()
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(ts),
+		Steps: []resource.TestStep{{
+			Config: testProviderConfig(ts) + `
+resource "velodb_byoc_network" "test" {
+  cloud_provider    = "aws"
+  name              = "production-network"
+  credential_id     = 123
+  security_group_id = "sg-123"
+  endpoint_id       = "vpce-123"
+  zone_mappings = [
+    { zone_id = "us-east-1a", subnet_id = "subnet-aaa" },
+    { zone_id = "us-east-1b", subnet_id = "subnet-bbb" },
+    { zone_id = "us-east-1c", subnet_id = "subnet-ccc" }
+  ]
+}
+`,
+			Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckResourceAttr("velodb_byoc_network.test", "zone_mappings.#", "3"),
+				resource.TestCheckResourceAttr("velodb_byoc_network.test", "zone_mappings.2.zone_id", "us-east-1c"),
+			),
+		}},
+	})
+}
+
+func TestBYOCNetworkRejectsDuplicateZoneOrSubnet(t *testing.T) {
+	ts := mockAPIServer(t)
+	defer ts.Close()
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(ts),
+		Steps: []resource.TestStep{{
+			Config: testProviderConfig(ts) + `
+resource "velodb_byoc_network" "test" {
+  cloud_provider = "aws"
+  name = "production-network"
+  credential_id = 123
+  security_group_id = "sg-123"
+  zone_mappings = [
+    { zone_id = "us-east-1a", subnet_id = "subnet-aaa" },
+    { zone_id = "us-east-1a", subnet_id = "subnet-bbb" },
+    { zone_id = "us-east-1c", subnet_id = "subnet-aaa" }
+  ]
+}
+`,
+			ExpectError: regexp.MustCompile("Duplicate Availability Zone|Duplicate subnet"),
+		}},
+	})
+}
+
+func TestBYOCPrerequisitesRejectsUnavailableRegion(t *testing.T) {
+	ts := mockAPIServer(t)
+	defer ts.Close()
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(ts),
+		Steps: []resource.TestStep{{
+			Config: testProviderConfig(ts) + `
+data "velodb_byoc_prerequisites" "test" {
+  cloud_provider = "aws"
+  region         = "eu-west-1"
+}
+`,
+			ExpectError: regexp.MustCompile("AWS BYOC region is not available"),
+		}},
+	})
+}
+
+func TestBYOCPrerequisitesRejectsUnsupportedProvider(t *testing.T) {
+	ts := mockAPIServer(t)
+	defer ts.Close()
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(ts),
+		Steps: []resource.TestStep{{
+			Config: testProviderConfig(ts) + `
+data "velodb_byoc_prerequisites" "test" {
+  cloud_provider = "gcp"
+  region         = "us-east1"
+}
+`,
+			ExpectError: regexp.MustCompile(`value must be one of: \["aws"\]`),
+		}},
 	})
 }
 

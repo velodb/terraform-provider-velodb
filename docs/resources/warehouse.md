@@ -11,8 +11,9 @@ Manages a VeloDB Cloud warehouse.
 
 For `deployment_mode = "SaaS"`, the resource creates, updates, upgrades,
 rotates the admin password for, and deletes warehouses. For
-`deployment_mode = "BYOC"`, the resource imports and reads existing warehouses;
-new BYOC warehouse creation is intentionally blocked by the provider.
+`deployment_mode = "BYOC"`, it creates AWS warehouses with registered custom
+infrastructure through the advanced setup flow. Existing warehouses can also be
+imported.
 
 ## Example Usage
 
@@ -45,31 +46,51 @@ resource "velodb_warehouse" "analytics" {
 }
 ```
 
-### Imported BYOC Warehouse
+### AWS BYOC Warehouse
 
 ```terraform
-import {
-  to = velodb_warehouse.production
-  id = "AWVA7PYB"
+resource "velodb_byoc_credential" "production" {
+  cloud_provider            = "aws"
+  name                      = "production-credential"
+  region                    = "us-east-1"
+  bucket_name               = var.bucket_name
+  data_credential_arn       = var.data_credential_arn
+  deployment_credential_arn = var.deployment_credential_arn
+}
+
+resource "velodb_byoc_network" "production" {
+  cloud_provider    = "aws"
+  name              = "production-network"
+  credential_id     = velodb_byoc_credential.production.id
+  security_group_id = var.security_group_id
+
+  zone_mappings = [{
+    zone_id   = "us-east-1a"
+    subnet_id = var.subnet_id
+  }]
 }
 
 resource "velodb_warehouse" "production" {
-  name            = "test_cli"
-  deployment_mode = "BYOC"
-  cloud_provider  = "aws"
-  region          = "us-east-1"
+  name              = "analytics-byoc"
+  deployment_mode   = "BYOC"
+  cloud_provider    = "aws"
+  region            = "us-east-1"
+  setup_mode        = "advanced"
+  credential_id     = velodb_byoc_credential.production.id
+  network_config_id = velodb_byoc_network.production.id
+  admin_password    = var.admin_password
+
+  initial_cluster {
+    zone         = "us-east-1a"
+    compute_vcpu = 4
+    cache_gb     = 100
+  }
 }
-
 ```
 
-Then run:
-
-```shell
-terraform plan
-terraform apply
-```
-
-BYOC warehouses must already exist before import. The provider will read fields such as `status`, `zone`, `core_version`, `initial_cluster_id`, and `byoc_setup` when the API returns them.
+Use three unique `zone_mappings` entries for a multi-AZ network. The VeloDB API
+validates the IAM roles, bucket, subnet-to-zone relationship, security group,
+and optional VPC endpoint during registration.
 
 ## Password Rotation
 
@@ -107,7 +128,7 @@ The provider calls the upgrade API and waits for completion when
 
 ## Managing the Initial Cluster
 
-The VeloDB API requires an `initial_cluster` block at SaaS warehouse creation.
+The VeloDB API requires an `initial_cluster` block at warehouse creation.
 The `initial_cluster` block is create-only. To manage or delete the initial
 cluster later, import it into a separate `velodb_cluster` resource.
 
@@ -167,9 +188,9 @@ To destroy the initial cluster later:
 
 ## Known Limitations
 
-- BYOC warehouses can be imported and read, but this provider does not create
-  new BYOC warehouses. Attempting to create `deployment_mode = "BYOC"` returns
-  `BYOC warehouse creation is not supported`.
+- New BYOC warehouse creation supports AWS custom infrastructure with
+  `setup_mode = "advanced"`. Guided/template setup and other cloud providers are
+  not supported yet.
 - The current Management API does not expose `maintenance_window`,
   `upgrade_policy`, or legacy `advanced_settings` on warehouse create/update.
 - The warehouse's last cluster cannot be deleted. Add another cluster first, or
@@ -194,10 +215,10 @@ To destroy the initial cluster later:
 - `admin_password` (String, Sensitive) Administrator password. Set on creation and used for password rotation. The password is stored in state since it cannot be read back from the API.
 - `admin_password_version` (Number) Increment this value to trigger a password change. Must be used together with `admin_password`.
 - `core_version_id` (Number) Target engine version ID. Changing this triggers a warehouse upgrade. Discover valid values via the `velodb_warehouse_versions` data source.
-- `setup_mode` (String) BYOC setup mode: `guided` or `advanced`. BYOC creation is blocked by this provider; this attribute remains for API compatibility. Changing this forces a new resource.
-- `credential_id` (Number) Credential identifier for Wizard mode. Changing this forces a new resource.
+- `setup_mode` (String) BYOC setup mode. Set to `advanced` for AWS custom-infrastructure creation. Guided/template setup is not supported. Changing this forces a new resource.
+- `credential_id` (Number) Registered credential configuration ID for advanced AWS BYOC. Changing this forces a new resource.
 - `initial_cluster` (Block List, Max: 1) Initial cluster created together with the warehouse. This is a create-only configuration. After creation, manage the cluster lifecycle by importing it as a `velodb_cluster` resource. (see [below for nested schema](#nestedblock--initial_cluster))
-- `network_config_id` (Number) Existing network configuration identifier for Wizard mode. Changing this forces a new resource.
+- `network_config_id` (Number) Registered network configuration ID for advanced AWS BYOC. Changing this forces a new resource.
 - `timeouts` (Block, Optional) (see [below for nested schema](#nestedblock--timeouts))
 - `vpc_mode` (String) VPC consistency hint for Template mode: `existing` or `new`. Changing this forces a new resource.
 
@@ -280,4 +301,4 @@ import {
 }
 ```
 
-~> **Note:** The `admin_password`, `admin_password_version`, and `initial_cluster` attributes cannot be read from the API and will not be populated after import. For imported BYOC warehouses, omit those create-only fields unless you intend to rotate the password after import.
+~> **Note:** The `admin_password`, `admin_password_version`, and `initial_cluster` attributes cannot be read from the API and will not be populated after import. Omit those create-only fields unless you intend to rotate the password after import.

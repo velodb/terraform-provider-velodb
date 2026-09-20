@@ -40,3 +40,7 @@ site/
 
 # Local live-test scratch workspaces
 test/live-*/
+
+# Local project notes
+BYOC_IMPLEMENTATION_PLAN.md
+ENGINEERING_JOURNAL.md

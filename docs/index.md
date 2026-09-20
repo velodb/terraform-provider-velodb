@@ -8,9 +8,9 @@ description: |-
 # VeloDB Provider
 
 The VeloDB provider manages VeloDB Cloud infrastructure through the VeloDB Cloud
-Management API. Use it to create SaaS warehouses, manage compute clusters,
-control public access, register PrivateLink endpoints, read connection
-information, and import existing BYOC warehouses.
+Management API. Use it to create SaaS and advanced AWS BYOC warehouses, manage
+compute clusters, control public access, register PrivateLink endpoints, and
+read connection information.
 
 To use this provider, you need a VeloDB Cloud account and a Management API key.
 
@@ -78,7 +78,9 @@ variable "velodb_api_key" {
 
 | Resource | Purpose |
 |---|---|
-| [`velodb_warehouse`](./resources/warehouse.md) | Create, update, and delete SaaS warehouses; import and read existing BYOC warehouses. |
+| [`velodb_warehouse`](./resources/warehouse.md) | Manage SaaS warehouses and advanced AWS BYOC warehouses. |
+| [`velodb_byoc_credential`](./resources/byoc_credential.md) | Register AWS storage and deployment credentials for BYOC. |
+| [`velodb_byoc_network`](./resources/byoc_network.md) | Register AWS VPC network configuration for BYOC. |
 | [`velodb_cluster`](./resources/cluster.md) | Manage COMPUTE clusters inside a warehouse, including resize, pause, resume, and reboot. |
 | [`velodb_warehouse_public_access_policy`](./resources/warehouse_public_access_policy.md) | Manage public endpoint access policy and CIDR allowlists. |
 | [`velodb_warehouse_private_endpoint`](./resources/warehouse_private_endpoint.md) | Register and describe inbound PrivateLink endpoints for warehouse access. |
@@ -93,12 +95,13 @@ variable "velodb_api_key" {
 | [`velodb_warehouse_connections`](./data-sources/warehouse_connections.md) | Read public/private endpoints, compute clusters, observer groups, and PrivateLink service names. |
 | [`velodb_warehouse_versions`](./data-sources/warehouse_versions.md) | List valid warehouse upgrade target version IDs. |
 | [`velodb_private_link_endpoint_services`](./data-sources/private_link_endpoint_services.md) | List outbound PrivateLink endpoint services and connected endpoints. |
+| [`velodb_byoc_prerequisites`](./data-sources/byoc_prerequisites.md) | Discover AWS BYOC external ID, VeloDB principal, PrivateLink service, and supported zones. |
 
 ## Known Limitations
 
-- BYOC warehouses can be imported and read, but this provider does not create
-  new BYOC warehouses. Create BYOC warehouses in VeloDB Cloud, then import them
-  by warehouse ID.
+- New BYOC warehouse creation supports AWS custom infrastructure through
+  `setup_mode = "advanced"`. Guided/template setup and other cloud providers are
+  not supported yet.
 - `velodb_cluster` manages `COMPUTE` clusters. `SQL` and `OBSERVER` cluster
   types are blocked at plan time.
 - CPU and cache resize are applied one dimension at a time. When increasing

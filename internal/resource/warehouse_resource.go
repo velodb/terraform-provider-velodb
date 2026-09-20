@@ -181,7 +181,7 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				},
 			},
 			"credential_id": schema.Int64Attribute{
-				Description: "Credential identifier for Wizard mode.",
+				Description: "Registered credential configuration ID for advanced AWS BYOC.",
 				Optional:    true,
 				PlanModifiers: []planmodifier.Int64{
 					int64planmodifier.RequiresReplace(),
@@ -191,7 +191,7 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				},
 			},
 			"network_config_id": schema.Int64Attribute{
-				Description: "Network configuration identifier for Wizard mode.",
+				Description: "Registered network configuration ID for advanced AWS BYOC.",
 				Optional:    true,
 				PlanModifiers: []planmodifier.Int64{
 					int64planmodifier.RequiresReplace(),
@@ -449,37 +449,12 @@ func (r *WarehouseResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 		return
 	}
 
-	var deploymentMode types.String
-	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("deployment_mode"), &deploymentMode)...)
-	if resp.Diagnostics.HasError() || deploymentMode.IsNull() || deploymentMode.IsUnknown() {
+	var plan WarehouseResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
 		return
 	}
-
-	//if normalizeDeploymentMode(deploymentMode.ValueString()) == "BYOC" {
-	//	resp.Diagnostics.AddError(
-	//		"BYOC warehouse creation is not supported",
-	//		"velodb_warehouse can import and read existing BYOC warehouses, but it cannot create new BYOC warehouses with the current Management API. Create the BYOC warehouse outside Terraform, then import it by warehouse ID.",
-	//	)
-	//	return
-	//}
-
-	var adminPw types.String
-	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("admin_password"), &adminPw)...)
-	if adminPw.IsNull() || adminPw.IsUnknown() {
-		resp.Diagnostics.AddError(
-			"admin_password is required for creation",
-			"admin_password must be set when creating a SaaS warehouse. It can be omitted when importing an existing warehouse.",
-		)
-	}
-
-	var initialCluster types.List
-	resp.Diagnostics.Append(req.Plan.GetAttribute(ctx, path.Root("initial_cluster"), &initialCluster)...)
-	if initialCluster.IsNull() || initialCluster.IsUnknown() || len(initialCluster.Elements()) == 0 {
-		resp.Diagnostics.AddError(
-			"initial_cluster is required for creation",
-			"At least one initial_cluster block must be provided when creating a SaaS warehouse. It can be omitted when importing an existing warehouse.",
-		)
-	}
+	validateWarehouseCreation(&resp.Diagnostics, &plan, true)
 }
 
 func (r *WarehouseResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -503,26 +478,7 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	//if normalizeDeploymentMode(plan.DeploymentMode.ValueString()) == "BYOC" {
-	//	resp.Diagnostics.AddError(
-	//		"BYOC warehouse creation is not supported",
-	//		"velodb_warehouse can import and read existing BYOC warehouses, but it cannot create new BYOC warehouses with the current Management API. Create the BYOC warehouse outside Terraform, then import it by warehouse ID.",
-	//	)
-	//	return
-	//}
-
-	if plan.AdminPassword.IsNull() || plan.AdminPassword.IsUnknown() {
-		resp.Diagnostics.AddError(
-			"admin_password is required for creation",
-			"admin_password must be set when creating a SaaS warehouse. It can be omitted when importing an existing warehouse.",
-		)
-	}
-	if plan.InitialCluster.IsNull() || plan.InitialCluster.IsUnknown() || len(plan.InitialCluster.Elements()) == 0 {
-		resp.Diagnostics.AddError(
-			"initial_cluster is required for creation",
-			"At least one initial_cluster block must be provided when creating a SaaS warehouse. It can be omitted when importing an existing warehouse.",
-		)
-	}
+	validateWarehouseCreation(&resp.Diagnostics, &plan, false)
 	if resp.Diagnostics.HasError() {
 		return
 	}

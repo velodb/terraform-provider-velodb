@@ -144,6 +144,54 @@ func normalizeDeploymentMode(mode string) string {
 	return mode
 }
 
+func validateWarehouseCreation(diags *diag.Diagnostics, plan *WarehouseResourceModel, allowUnknown bool) {
+	missingString := func(value types.String) bool {
+		return value.IsNull() || (!allowUnknown && value.IsUnknown())
+	}
+	missingInt64 := func(value types.Int64) bool {
+		return value.IsNull() || (!allowUnknown && value.IsUnknown())
+	}
+
+	if missingString(plan.AdminPassword) {
+		diags.AddError(
+			"admin_password is required for creation",
+			"admin_password must be set when creating a warehouse. It can be omitted when importing an existing warehouse.",
+		)
+	}
+	if plan.InitialCluster.IsNull() || (!allowUnknown && plan.InitialCluster.IsUnknown()) {
+		diags.AddError(
+			"initial_cluster is required for creation",
+			"Exactly one initial_cluster block must be provided when creating a warehouse. It can be omitted when importing an existing warehouse.",
+		)
+	} else if !plan.InitialCluster.IsUnknown() && len(plan.InitialCluster.Elements()) != 1 {
+		diags.AddError(
+			"exactly one initial_cluster is required",
+			"Warehouse creation accepts exactly one initial_cluster block.",
+		)
+	}
+
+	if plan.DeploymentMode.IsNull() || plan.DeploymentMode.IsUnknown() || normalizeDeploymentMode(plan.DeploymentMode.ValueString()) != "BYOC" {
+		return
+	}
+	if !plan.CloudProvider.IsUnknown() && (plan.CloudProvider.IsNull() || plan.CloudProvider.ValueString() != "aws") {
+		diags.AddError("AWS is required for advanced BYOC", "Set cloud_provider to aws. Other cloud providers are not supported for advanced BYOC creation.")
+	}
+	if missingString(plan.SetupMode) {
+		diags.AddError("setup_mode is required for BYOC creation", "Set setup_mode to advanced for custom-infrastructure BYOC creation.")
+	} else if !plan.SetupMode.IsUnknown() && plan.SetupMode.ValueString() != "advanced" {
+		diags.AddError("Only advanced BYOC setup is supported", "Set setup_mode to advanced. Guided/template BYOC creation is not supported in this release.")
+	}
+	if missingInt64(plan.CredentialID) {
+		diags.AddError("credential_id is required for advanced BYOC", "Set credential_id to the ID of a velodb_byoc_credential resource.")
+	}
+	if missingInt64(plan.NetworkConfigID) {
+		diags.AddError("network_config_id is required for advanced BYOC", "Set network_config_id to the ID of a velodb_byoc_network resource.")
+	}
+	if !plan.VpcMode.IsNull() && (!plan.VpcMode.IsUnknown() || !allowUnknown) {
+		diags.AddError("vpc_mode is not supported for advanced BYOC", "Remove vpc_mode. The registered network configuration defines the VPC for advanced BYOC.")
+	}
+}
+
 func rejectUnsupportedString(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse, name string) {
 	var value types.String
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root(name), &value)...)
