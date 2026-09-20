@@ -136,6 +136,40 @@ func TestTransportRetryOn503(t *testing.T) {
 	}
 }
 
+func TestTransportRetriesRateLimitedDelete(t *testing.T) {
+	attempts := 0
+	base := roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		attempts++
+		status := http.StatusTooManyRequests
+		body := `{"code":"RateLimitExceeded","message":"Request rate limit exceeded.","success":false}`
+		if attempts == 6 {
+			status = http.StatusOK
+			body = `{"success":true,"requestId":"req-rate-limit"}`
+		}
+		return &http.Response{
+			StatusCode: status,
+			Header:     http.Header{"Retry-After": []string{"0"}},
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Request:    req,
+		}, nil
+	})
+	c := &FormationClient{
+		BaseURL: "https://example.invalid",
+		HTTPClient: &http.Client{Transport: &formationTransport{
+			base:       base,
+			apiKey:     "test-api-key",
+			maxRetries: 5,
+		}},
+	}
+
+	if err := c.DeleteWarehouse(context.Background(), "WH-RATE-LIMIT"); err != nil {
+		t.Fatalf("DeleteWarehouse: %v", err)
+	}
+	if attempts != 6 {
+		t.Fatalf("attempts = %d, want 6", attempts)
+	}
+}
+
 func TestTransportReplaysWriteBodyAndClosesRetryResponse(t *testing.T) {
 	retryBody := &trackedReadCloser{Reader: strings.NewReader(`{"success":false}`)}
 	var requestBodies []string

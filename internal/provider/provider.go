@@ -75,7 +75,7 @@ func (p *VeloDBProvider) Configure(ctx context.Context, req provider.ConfigureRe
 		return
 	}
 
-	c := client.NewFormationClient(host, apiKey, 3, 60*time.Second)
+	c := client.NewFormationClient(host, apiKey, 5, 60*time.Second)
 
 	resp.DataSourceData = c
 	resp.ResourceData = c
