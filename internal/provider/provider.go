@@ -101,6 +101,10 @@ func (p *VeloDBProvider) DataSources(_ context.Context) []func() datasource.Data
 		velodb_datasource.NewWarehouseVersionsDataSource,
 		velodb_datasource.NewPrivateLinkEndpointServicesDataSource,
 		velodb_datasource.NewBYOCPrerequisitesDataSource,
+		velodb_datasource.NewAWSAssumeRolePolicyDataSource,
+		velodb_datasource.NewAWSCrossAccountPolicyDataSource,
+		velodb_datasource.NewAWSDataAccessAssumeRolePolicyDataSource,
+		velodb_datasource.NewAWSDataAccessPolicyDataSource,
 	}
 }
 

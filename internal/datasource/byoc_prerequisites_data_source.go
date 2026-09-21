@@ -14,6 +14,7 @@ import (
 	"github.com/velodb/terraform-provider-velodb/internal/client"
 )
 
+// ponytail: commercial AWS principal; replace this value with the prerequisites API response when environments diverge.
 const awsDeploymentAssumerRoleARN = "arn:aws:iam::757278738533:role/VeloDBDeploymentAssumer"
 
 var _ datasource.DataSource = &BYOCPrerequisitesDataSource{}

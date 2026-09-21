@@ -21,7 +21,7 @@ func TestCloudSettingCredentialLifecycle(t *testing.T) {
 		CloudProvider:           "aws",
 		Region:                  "us-east-1",
 		BucketName:              "analytics-bucket",
-		DataCredentialARN:       "arn:aws:iam::123456789012:role/data",
+		DataCredentialARN:       "arn:aws:iam::123456789012:instance-profile/data",
 		DeploymentCredentialARN: "arn:aws:iam::123456789012:role/deploy",
 		ExternalID:              "external-id",
 		WarehouseCount:          1,

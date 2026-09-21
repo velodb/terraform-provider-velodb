@@ -731,8 +731,10 @@ func (r *WarehouseResource) Delete(ctx context.Context, req resource.DeleteReque
 		if apiErr, ok := err.(*client.APIError); ok && apiErr.IsNotFound() {
 			return // already deleted
 		}
-		resp.Diagnostics.AddError(userError("deleting warehouse", err))
-		return
+		if !warehouseDeleteInProgress(err) {
+			resp.Diagnostics.AddError(userError("deleting warehouse", err))
+			return
+		}
 	}
 
 	// Wait for deletion
@@ -744,8 +746,15 @@ func (r *WarehouseResource) Delete(ctx context.Context, req resource.DeleteReque
 		return wh.Status, nil
 	}, []string{"Deleted"}, nil, deleteTimeout, 15*time.Second)
 	if err != nil {
-		resp.Diagnostics.AddWarning("Warehouse deletion may still be in progress", err.Error())
+		resp.Diagnostics.AddError("Warehouse deletion did not complete", err.Error())
 	}
+}
+
+func warehouseDeleteInProgress(err error) bool {
+	var apiErr *client.APIError
+	return errors.As(err, &apiErr) &&
+		apiErr.Code == "OperationConflict" &&
+		strings.Contains(strings.ToLower(apiErr.Message), "already in deleting")
 }
 
 func (r *WarehouseResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

@@ -46,14 +46,21 @@ Run against `sandbox-api.velodb.io` with `TF_VAR_api_key` set.
 Run with a development override for the local provider binary and an API key
 that can read the organization profile and manage warehouses.
 
+First run the standalone policy test in `test/aws_policies`. It has no
+dependency on `byoc-terraform` and creates only disposable AWS IAM resources.
+Use `test/aws_byoc_full` for the independent end-to-end test, following its
+AWS-only, warehouse, second-cluster, zero-drift, and destroy phases in order.
+
 1. Read `velodb_byoc_prerequisites` for the target AWS region.
-2. Create or reference the AWS bucket, IAM roles, VPC, subnet, security group,
+2. Generate all four IAM documents through the `velodb_aws_*_policy` data
+   sources and create the corresponding AWS roles and policies.
+3. Create or reference the AWS bucket, VPC, subnet, security group,
    and optional VPC endpoint.
-3. Create `velodb_byoc_credential` and `velodb_byoc_network`.
-4. Create an advanced AWS BYOC `velodb_warehouse` and its initial cluster.
-5. Run `terraform plan` again and require no drift.
-6. Add and verify a second `velodb_cluster`.
-7. Destroy in dependency order: clusters, warehouse, network registration,
+4. Create `velodb_byoc_credential` and `velodb_byoc_network`.
+5. Create an advanced AWS BYOC `velodb_warehouse` and its initial cluster.
+6. Run `terraform plan` again and require no drift.
+7. Add and verify a second `velodb_cluster`.
+8. Destroy in dependency order: clusters, warehouse, network registration,
    credential registration, then AWS resources.
 
 ## Known API Limits

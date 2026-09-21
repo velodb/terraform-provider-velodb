@@ -198,6 +198,10 @@ resource "velodb_warehouse" "byoc" {
 | `velodb_warehouse_versions` | List valid warehouse upgrade target version IDs. |
 | `velodb_private_link_endpoint_services` | List outbound PrivateLink endpoint services and connected endpoints. |
 | `velodb_byoc_prerequisites` | Discover AWS BYOC external ID, VeloDB principal, PrivateLink service, and supported zones. |
+| `velodb_aws_assume_role_policy` | Generate the deployment-role trust policy. |
+| `velodb_aws_crossaccount_policy` | Generate the deployment-role permissions policy. |
+| `velodb_aws_data_access_assume_role_policy` | Generate the data-access role trust policy. |
+| `velodb_aws_data_access_policy` | Generate the data-access role permissions policy. |
 
 ## Known Limitations
 
