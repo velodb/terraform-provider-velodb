@@ -67,6 +67,10 @@ provider "velodb" {
 - `velodb_warehouse_versions`
 - `velodb_private_link_endpoint_services`
 - `velodb_byoc_prerequisites`
+- `velodb_aws_assume_role_policy`
+- `velodb_aws_crossaccount_policy`
+- `velodb_aws_data_access_assume_role_policy`
+- `velodb_aws_data_access_policy`
 
 ## Known limitations
 

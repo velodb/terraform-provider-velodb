@@ -94,7 +94,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 				"success": true, "requestId": "mock-get-credential",
 				"data": map[string]any{
 					"credentialId": 123, "name": "production-credential", "cloudProvider": "aws", "region": "us-east-1",
-					"bucketName": "velodb-data", "dataCredentialArn": "arn:aws:iam::111122223333:role/velodb-data",
+					"bucketName": "velodb-data", "dataCredentialArn": "arn:aws:iam::111122223333:instance-profile/velodb-data",
 					"deploymentCredentialArn": "arn:aws:iam::111122223333:role/velodb-deployment",
 					"externalId":              "external-123", "warehouseCount": 0, "warehouseIds": []string{},
 					"createdAt": now.Format(time.RFC3339), "updatedAt": now.Format(time.RFC3339),
@@ -737,7 +737,7 @@ resource "velodb_byoc_credential" "test" {
   name                      = "production-credential"
   region                    = "us-east-1"
   bucket_name               = "velodb-data"
-  data_credential_arn       = "arn:aws:iam::111122223333:role/velodb-data"
+  data_credential_arn       = "arn:aws:iam::111122223333:instance-profile/velodb-data"
   deployment_credential_arn = "arn:aws:iam::111122223333:role/velodb-deployment"
 }
 
@@ -1012,6 +1012,53 @@ data "velodb_byoc_prerequisites" "test" {
 	})
 }
 
+func TestAccAWSPolicyDataSources(t *testing.T) {
+	ts := mockAPIServer(t)
+	defer ts.Close()
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(ts),
+		Steps: []resource.TestStep{{
+			Config: testProviderConfig(ts) + `
+data "velodb_aws_assume_role_policy" "test" {
+  principal_arn = "arn:aws:iam::757278738533:role/VeloDBDeploymentAssumer"
+  external_id   = "external-123"
+}
+
+data "velodb_aws_crossaccount_policy" "test" {
+  bucket_name        = "velodb-data"
+  data_credential_arn = "arn:aws:iam::111122223333:instance-profile/velodb-data"
+}
+
+data "velodb_aws_data_access_assume_role_policy" "test" {
+  role_arn = "arn:aws:iam::111122223333:role/velodb-data"
+}
+
+data "velodb_aws_data_access_policy" "test" {
+  bucket_name = "velodb-data"
+  role_arn    = "arn:aws:iam::111122223333:role/velodb-data"
+  tde_kms_arn = "arn:aws:kms:us-east-1:111122223333:key/12345678-1234-1234-1234-123456789012"
+}
+`,
+			Check: resource.ComposeAggregateTestCheckFunc(
+				checkAttributeContains("data.velodb_aws_assume_role_policy.test", "json", "external-123"),
+				checkAttributeContains("data.velodb_aws_crossaccount_policy.test", "json", "iam:PassRole"),
+				checkAttributeContains("data.velodb_aws_data_access_assume_role_policy.test", "json", "ec2.amazonaws.com"),
+				checkAttributeContains("data.velodb_aws_data_access_policy.test", "json", "KMSAccess"),
+			),
+		}},
+	})
+}
+
+func checkAttributeContains(resourceName, attribute, want string) resource.TestCheckFunc {
+	return resource.TestCheckResourceAttrWith(resourceName, attribute, func(value string) error {
+		if !strings.Contains(value, want) {
+			return fmt.Errorf("%s.%s does not contain %q", resourceName, attribute, want)
+		}
+		return nil
+	})
+}
+
 func TestAccBYOCCredentialResource(t *testing.T) {
 	ts := mockAPIServer(t)
 	defer ts.Close()
@@ -1026,7 +1073,7 @@ resource "velodb_byoc_credential" "test" {
   name                      = "production-credential"
   region                    = "us-east-1"
   bucket_name               = "velodb-data"
-  data_credential_arn       = "arn:aws:iam::111122223333:role/velodb-data"
+  data_credential_arn       = "arn:aws:iam::111122223333:instance-profile/velodb-data"
   deployment_credential_arn = "arn:aws:iam::111122223333:role/velodb-deployment"
 }
 `,
@@ -1045,6 +1092,52 @@ resource "velodb_byoc_credential" "test" {
 			},
 		},
 	})
+}
+
+func TestAccBYOCCredentialRejectsInvalidARNTypes(t *testing.T) {
+	tests := []struct {
+		name          string
+		dataARN       string
+		deploymentARN string
+		want          string
+	}{
+		{
+			name:          "role used as data credential",
+			dataARN:       "arn:aws:iam::111122223333:role/velodb-data",
+			deploymentARN: "arn:aws:iam::111122223333:role/velodb-deployment",
+			want:          "must be a commercial AWS IAM instance-profile ARN",
+		},
+		{
+			name:          "instance profile used as deployment credential",
+			dataARN:       "arn:aws:iam::111122223333:instance-profile/velodb-data",
+			deploymentARN: "arn:aws:iam::111122223333:instance-profile/velodb-deployment",
+			want:          "must be a commercial AWS IAM role ARN",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := mockAPIServer(t)
+			defer ts.Close()
+
+			resource.Test(t, resource.TestCase{
+				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(ts),
+				Steps: []resource.TestStep{{
+					Config: testProviderConfig(ts) + fmt.Sprintf(`
+resource "velodb_byoc_credential" "test" {
+  cloud_provider            = "aws"
+  name                      = "production-credential"
+  region                    = "us-east-1"
+  bucket_name               = "velodb-data"
+  data_credential_arn       = %q
+  deployment_credential_arn = %q
+}
+`, tt.dataARN, tt.deploymentARN),
+					ExpectError: regexp.MustCompile(tt.want),
+				}},
+			})
+		})
+	}
 }
 
 func TestAccBYOCNetworkResource(t *testing.T) {

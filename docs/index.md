@@ -96,6 +96,10 @@ variable "velodb_api_key" {
 | [`velodb_warehouse_versions`](./data-sources/warehouse_versions.md) | List valid warehouse upgrade target version IDs. |
 | [`velodb_private_link_endpoint_services`](./data-sources/private_link_endpoint_services.md) | List outbound PrivateLink endpoint services and connected endpoints. |
 | [`velodb_byoc_prerequisites`](./data-sources/byoc_prerequisites.md) | Discover AWS BYOC external ID, VeloDB principal, PrivateLink service, and supported zones. |
+| [`velodb_aws_assume_role_policy`](./data-sources/aws_assume_role_policy.md) | Generate the deployment-role trust policy. |
+| [`velodb_aws_crossaccount_policy`](./data-sources/aws_crossaccount_policy.md) | Generate the deployment-role permissions policy. |
+| [`velodb_aws_data_access_assume_role_policy`](./data-sources/aws_data_access_assume_role_policy.md) | Generate the data-access role trust policy. |
+| [`velodb_aws_data_access_policy`](./data-sources/aws_data_access_policy.md) | Generate the data-access role permissions policy. |
 
 ## Known Limitations
 

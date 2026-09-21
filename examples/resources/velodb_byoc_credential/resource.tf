@@ -5,6 +5,9 @@ resource "velodb_byoc_credential" "aws" {
   bucket_name               = var.bucket_name
   data_credential_arn       = var.data_credential_arn
   deployment_credential_arn = var.deployment_credential_arn
+
+  # When the IAM policies are created in this configuration, add their
+  # aws_iam_role_policy_attachment resources to depends_on.
 }
 
 variable "bucket_name" {
@@ -12,9 +15,11 @@ variable "bucket_name" {
 }
 
 variable "data_credential_arn" {
-  type = string
+  description = "AWS IAM instance-profile ARN used by warehouse instances."
+  type        = string
 }
 
 variable "deployment_credential_arn" {
-  type = string
+  description = "AWS IAM role ARN assumed by VeloDB Cloud."
+  type        = string
 }

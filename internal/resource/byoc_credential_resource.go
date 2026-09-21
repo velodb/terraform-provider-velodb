@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -25,6 +26,9 @@ import (
 var (
 	_ resource.Resource                = &BYOCCredentialResource{}
 	_ resource.ResourceWithImportState = &BYOCCredentialResource{}
+
+	awsInstanceProfileARNPattern = regexp.MustCompile(`^arn:aws:iam::[0-9]{12}:instance-profile/[A-Za-z0-9+=,.@_/-]+$`)
+	awsRoleARNPattern            = regexp.MustCompile(`^arn:aws:iam::[0-9]{12}:role/[A-Za-z0-9+=,.@_/-]+$`)
 )
 
 type BYOCCredentialResource struct {
@@ -91,15 +95,19 @@ func (r *BYOCCredentialResource) Schema(_ context.Context, _ resource.SchemaRequ
 				PlanModifiers: replace,
 			},
 			"data_credential_arn": schema.StringAttribute{
-				Description:   "AWS IAM role ARN used to access warehouse data.",
-				Required:      true,
-				Validators:    []validator.String{stringvalidator.LengthAtLeast(1)},
+				Description: "AWS IAM instance-profile ARN used to access warehouse data.",
+				Required:    true,
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(awsInstanceProfileARNPattern, "must be a commercial AWS IAM instance-profile ARN"),
+				},
 				PlanModifiers: replace,
 			},
 			"deployment_credential_arn": schema.StringAttribute{
-				Description:   "AWS IAM role ARN used by VeloDB to deploy warehouse infrastructure.",
-				Required:      true,
-				Validators:    []validator.String{stringvalidator.LengthAtLeast(1)},
+				Description: "AWS IAM role ARN used by VeloDB to deploy warehouse infrastructure.",
+				Required:    true,
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(awsRoleARNPattern, "must be a commercial AWS IAM role ARN"),
+				},
 				PlanModifiers: replace,
 			},
 			"external_id":     schema.StringAttribute{Description: "External ID validated by VeloDB.", Computed: true},

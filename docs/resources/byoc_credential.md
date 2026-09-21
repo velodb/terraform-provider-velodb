@@ -21,8 +21,16 @@ resource "velodb_byoc_credential" "aws" {
   bucket_name               = var.bucket_name
   data_credential_arn       = var.data_credential_arn
   deployment_credential_arn = var.deployment_credential_arn
+
+  depends_on = [
+    aws_iam_role_policy_attachment.data_access_attach,
+    aws_iam_role_policy_attachment.deployment_attach,
+  ]
 }
 ```
+
+The explicit dependencies ensure AWS has attached both policies before VeloDB
+validates the credential.
 
 ## Schema
 
