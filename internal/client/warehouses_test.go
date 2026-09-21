@@ -355,6 +355,36 @@ func TestGetWarehouseFallsBackToListWhenDetailNotFound(t *testing.T) {
 	}
 }
 
+func TestGetWarehouseFallsBackToListWhenDetailIsEmpty(t *testing.T) {
+	ts, mux := newTestServer(t)
+	defer ts.Close()
+	client := newTestClient(t, ts)
+
+	mux.HandleFunc("/v1/warehouses/WH-DELETING", func(w http.ResponseWriter, r *http.Request) {
+		jsonResponse(w, http.StatusOK, APIResponse[WarehouseItem]{Success: true})
+	})
+	mux.HandleFunc("/v1/warehouses", func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Query().Get("warehouseId"); got != "WH-DELETING" {
+			t.Fatalf("warehouseId filter = %q", got)
+		}
+		wh := mockWarehouse("WH-DELETING", "deleting-warehouse")
+		wh.Status = "Deleting"
+		jsonResponse(w, http.StatusOK, PageResponse[WarehouseItem]{
+			Success: true,
+			Data:    []WarehouseItem{wh},
+			Total:   1,
+		})
+	})
+
+	wh, err := client.GetWarehouse(context.Background(), "WH-DELETING")
+	if err != nil {
+		t.Fatalf("GetWarehouse: %v", err)
+	}
+	if wh.Status != "Deleting" {
+		t.Fatalf("status = %q, want Deleting", wh.Status)
+	}
+}
+
 func TestListWarehouses(t *testing.T) {
 	ts, mux := newTestServer(t)
 	defer ts.Close()

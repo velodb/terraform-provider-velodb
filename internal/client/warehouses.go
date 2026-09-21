@@ -36,6 +36,12 @@ func (c *FormationClient) GetWarehouse(ctx context.Context, warehouseID string) 
 		}
 		return nil, err
 	}
+	// The detail endpoint can return an empty success while asynchronous deletion
+	// is still releasing cloud-setting associations. Confirm against the list so
+	// Terraform does not delete the network or credential too early.
+	if result.Data.WarehouseID == "" {
+		return c.findWarehouseByID(ctx, warehouseID)
+	}
 	normalizeWarehouseItem(&result.Data)
 	return &result.Data, nil
 }

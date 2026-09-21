@@ -1,0 +1,10 @@
+region      = "us-east-1"
+bucket_name = "replace-with-globally-unique-disposable-bucket"
+name_prefix = "replace-with-unique-prefix"
+vpc_id      = "vpc-replace-me"
+
+subnet_ids_by_zone = {
+  us-east-1a = "subnet-replace-me"
+  us-east-1b = "subnet-replace-me"
+  us-east-1c = "subnet-replace-me"
+}
