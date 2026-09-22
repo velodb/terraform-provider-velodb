@@ -48,6 +48,8 @@ that can read the organization profile and manage warehouses.
 
 First run the standalone policy test in `test/aws_policies`. It has no
 dependency on `byoc-terraform` and creates only disposable AWS IAM resources.
+Use `test/aws_byoc_full` for the independent end-to-end test, following its
+AWS-only, warehouse, second-cluster, zero-drift, and destroy phases in order.
 
 1. Read `velodb_byoc_prerequisites` for the target AWS region.
 2. Generate all four IAM documents through the `velodb_aws_*_policy` data
