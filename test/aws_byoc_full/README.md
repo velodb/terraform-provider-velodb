@@ -1,18 +1,14 @@
-# Full AWS BYOC live test
+# Full AWS BYOC module live test
 
-This configuration is independent of `byoc-terraform`. It creates disposable
-AWS IAM, storage, security, and PrivateLink resources; registers them with
-VeloDB; creates a BYOC warehouse; and can add a second cluster.
+This root configuration calls the reusable `modules/aws_byoc` module. It is
+independent of `byoc-terraform` and exercises the same short workflow intended
+for users.
 
-The test reuses an existing three-zone VPC because it does not create a VPC,
-subnets, routes, NAT gateways, Elastic IPs, or an S3 gateway endpoint. Verify
-that every selected private subnet has working outbound connectivity before
-running the test. The warehouse and test-created resources can incur charges
-until destroyed.
+The module creates a new VPC, one public subnet, three private subnets, a NAT
+gateway and Elastic IP, routing, IAM, S3, security groups, PrivateLink, VeloDB
+registrations, and a warehouse. These resources incur charges until destroyed.
 
-## 1. Environment
-
-Run these commands from the provider repository:
+## Environment
 
 ```bash
 export AWS_PROFILE='replace-with-test-profile'
@@ -23,63 +19,30 @@ export TF_CLI_CONFIG_FILE=/private/tmp/velodb-policy-terraformrc
 
 go build -o /private/tmp/velodb-provider-bin/terraform-provider-velodb
 cp test/aws_byoc_full/live.tfvars.example test/aws_byoc_full/live.auto.tfvars
-# Edit live.auto.tfvars with disposable names and existing test-network IDs.
 terraform -chdir=test/aws_byoc_full init
 ```
 
 The copied `live.auto.tfvars` is ignored by Git.
 
-## 2. Phase one: AWS prerequisites
+## Create and verify
 
 ```bash
-terraform -chdir=test/aws_byoc_full plan \
-  -out=/private/tmp/velodb-byoc-aws.tfplan
-
-terraform -chdir=test/aws_byoc_full apply \
-  /private/tmp/velodb-byoc-aws.tfplan
+terraform -chdir=test/aws_byoc_full plan -out=tfplan
+terraform -chdir=test/aws_byoc_full apply tfplan
+terraform -chdir=test/aws_byoc_full plan
 ```
 
-The plan should create 17 AWS resources and no VPC, subnet, route, NAT gateway,
-or Elastic IP. This phase must show null VeloDB IDs in `test_status`. Allow time
-for AWS IAM permissions to propagate before phase two.
+The first plan creates the complete deployment. The final plan must report
+`No changes`.
 
-## 3. Phase two: registrations and warehouse
+## Destroy and verify
 
 ```bash
-terraform -chdir=test/aws_byoc_full plan \
-  -var='create_velodb_resources=true' \
-  -out=/private/tmp/velodb-byoc-warehouse.tfplan
-
-terraform -chdir=test/aws_byoc_full apply \
-  /private/tmp/velodb-byoc-warehouse.tfplan
+terraform -chdir=test/aws_byoc_full plan -destroy -out=destroy.tfplan
+terraform -chdir=test/aws_byoc_full apply destroy.tfplan
+terraform -chdir=test/aws_byoc_full state list
 ```
 
-The output must contain non-null credential, network, warehouse, and initial
-cluster IDs. Run the same plan command again and require `No changes`.
-
-## 4. Phase three: second cluster
-
-```bash
-terraform -chdir=test/aws_byoc_full plan \
-  -var='create_velodb_resources=true' \
-  -var='create_second_cluster=true' \
-  -out=/private/tmp/velodb-byoc-cluster.tfplan
-
-terraform -chdir=test/aws_byoc_full apply \
-  /private/tmp/velodb-byoc-cluster.tfplan
-```
-
-Run the same plan command again and require `No changes`.
-
-## 5. Destroy all test-created resources
-
-```bash
-terraform -chdir=test/aws_byoc_full destroy \
-  -var='create_velodb_resources=true' \
-  -var='create_second_cluster=true'
-```
-
-Terraform must fully delete clusters and the warehouse before deleting BYOC
-registrations and their AWS dependencies. If warehouse deletion cannot be
-confirmed, destroy stops and retains state. The existing VPC, subnets, routes,
-NAT gateways, and S3 endpoint remain untouched.
+The final command must return no resources. Terraform deletes the warehouse
+before its VeloDB registrations and AWS dependencies. If warehouse deletion
+cannot be confirmed, destroy stops and preserves state.
