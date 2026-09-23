@@ -14,9 +14,11 @@ terraform-provider-velodb
 *.tfstate
 *.tfstate.*
 tfplan
+*.tfplan
 terraformrc
 crash.log
 *.tfvars
+examples/**/.terraform.lock.hcl
 override.tf
 override.tf.json
 *_override.tf

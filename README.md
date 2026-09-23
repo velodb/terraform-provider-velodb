@@ -129,7 +129,10 @@ output "jdbc_urls" {
 }
 ```
 
-Create an AWS BYOC warehouse from registered cloud resources:
+To create the complete AWS BYOC deployment in a new VPC, start with the
+[`aws_byoc_new_vpc` example](examples/aws_byoc_new_vpc/README.md).
+
+To create an AWS BYOC warehouse from existing registered cloud resources:
 
 ```terraform
 data "velodb_byoc_prerequisites" "aws" {
