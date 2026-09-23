@@ -2,6 +2,8 @@
 
 Creates a new three-zone AWS VPC and the AWS IAM, S3, networking, security,
 PrivateLink, VeloDB registration, and warehouse resources required for BYOC.
+All resources created by this module are managed in the same Terraform state
+and are subject to modification, replacement, and deletion.
 
 See the complete [`aws_byoc_new_vpc` example](../../examples/aws_byoc_new_vpc)
 for a ready-to-copy user configuration.
@@ -35,4 +37,6 @@ separate high-availability network module when one NAT gateway per zone is
 required. `bucket_force_destroy` defaults to `false` so a production bucket
 with data cannot be silently emptied during destroy. Treat `name_prefix` as
 immutable after creation because changing it can replace AWS and VeloDB
-resources.
+resources. If destroy stops with `BucketNotEmpty`, confirm the objects are no
+longer needed, empty the bucket manually, and run a newly generated destroy
+plan. The module does not infer whether bucket contents are shared.

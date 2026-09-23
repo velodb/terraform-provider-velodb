@@ -10,6 +10,20 @@ import (
 	"time"
 )
 
+func TestCloudSettingWarehouseIDListJSON(t *testing.T) {
+	payload := []byte(`{"warehouseIdList":["WH-001","WH-002"]}`)
+
+	var credential CloudSettingCredential
+	if err := json.Unmarshal(payload, &credential); err != nil || len(credential.WarehouseIDs) != 2 || credential.WarehouseIDs[1] != "WH-002" {
+		t.Fatalf("credential warehouseIdList: result=%#v error=%v", credential.WarehouseIDs, err)
+	}
+
+	var network CloudSettingNetworkConfig
+	if err := json.Unmarshal(payload, &network); err != nil || len(network.WarehouseIDs) != 2 || network.WarehouseIDs[1] != "WH-002" {
+		t.Fatalf("network warehouseIdList: result=%#v error=%v", network.WarehouseIDs, err)
+	}
+}
+
 func TestCloudSettingCredentialLifecycle(t *testing.T) {
 	ts, mux := newTestServer(t)
 	defer ts.Close()
@@ -77,12 +91,12 @@ func TestCloudSettingCredentialLifecycle(t *testing.T) {
 	}
 
 	got, err := client.GetCloudSettingCredential(context.Background(), "aws", credential.CredentialID)
-	if err != nil || got.ExternalID != credential.ExternalID {
+	if err != nil || got.ExternalID != credential.ExternalID || len(got.WarehouseIDs) != 1 || got.WarehouseIDs[0] != "WH-001" {
 		t.Fatalf("GetCloudSettingCredential: result=%#v error=%v", got, err)
 	}
 
 	list, err := client.ListCloudSettingCredentials(context.Background(), "aws", &ListCloudSettingCredentialsOptions{Page: 1, Size: 20, Region: credential.Region})
-	if err != nil || list.Total != 1 || len(list.Data) != 1 || list.Data[0].CredentialID != credential.CredentialID {
+	if err != nil || list.Total != 1 || len(list.Data) != 1 || list.Data[0].CredentialID != credential.CredentialID || len(list.Data[0].WarehouseIDs) != 1 || list.Data[0].WarehouseIDs[0] != "WH-001" {
 		t.Fatalf("ListCloudSettingCredentials: result=%#v error=%v", list, err)
 	}
 
@@ -185,12 +199,12 @@ func TestCloudSettingNetworkConfigLifecycle(t *testing.T) {
 	}
 
 	got, err := client.GetCloudSettingNetworkConfig(context.Background(), "aws", network.NetworkConfigID)
-	if err != nil || got.VPCID != network.VPCID || len(got.ZoneMappings) != 3 || got.ZoneMappings[2] != zoneMappings[2] {
+	if err != nil || got.VPCID != network.VPCID || len(got.ZoneMappings) != 3 || got.ZoneMappings[2] != zoneMappings[2] || len(got.WarehouseIDs) != 1 || got.WarehouseIDs[0] != "WH-001" {
 		t.Fatalf("GetCloudSettingNetworkConfig: result=%#v error=%v", got, err)
 	}
 
 	list, err := client.ListCloudSettingNetworkConfigs(context.Background(), "aws", &ListCloudSettingNetworkConfigsOptions{Page: 1, Size: 20, Region: network.Region})
-	if err != nil || list.Total != 1 || len(list.Data) != 1 || list.Data[0].NetworkConfigID != network.NetworkConfigID || len(list.Data[0].ZoneMappings) != 3 {
+	if err != nil || list.Total != 1 || len(list.Data) != 1 || list.Data[0].NetworkConfigID != network.NetworkConfigID || len(list.Data[0].ZoneMappings) != 3 || len(list.Data[0].WarehouseIDs) != 1 || list.Data[0].WarehouseIDs[0] != "WH-001" {
 		t.Fatalf("ListCloudSettingNetworkConfigs: result=%#v error=%v", list, err)
 	}
 
