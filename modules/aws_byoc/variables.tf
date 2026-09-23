@@ -9,7 +9,7 @@ variable "bucket_name" {
 }
 
 variable "name_prefix" {
-  description = "Prefix for AWS and VeloDB resources."
+  description = "Prefix for AWS and VeloDB resources. Do not change after creation."
   type        = string
 
   validation {

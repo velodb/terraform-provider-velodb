@@ -8,7 +8,7 @@ terraform {
     }
     velodb = {
       source  = "velodb/velodb"
-      version = ">= 1.1.7"
+      version = ">= 1.1.8"
     }
   }
 }
@@ -29,6 +29,19 @@ locals {
   data_access_role_arn    = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${local.data_access_role_name}"
   data_access_profile_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:instance-profile/${local.data_access_role_name}"
   tags                    = merge({ managed-by = "terraform" }, var.tags)
+}
+
+resource "terraform_data" "name_prefix_guard" {
+  input = var.name_prefix
+
+  lifecycle {
+    ignore_changes = [input]
+
+    postcondition {
+      condition     = self.output == var.name_prefix
+      error_message = "name_prefix cannot be changed after creation because it identifies AWS and VeloDB resources. Restore the original value or destroy and recreate the deployment."
+    }
+  }
 }
 
 data "velodb_aws_data_access_assume_role_policy" "data_access" {
