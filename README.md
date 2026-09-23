@@ -129,55 +129,18 @@ output "jdbc_urls" {
 }
 ```
 
-To create the complete AWS BYOC deployment in a new VPC, start with the
-[`aws_byoc_new_vpc` example](examples/aws_byoc_new_vpc/README.md).
+## AWS BYOC workflows
 
-To create an AWS BYOC warehouse from existing registered cloud resources:
+Choose one ownership model and keep it for the lifetime of the deployment:
 
-```terraform
-data "velodb_byoc_prerequisites" "aws" {
-  cloud_provider = "aws"
-  region         = "us-east-1"
-}
+| Workflow | Start here | Terraform ownership |
+|---|---|---|
+| New infrastructure | [`aws_byoc_new_vpc`](examples/aws_byoc_new_vpc/README.md) | Creates, modifies, and deletes the AWS and VeloDB resources in its state. |
+| Existing infrastructure | [`aws_byoc_existing_infrastructure`](examples/aws_byoc_existing_infrastructure/README.md) | Reads existing AWS resources and manages only the VeloDB registrations and warehouse. |
 
-resource "velodb_byoc_credential" "aws" {
-  cloud_provider            = "aws"
-  name                      = "production-credential"
-  region                    = "us-east-1"
-  bucket_name               = var.bucket_name
-  data_credential_arn       = var.data_credential_arn
-  deployment_credential_arn = var.deployment_credential_arn
-}
-
-resource "velodb_byoc_network" "aws" {
-  cloud_provider    = "aws"
-  name              = "production-network"
-  credential_id     = velodb_byoc_credential.aws.id
-  security_group_id = var.security_group_id
-
-  zone_mappings = [{
-    zone_id   = "us-east-1a"
-    subnet_id = var.subnet_id
-  }]
-}
-
-resource "velodb_warehouse" "byoc" {
-  name              = "analytics-byoc"
-  deployment_mode   = "BYOC"
-  cloud_provider    = "aws"
-  region            = "us-east-1"
-  setup_mode        = "advanced"
-  credential_id     = velodb_byoc_credential.aws.id
-  network_config_id = velodb_byoc_network.aws.id
-  admin_password    = var.admin_password
-
-  initial_cluster {
-    zone         = "us-east-1a"
-    compute_vcpu = 4
-    cache_gb     = 100
-  }
-}
-```
+Do not import shared AWS resources into the warehouse state. `terraform import`
+adopts a resource into Terraform lifecycle management and can make it subject
+to modification, replacement, or deletion.
 
 ## Resources
 

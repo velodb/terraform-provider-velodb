@@ -96,7 +96,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 					"credentialId": 123, "name": "production-credential", "cloudProvider": "aws", "region": "us-east-1",
 					"bucketName": "velodb-data", "dataCredentialArn": "arn:aws:iam::111122223333:instance-profile/velodb-data",
 					"deploymentCredentialArn": "arn:aws:iam::111122223333:role/velodb-deployment",
-					"externalId":              "external-123", "warehouseCount": 0, "warehouseIds": []string{},
+					"externalId":              "external-123", "warehouseCount": 0, "warehouseIdList": []string{},
 					"createdAt": now.Format(time.RFC3339), "updatedAt": now.Format(time.RFC3339),
 				},
 			})
@@ -155,7 +155,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 				"data": map[string]any{
 					"networkConfigId": 456, "name": "production-network", "cloudProvider": "aws", "region": "us-east-1",
 					"vpcId": "vpc-123", "zoneMappings": byocNetworkZoneMappings,
-					"securityGroupId": "sg-123", "endpointId": "vpce-123", "warehouseCount": 0, "warehouseIds": []string{},
+					"securityGroupId": "sg-123", "endpointId": "vpce-123", "warehouseCount": 0, "warehouseIdList": []string{},
 					"createdAt": now.Format(time.RFC3339), "updatedAt": now.Format(time.RFC3339),
 				},
 			})

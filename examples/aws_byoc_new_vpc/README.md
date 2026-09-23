@@ -4,6 +4,13 @@ This example creates a complete VeloDB AWS BYOC deployment in a new VPC. It
 uses the reusable `modules/aws_byoc` module and does not require the separate
 `byoc-terraform` repository.
 
+Use this workflow only when Terraform should own the new AWS infrastructure.
+Resources created by this configuration are recorded in its state and are
+subject to modification, replacement, and deletion by Terraform. To use
+shared or separately managed AWS resources instead, use the
+[`aws_byoc_existing_infrastructure`](../aws_byoc_existing_infrastructure)
+example.
+
 The deployment includes AWS IAM, S3, a VPC, one public subnet, three private
 subnets, a NAT gateway, routing, security groups, VPC endpoints, VeloDB
 credential and network registrations, and a warehouse with an initial cluster.
@@ -69,4 +76,6 @@ deletion before removing VeloDB registrations and AWS dependencies.
 
 The module intentionally uses one NAT gateway. The default
 `bucket_force_destroy = false` protects a nonempty production bucket from
-automatic deletion.
+automatic deletion. If destroy reports `BucketNotEmpty`, confirm that its
+objects are no longer needed, empty the bucket yourself, then create and apply
+a new destroy plan. Terraform will not silently purge the objects.
