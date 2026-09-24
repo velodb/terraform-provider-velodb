@@ -153,7 +153,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 			json.NewEncoder(w).Encode(map[string]any{
 				"success": true, "requestId": "mock-get-network",
 				"data": map[string]any{
-					"networkConfigId": 456, "credentialId": 123, "name": "production-network", "cloudProvider": "aws", "region": "us-east-1",
+					"networkConfigId": 456, "name": "production-network", "cloudProvider": "aws", "region": "us-east-1",
 					"vpcId": "vpc-123", "zoneMappings": byocNetworkZoneMappings,
 					"securityGroupId": "sg-123", "endpointId": "vpce-123", "warehouseCount": 0, "warehouseIdList": []string{},
 					"createdAt": now.Format(time.RFC3339), "updatedAt": now.Format(time.RFC3339),
@@ -1173,13 +1173,13 @@ resource "velodb_byoc_network" "test" {
 			{
 				ResourceName:      "velodb_byoc_network.test",
 				ImportState:       true,
-				ImportStateId:     "aws/456",
+				ImportStateId:     "aws/456/123",
 				ImportStateVerify: true,
 			},
 			{
 				ResourceName:  "velodb_byoc_network.test",
 				ImportState:   true,
-				ImportStateId: "aws/456/123",
+				ImportStateId: "aws/456",
 				ExpectError:   regexp.MustCompile(`Invalid import ID`),
 			},
 		},

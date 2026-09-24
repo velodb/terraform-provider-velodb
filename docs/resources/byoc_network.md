@@ -61,9 +61,9 @@ Required:
 
 ## Import
 
-Import takes only the network configuration ID. The associated `credential_id`
-is read back from the VeloDB API automatically:
+Import requires both IDs because the network API does not return its credential
+configuration ID:
 
 ```shell
-terraform import velodb_byoc_network.example aws/<network_config_id>
+terraform import velodb_byoc_network.example aws/<network_config_id>/<credential_id>
 ```
