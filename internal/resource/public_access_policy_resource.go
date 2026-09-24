@@ -133,20 +133,10 @@ func (r *PublicAccessPolicyResource) Configure(_ context.Context, req resource.C
 }
 
 func (r *PublicAccessPolicyResource) buildAPIRequest(ctx context.Context, plan *PublicAccessPolicyModel, diags *diag.Diagnostics) *client.WarehousePublicAccessPolicyRequest {
-	apiReq := &client.WarehousePublicAccessPolicyRequest{
+	return &client.WarehousePublicAccessPolicyRequest{
 		PublicAccessPolicy: plan.Policy.ValueString(),
+		Rules:              allowlistRulesToAPI(ctx, plan.Policy.ValueString(), plan.Rules, diags),
 	}
-	if plan.Policy.ValueString() == "ALLOWLIST_ONLY" && !plan.Rules.IsNull() && !plan.Rules.IsUnknown() {
-		var rules []AllowlistRuleModel
-		diags.Append(plan.Rules.ElementsAs(ctx, &rules, false)...)
-		for _, rl := range rules {
-			apiReq.Rules = append(apiReq.Rules, client.WarehouseAllowlistRule{
-				CIDR:        rl.CIDR.ValueString(),
-				Description: rl.Description.ValueString(),
-			})
-		}
-	}
-	return apiReq
 }
 
 func (r *PublicAccessPolicyResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {

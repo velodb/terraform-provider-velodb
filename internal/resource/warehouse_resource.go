@@ -10,6 +10,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
+	"github.com/hashicorp/terraform-plugin-framework-validators/listvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -64,8 +65,10 @@ type WarehouseResourceModel struct {
 	EndpointServiceName     types.String   `tfsdk:"endpoint_service_name"`
 	AdminPassword           types.String   `tfsdk:"admin_password"`
 	AdminPasswordVersion    types.Int64    `tfsdk:"admin_password_version"`
+	Version                 types.String   `tfsdk:"version"`
 	Tags                    types.Map      `tfsdk:"tags"`
 	InitialCluster          types.List     `tfsdk:"initial_cluster"`
+	AccessPolicy            types.List     `tfsdk:"access_policy"`
 	Timeouts                timeouts.Value `tfsdk:"timeouts"`
 	// Computed
 	Status             types.String `tfsdk:"status"`
@@ -92,6 +95,11 @@ type InitialClusterModel struct {
 type AutoPauseModel struct {
 	Enabled            types.Bool  `tfsdk:"enabled"`
 	IdleTimeoutMinutes types.Int64 `tfsdk:"idle_timeout_minutes"`
+}
+
+type WarehouseAccessPolicyModel struct {
+	Policy types.String `tfsdk:"policy"`
+	Rules  types.Set    `tfsdk:"rules"`
 }
 
 type ByocSetupModel struct {
@@ -243,7 +251,7 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				},
 			},
 			"core_version": schema.StringAttribute{
-				Description: "Current human-readable engine version (e.g. 3.0.8). Read-only.",
+				Description: "Current human-readable engine version (e.g. 26.1.0). Read-only.",
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
@@ -252,6 +260,16 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 			"core_version_id": schema.Int64Attribute{
 				Description: "Target engine version ID. Changing triggers an upgrade. Discover valid IDs via the velodb_warehouse_versions data source. The API does not return this value on Read, so the resource preserves whatever was last applied (or null if never set).",
 				Optional:    true,
+			},
+			"version": schema.StringAttribute{
+				Description: "Initial engine version to provision, in `major.minor` numeric format (e.g. `26.1`). The management API selects the newest matching build for that major.minor line. Create-only: the API does not return it and rejects changes after creation. To upgrade an existing warehouse, set core_version_id instead.",
+				Optional:    true,
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(
+						regexp.MustCompile(`^[0-9]+\.[0-9]+$`),
+						"must use major.minor numeric format (e.g. 26.1)",
+					),
+				},
 			},
 			"admin_password": schema.StringAttribute{
 				Description: "Administrator password. Write-only in the API and preserved as sensitive Terraform state so password rotation can be detected.",
@@ -263,10 +281,9 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				Optional:    true,
 			},
 			"tags": schema.MapAttribute{
-				Description:   "Warehouse tags.",
-				Optional:      true,
-				ElementType:   types.StringType,
-				PlanModifiers: []planmodifier.Map{},
+				Description: "Warehouse tags as key/value pairs. Create-only: the management API accepts tags only at creation and does not return or update them, so changing tags after creation is rejected.",
+				Optional:    true,
+				ElementType: types.StringType,
 			},
 			// Computed
 			"status": schema.StringAttribute{
@@ -389,6 +406,39 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 					},
 				},
 			},
+			"access_policy": schema.ListNestedBlock{
+				Description: "Initial public access policy applied at warehouse creation. BYOC only and create-only: the policy is set once during provisioning. Manage it afterward with the velodb_warehouse_public_access_policy resource.",
+				Validators: []validator.List{
+					listvalidator.SizeAtMost(1),
+				},
+				NestedObject: schema.NestedBlockObject{
+					Attributes: map[string]schema.Attribute{
+						"policy": schema.StringAttribute{
+							Description: "Public access policy: DENY_ALL, ALLOW_ALL, or ALLOWLIST_ONLY.",
+							Required:    true,
+							Validators: []validator.String{
+								stringvalidator.OneOf("DENY_ALL", "ALLOW_ALL", "ALLOWLIST_ONLY"),
+							},
+						},
+						"rules": schema.SetNestedAttribute{
+							Description: "Allowlist CIDR rules. Only valid when policy is ALLOWLIST_ONLY. Order is not significant.",
+							Optional:    true,
+							NestedObject: schema.NestedAttributeObject{
+								Attributes: map[string]schema.Attribute{
+									"cidr": schema.StringAttribute{
+										Description: "CIDR block or single IP.",
+										Required:    true,
+									},
+									"description": schema.StringAttribute{
+										Description: "Optional rule description.",
+										Optional:    true,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
 			"byoc_setup": schema.ListNestedBlock{
 				Description: "BYOC setup guidance (computed).",
 				NestedObject: schema.NestedBlockObject{
@@ -413,6 +463,33 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 }
 
 func (r *WarehouseResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	// version (initial engine version) and core_version_id (explicit upgrade
+	// target) are mutually exclusive: setting both provisions at version and then
+	// immediately upgrades, a redundant double operation.
+	var version types.String
+	var coreVersionID types.Int64
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("version"), &version)...)
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("core_version_id"), &coreVersionID)...)
+	if !version.IsNull() && !version.IsUnknown() && !coreVersionID.IsNull() && !coreVersionID.IsUnknown() {
+		resp.Diagnostics.AddError(
+			"version and core_version_id cannot be set together",
+			"Set version to pin the engine version at creation, or core_version_id to upgrade an existing "+
+				"warehouse — not both. Setting both provisions at version and then upgrades in the same apply.",
+		)
+	}
+
+	// Validate access_policy first: it is independent of initial_cluster, which
+	// short-circuits validation below when unknown.
+	var accessPolicy types.List
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("access_policy"), &accessPolicy)...)
+	if !accessPolicy.IsNull() && !accessPolicy.IsUnknown() && len(accessPolicy.Elements()) > 0 {
+		var policies []WarehouseAccessPolicyModel
+		resp.Diagnostics.Append(accessPolicy.ElementsAs(ctx, &policies, false)...)
+		if !resp.Diagnostics.HasError() {
+			validatePublicAccessPolicy(&resp.Diagnostics, policies[0].Policy, policies[0].Rules)
+		}
+	}
+
 	var initialCluster types.List
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("initial_cluster"), &initialCluster)...)
 	if initialCluster.IsUnknown() {
@@ -434,27 +511,70 @@ func (r *WarehouseResource) ValidateConfig(ctx context.Context, req resource.Val
 	rejectUnsupportedString(ctx, req, resp, "subnet_id")
 	rejectUnsupportedString(ctx, req, resp, "security_group_id")
 	rejectUnsupportedString(ctx, req, resp, "endpoint_id")
-	//var tags types.Map
-	//resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("tags"), &tags)...)
-	//if !tags.IsNull() && !tags.IsUnknown() {
-	//	resp.Diagnostics.AddError(
-	//		"Unsupported tags",
-	//		"tags is not part of the current management API CreateWarehouseRequest.",
-	//	)
-	//}
 }
 
 func (r *WarehouseResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	if req.Plan.Raw.IsNull() || !req.Plan.Raw.IsKnown() || !req.State.Raw.IsNull() {
+	// Nothing to enforce on destroy.
+	if req.Plan.Raw.IsNull() {
 		return
 	}
 
+	// Update path: reject changes to create-only attributes.
+	if !req.State.Raw.IsNull() {
+		// When another attribute already forces replacement, the resource is
+		// destroyed and recreated, so create-only values legitimately apply to
+		// the new instance — skip the change guards.
+		if len(resp.RequiresReplace) > 0 {
+			return
+		}
+
+		var plan, state WarehouseResourceModel
+		resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+		resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		rejectCreateOnlyChange(&resp.Diagnostics, path.Root("tags"), plan.Tags, state.Tags,
+			"Warehouse tags cannot be changed after creation",
+			"The VeloDB management API accepts warehouse tags only at creation time and cannot update them. "+
+				"Revert the tags change, or destroy and recreate the warehouse to apply new tags.")
+		rejectCreateOnlyChange(&resp.Diagnostics, path.Root("version"), plan.Version, state.Version,
+			"Warehouse version cannot be changed after creation",
+			"The VeloDB management API accepts version only when creating a warehouse. "+
+				"Revert the version change and set core_version_id to upgrade an existing warehouse "+
+				"(discover valid IDs via the velodb_warehouse_versions data source).")
+		rejectCreateOnlyChange(&resp.Diagnostics, path.Root("access_policy"), plan.AccessPolicy, state.AccessPolicy,
+			"Warehouse access_policy cannot be changed after creation",
+			"access_policy sets the initial public access policy only at creation time. "+
+				"Revert the change and manage the policy after creation with the "+
+				"velodb_warehouse_public_access_policy resource.")
+		return
+	}
+
+	// Create path.
+	if !req.Plan.Raw.IsKnown() {
+		return
+	}
 	var plan WarehouseResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 	validateWarehouseCreation(&resp.Diagnostics, &plan, true)
+}
+
+// rejectCreateOnlyChange errors when a create-only attribute is changed after
+// creation. It skips when the planned value is unknown (interpolated — it may
+// resolve to the existing value) or when the prior state has no value (e.g.
+// after import, where create-only fields are never read back and would
+// otherwise block every apply).
+func rejectCreateOnlyChange(diags *diag.Diagnostics, p path.Path, planVal, stateVal attr.Value, summary, detail string) {
+	if planVal.IsUnknown() || stateVal.IsNull() {
+		return
+	}
+	if !planVal.Equal(stateVal) {
+		diags.AddAttributeError(p, summary, detail)
+	}
 }
 
 func (r *WarehouseResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -501,8 +621,14 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 	var tags map[string]string
 	plan.Tags.ElementsAs(ctx, &tags, false)
 	createReq.Tags = tags
+	setOptionalString(&createReq.Version, plan.Version)
 	setOptionalString(&createReq.VpcMode, plan.VpcMode)
 	setOptionalString(&createReq.SetupMode, plan.SetupMode)
+	// Initial access policy (BYOC only, create-only).
+	createReq.AccessPolicy = warehouseAccessPolicyRequest(ctx, plan.AccessPolicy, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	setOptionalInt64(&createReq.CredentialID, plan.CredentialID)
 	setOptionalInt64(&createReq.NetworkConfigID, plan.NetworkConfigID)
 	setOptionalString(&createReq.AdminPassword, plan.AdminPassword)

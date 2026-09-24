@@ -92,6 +92,49 @@ func cacheGbAfterCPUResize(oldVcpu, oldCacheGb, newVcpu int64) int64 {
 	return scaled
 }
 
+// warehouseAccessPolicyRequest converts the create-only access_policy block into
+// an API request. Returns nil when the block is absent. Allowlist rules are only
+// forwarded when the policy is ALLOWLIST_ONLY.
+func warehouseAccessPolicyRequest(ctx context.Context, accessPolicy types.List, diags *diag.Diagnostics) *client.WarehousePublicAccessPolicyRequest {
+	if accessPolicy.IsNull() || accessPolicy.IsUnknown() {
+		return nil
+	}
+
+	var policies []WarehouseAccessPolicyModel
+	diags.Append(accessPolicy.ElementsAs(ctx, &policies, false)...)
+	if diags.HasError() || len(policies) == 0 {
+		return nil
+	}
+
+	ap := policies[0]
+	return &client.WarehousePublicAccessPolicyRequest{
+		PublicAccessPolicy: ap.Policy.ValueString(),
+		Rules:              allowlistRulesToAPI(ctx, ap.Policy.ValueString(), ap.Rules, diags),
+	}
+}
+
+// allowlistRulesToAPI converts allowlist rule objects into API rules. Rules are
+// only meaningful for ALLOWLIST_ONLY, so any other policy yields no rules
+// regardless of what the set contains.
+func allowlistRulesToAPI(ctx context.Context, policy string, rules types.Set, diags *diag.Diagnostics) []client.WarehouseAllowlistRule {
+	if policy != "ALLOWLIST_ONLY" || rules.IsNull() || rules.IsUnknown() {
+		return nil
+	}
+	var models []AllowlistRuleModel
+	diags.Append(rules.ElementsAs(ctx, &models, false)...)
+	if diags.HasError() {
+		return nil
+	}
+	var out []client.WarehouseAllowlistRule
+	for _, rl := range models {
+		out = append(out, client.WarehouseAllowlistRule{
+			CIDR:        rl.CIDR.ValueString(),
+			Description: rl.Description.ValueString(),
+		})
+	}
+	return out
+}
+
 func validatePublicAccessPolicy(diags *diag.Diagnostics, policy types.String, rules types.Set) {
 	if policy.IsNull() || policy.IsUnknown() || rules.IsNull() || rules.IsUnknown() {
 		return
@@ -167,6 +210,16 @@ func validateWarehouseCreation(diags *diag.Diagnostics, plan *WarehouseResourceM
 		diags.AddError(
 			"exactly one initial_cluster is required",
 			"Warehouse creation accepts exactly one initial_cluster block.",
+		)
+	}
+
+	if !plan.AccessPolicy.IsNull() && !plan.AccessPolicy.IsUnknown() && len(plan.AccessPolicy.Elements()) > 0 &&
+		!plan.DeploymentMode.IsNull() && !plan.DeploymentMode.IsUnknown() &&
+		normalizeDeploymentMode(plan.DeploymentMode.ValueString()) != "BYOC" {
+		diags.AddError(
+			"access_policy is only supported for BYOC warehouses",
+			"The management API rejects an initial access_policy for SaaS warehouses. "+
+				"Remove access_policy, or set deployment_mode to BYOC.",
 		)
 	}
 

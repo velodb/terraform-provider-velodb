@@ -23,7 +23,10 @@ resource "velodb_warehouse" "saas" {
   }
 }
 
-# AWS BYOC warehouse using registered custom infrastructure
+# AWS BYOC warehouse using registered custom infrastructure.
+# Pins the initial engine version and configures the initial public access
+# policy at creation. Both are create-only: use core_version_id to upgrade
+# later, and velodb_warehouse_public_access_policy to change access afterward.
 resource "velodb_warehouse" "byoc" {
   name              = "analytics-byoc"
   deployment_mode   = "BYOC"
@@ -33,6 +36,19 @@ resource "velodb_warehouse" "byoc" {
   credential_id     = velodb_byoc_credential.aws.id
   network_config_id = velodb_byoc_network.aws.id
   admin_password    = var.admin_password
+
+  # Provision a specific engine version (major.minor only, e.g. 26.1).
+  version = "26.1"
+
+  # Initial public access policy (BYOC only).
+  access_policy {
+    policy = "ALLOWLIST_ONLY"
+
+    rules {
+      cidr        = "203.0.113.0/24"
+      description = "office"
+    }
+  }
 
   initial_cluster {
     zone         = "us-east-1a"

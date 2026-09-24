@@ -126,6 +126,54 @@ resource "velodb_warehouse" "example" {
 The provider calls the upgrade API and waits for completion when
 `core_version_id` changes. The `core_version` string attribute is read-only.
 
+To pin the engine version at creation instead, set `version` to a
+`major.minor` value (e.g. `26.1`). Only two-part versions are
+accepted; three-part versions are rejected. The management API selects the
+newest matching build for that line. `version` is create-only; use
+`core_version_id` to upgrade afterward. `version` and `core_version_id` are
+mutually exclusive — set one or the other, not both.
+
+## Initial Access Policy
+
+For `deployment_mode = "BYOC"`, you can set the initial public access policy at
+creation with an `access_policy` block. It reuses the same policy values as the
+`velodb_warehouse_public_access_policy` resource: `DENY_ALL`, `ALLOW_ALL`, or
+`ALLOWLIST_ONLY` with CIDR `rules`.
+
+```terraform
+resource "velodb_warehouse" "production" {
+  # ...
+  deployment_mode = "BYOC"
+
+  version = "26.1"
+
+  access_policy {
+    policy = "ALLOWLIST_ONLY"
+
+    rules {
+      cidr        = "203.0.113.0/24"
+      description = "office"
+    }
+  }
+}
+```
+
+`access_policy` is BYOC-only and create-only: it configures the policy once
+during provisioning. SaaS warehouses reject `access_policy`.
+
+~> **Note:** `access_policy` is never read back from the API, so Terraform does
+not detect drift on it. If the policy is later changed out-of-band (via the
+console or another tool), `terraform plan` will not report a difference, and the
+state value remains what was applied at creation.
+
+~> **Note:** Do not manage the same warehouse's public access policy with both
+`access_policy` here and a separate `velodb_warehouse_public_access_policy`
+resource — they write the same endpoint with no ordering guarantee, so the
+result is non-deterministic. Use `access_policy` only to seed the initial policy,
+then manage it exclusively with `velodb_warehouse_public_access_policy`
+afterward. You need not remove the `access_policy` block, since it is create-only
+and has no effect after provisioning.
+
 ## Managing the Initial Cluster
 
 The VeloDB API requires an `initial_cluster` block at warehouse creation.
@@ -212,20 +260,23 @@ To destroy the initial cluster later:
 
 ### Optional
 
+- `access_policy` (Block List, Max: 1) Initial public access policy applied at warehouse creation. BYOC-only and create-only. After creation, manage the policy with the `velodb_warehouse_public_access_policy` resource. (see [below for nested schema](#nestedblock--access_policy))
 - `admin_password` (String, Sensitive) Administrator password. Set on creation and used for password rotation. The password is stored in state since it cannot be read back from the API.
 - `admin_password_version` (Number) Increment this value to trigger a password change. Must be used together with `admin_password`.
 - `core_version_id` (Number) Target engine version ID. Changing this triggers a warehouse upgrade. Discover valid values via the `velodb_warehouse_versions` data source.
+- `version` (String) Initial engine version to provision, in `major.minor` numeric format (e.g. `26.1`). Two-part only; three-part versions are rejected. The management API selects the newest matching build for that line. Create-only; use `core_version_id` to upgrade an existing warehouse.
 - `setup_mode` (String) BYOC setup mode. Set to `advanced` for AWS custom-infrastructure creation. Guided/template setup is not supported. Changing this forces a new resource.
 - `credential_id` (Number) Registered credential configuration ID for advanced AWS BYOC. Changing this forces a new resource.
 - `initial_cluster` (Block List, Max: 1) Initial cluster created together with the warehouse. This is a create-only configuration. After creation, manage the cluster lifecycle by importing it as a `velodb_cluster` resource. (see [below for nested schema](#nestedblock--initial_cluster))
 - `network_config_id` (Number) Registered network configuration ID for advanced AWS BYOC. Changing this forces a new resource.
+- `tags` (Map of String) Warehouse tags as key/value pairs. Create-only: the management API accepts tags only at creation and does not return or update them, so changing tags after creation is rejected.
 - `timeouts` (Block, Optional) (see [below for nested schema](#nestedblock--timeouts))
 - `vpc_mode` (String) VPC consistency hint for Template mode: `existing` or `new`. Changing this forces a new resource.
 
 ### Read-Only
 
 - `byoc_setup` (Block List) BYOC setup guidance returned for BYOC warehouses. (see [below for nested schema](#nestedatt--byoc_setup))
-- `core_version` (String) Current human-readable engine version reported by the API (e.g. `3.0.8`). Read-only. Set `core_version_id` to trigger upgrades.
+- `core_version` (String) Current human-readable engine version reported by the API (e.g. `26.1.0`). Read-only. Set `core_version_id` to trigger upgrades.
 - `created_at` (String) Warehouse creation time in ISO 8601 / RFC 3339 format.
 - `expire_time` (String) Warehouse expiration time when available.
 - `id` (String) Warehouse identifier (e.g., `ALBJ07YE`).
@@ -235,6 +286,28 @@ To destroy the initial cluster later:
 - `pay_type` (String) Billing type: `PostPaid` or `PrePaid`.
 - `status` (String) Current warehouse status. One of: `Creating`, `Running`, `Resizing`, `Adjusting`, `Upgrading`, `Suspending`, `Resuming`, `Stopping`, `Starting`, `Restarting`, `Deleting`, `Suspended`, `Stopped`, `Deleted`, `CreateFailed`.
 - `zone` (String) Primary availability zone derived from the SQL cluster.
+
+<a id="nestedblock--access_policy"></a>
+### Nested Schema for `access_policy`
+
+Required:
+
+- `policy` (String) Public access policy: `DENY_ALL`, `ALLOW_ALL`, or `ALLOWLIST_ONLY`.
+
+Optional:
+
+- `rules` (Attributes Set) Allowlist CIDR rules. Only valid when `policy` is `ALLOWLIST_ONLY`. Order is not significant. (see [below for nested schema](#nestedatt--access_policy--rules))
+
+<a id="nestedatt--access_policy--rules"></a>
+### Nested Schema for `access_policy.rules`
+
+Required:
+
+- `cidr` (String) CIDR block or single IP.
+
+Optional:
+
+- `description` (String) Optional rule description.
 
 <a id="nestedblock--initial_cluster"></a>
 ### Nested Schema for `initial_cluster`
@@ -301,4 +374,4 @@ import {
 }
 ```
 
-~> **Note:** The `admin_password`, `admin_password_version`, and `initial_cluster` attributes cannot be read from the API and will not be populated after import. Omit those create-only fields unless you intend to rotate the password after import.
+~> **Note:** The `admin_password`, `admin_password_version`, `initial_cluster`, `version`, and `access_policy` attributes cannot be read from the API and will not be populated after import. Omit those create-only fields unless you intend to rotate the password after import.
