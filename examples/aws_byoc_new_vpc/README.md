@@ -53,6 +53,13 @@ by VeloDB in the selected region. Three zones are recommended for production.
 Treat `name_prefix` as immutable after the first apply; changing it can replace
 AWS and VeloDB resources.
 
+Each zone's private subnet gets a `/20` block of `vpc_cidr` derived from the AZ
+letter, so leaving `subnet_cidrs` unset works for standard zones. Set the
+optional `subnet_cidrs` map (zone to CIDR) to override specific zones — for
+non-standard zones, to align with an external network plan, or to pin an
+existing deployment's CIDRs before upgrading. See the commented block in
+`terraform.tfvars.example`.
+
 To create more compute clusters, add entries to `additional_clusters` in
 `terraform.tfvars`:
 

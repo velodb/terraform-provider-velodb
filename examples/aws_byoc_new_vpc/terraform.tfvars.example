@@ -5,6 +5,15 @@ vpc_cidr               = "10.57.0.0/16"
 zones                  = ["us-east-1a", "us-east-1b", "us-east-1c"]
 warehouse_client_cidrs = []
 
+# Optional: override the per-AZ subnet CIDRs. Zones left out fall back to the
+# derived /20 block. Use this for non-standard zones, to align with an external
+# network plan, or to pin an existing deployment's CIDRs before upgrading.
+# subnet_cidrs = {
+#   "us-east-1a" = "10.57.16.0/20"
+#   "us-east-1b" = "10.57.32.0/20"
+#   "us-east-1c" = "10.57.48.0/20"
+# }
+
 additional_clusters = {}
 
 tags = {

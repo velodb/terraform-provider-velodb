@@ -31,6 +31,12 @@ variable "vpc_cidr" {
   default     = "10.57.0.0/16"
 }
 
+variable "subnet_cidrs" {
+  description = "Optional zone to subnet CIDR overrides. Unset zones fall back to a /20 block derived from the AZ letter. Use it for non-standard zones or to pin CIDRs when upgrading an existing deployment."
+  type        = map(string)
+  default     = {}
+}
+
 variable "warehouse_client_cidrs" {
   description = "CIDR blocks allowed to reach warehouse query ports 8000-10000."
   type        = list(string)
