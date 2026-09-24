@@ -118,6 +118,7 @@ func TestCloudSettingNetworkConfigLifecycle(t *testing.T) {
 	}
 	network := CloudSettingNetworkConfig{
 		NetworkConfigID: 456,
+		CredentialID:    123,
 		Name:            "analytics-network",
 		CloudProvider:   "aws",
 		Region:          "us-east-1",
@@ -199,12 +200,12 @@ func TestCloudSettingNetworkConfigLifecycle(t *testing.T) {
 	}
 
 	got, err := client.GetCloudSettingNetworkConfig(context.Background(), "aws", network.NetworkConfigID)
-	if err != nil || got.VPCID != network.VPCID || len(got.ZoneMappings) != 3 || got.ZoneMappings[2] != zoneMappings[2] || len(got.WarehouseIDs) != 1 || got.WarehouseIDs[0] != "WH-001" {
+	if err != nil || got.VPCID != network.VPCID || got.CredentialID != network.CredentialID || len(got.ZoneMappings) != 3 || got.ZoneMappings[2] != zoneMappings[2] || len(got.WarehouseIDs) != 1 || got.WarehouseIDs[0] != "WH-001" {
 		t.Fatalf("GetCloudSettingNetworkConfig: result=%#v error=%v", got, err)
 	}
 
 	list, err := client.ListCloudSettingNetworkConfigs(context.Background(), "aws", &ListCloudSettingNetworkConfigsOptions{Page: 1, Size: 20, Region: network.Region})
-	if err != nil || list.Total != 1 || len(list.Data) != 1 || list.Data[0].NetworkConfigID != network.NetworkConfigID || len(list.Data[0].ZoneMappings) != 3 || len(list.Data[0].WarehouseIDs) != 1 || list.Data[0].WarehouseIDs[0] != "WH-001" {
+	if err != nil || list.Total != 1 || len(list.Data) != 1 || list.Data[0].NetworkConfigID != network.NetworkConfigID || list.Data[0].CredentialID != network.CredentialID || len(list.Data[0].ZoneMappings) != 3 || len(list.Data[0].WarehouseIDs) != 1 || list.Data[0].WarehouseIDs[0] != "WH-001" {
 		t.Fatalf("ListCloudSettingNetworkConfigs: result=%#v error=%v", list, err)
 	}
 
