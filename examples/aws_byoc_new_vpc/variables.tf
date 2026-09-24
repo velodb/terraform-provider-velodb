@@ -31,6 +31,12 @@ variable "vpc_cidr" {
   default     = "10.57.0.0/16"
 }
 
+variable "warehouse_client_cidrs" {
+  description = "CIDR blocks allowed to reach warehouse query ports 8000-10000."
+  type        = list(string)
+  default     = []
+}
+
 variable "additional_clusters" {
   description = "Additional compute clusters keyed by a stable Terraform identifier."
   type = map(object({

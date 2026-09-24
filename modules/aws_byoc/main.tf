@@ -272,6 +272,7 @@ resource "velodb_byoc_credential" "this" {
     aws_vpc_security_group_ingress_rule.endpoint_https,
     aws_vpc_security_group_egress_rule.endpoint_all,
     aws_vpc_security_group_ingress_rule.warehouse_self,
+    aws_vpc_security_group_ingress_rule.warehouse_client,
     aws_vpc_security_group_egress_rule.warehouse_all,
   ]
 
