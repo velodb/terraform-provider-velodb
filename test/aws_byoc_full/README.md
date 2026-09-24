@@ -37,7 +37,12 @@ The first plan creates the complete deployment. The final plan must report
 
 ## Destroy and verify
 
+The module pins the data bucket to `force_destroy = false`, so Terraform will
+not delete a nonempty bucket. This test infrastructure is disposable, so empty
+the bucket yourself before destroying:
+
 ```bash
+aws s3 rm "s3://$(terraform -chdir=test/aws_byoc_full output -raw bucket_name)" --recursive
 terraform -chdir=test/aws_byoc_full plan -destroy -out=destroy.tfplan
 terraform -chdir=test/aws_byoc_full apply destroy.tfplan
 terraform -chdir=test/aws_byoc_full state list
@@ -45,4 +50,6 @@ terraform -chdir=test/aws_byoc_full state list
 
 The final command must return no resources. Terraform deletes the warehouse
 before its VeloDB registrations and AWS dependencies. If warehouse deletion
-cannot be confirmed, destroy stops and preserves state.
+cannot be confirmed, destroy stops and preserves state. If destroy stops with
+`BucketNotEmpty`, the warehouse wrote objects after the manual `aws s3 rm`;
+re-run the `aws s3 rm` command and apply a newly generated destroy plan.

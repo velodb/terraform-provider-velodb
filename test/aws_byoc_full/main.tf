@@ -74,6 +74,10 @@ module "byoc" {
   tags                 = { purpose = "velodb-provider-live-test" }
 }
 
+output "bucket_name" {
+  value = module.byoc.bucket_name
+}
+
 output "test_status" {
   value = {
     aws_account_id         = module.byoc.aws_account_id
