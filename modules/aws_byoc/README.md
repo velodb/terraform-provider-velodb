@@ -60,8 +60,10 @@ instead.
 By default the warehouse security group only allows internal traffic and
 PrivateLink access. Set `warehouse_client_cidrs` to the CIDR blocks of any VPCs
 that must reach the warehouse directly on ports 8000-10000 (for example, peered
-client VPCs). `bucket_force_destroy` defaults to `false` so a production bucket
-with data cannot be silently emptied during destroy. Treat `name_prefix` as
+client VPCs). The data bucket is created with `force_destroy = false` so
+Terraform never deletes its objects: the module creates the bucket, but the
+warehouse writes the data, so destroy will not silently empty it. Treat
+`name_prefix` as
 immutable after creation because changing it can replace AWS and VeloDB
 resources. If destroy stops with `BucketNotEmpty`, confirm the objects are no
 longer needed, empty the bucket manually, and run a newly generated destroy

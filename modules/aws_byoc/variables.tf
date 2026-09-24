@@ -108,12 +108,6 @@ variable "additional_clusters" {
   }
 }
 
-variable "bucket_force_destroy" {
-  description = "Delete objects with the bucket during destroy. Keep false for production."
-  type        = bool
-  default     = false
-}
-
 variable "tags" {
   description = "Additional tags for AWS resources."
   type        = map(string)
