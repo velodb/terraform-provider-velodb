@@ -70,7 +70,7 @@ variable "deployment_credential_arn" {
 }
 
 variable "compute_vcpu" {
-  description = "vCPUs for the initial and optional second cluster."
+  description = "vCPUs for the initial cluster."
   type        = number
   default     = 4
 
@@ -81,7 +81,7 @@ variable "compute_vcpu" {
 }
 
 variable "cache_gb" {
-  description = "Cache size in GB for the initial and optional second cluster."
+  description = "Cache size in GB for the initial cluster."
   type        = number
   default     = 100
 
@@ -89,12 +89,6 @@ variable "cache_gb" {
     condition     = var.cache_gb >= 100
     error_message = "cache_gb must be at least 100."
   }
-}
-
-variable "create_second_cluster" {
-  description = "Deprecated compatibility flag for creating one additional cluster. Use additional_clusters instead."
-  type        = bool
-  default     = false
 }
 
 variable "additional_clusters" {
