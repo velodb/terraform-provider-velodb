@@ -59,7 +59,7 @@ func (r *PrivateLinkEndpointServiceResource) Schema(_ context.Context, _ resourc
 				},
 			},
 			"cloud_provider": schema.StringAttribute{
-				Description: "Cloud provider (aws, aliyun, tencent_cloud, hwcloud, aws-cn).",
+				Description: "Cloud provider. Only aws is supported.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),

@@ -36,11 +36,11 @@ func TestCreateWarehouse(t *testing.T) {
 		if req.DeploymentMode != "SaaS" {
 			t.Errorf("expected deploymentMode 'SaaS', got %q", req.DeploymentMode)
 		}
-		if req.CloudProvider != "aliyun" {
-			t.Errorf("expected cloudProvider 'aliyun', got %q", req.CloudProvider)
+		if req.CloudProvider != "aws" {
+			t.Errorf("expected cloudProvider 'aws', got %q", req.CloudProvider)
 		}
-		if req.Region != "cn-beijing" {
-			t.Errorf("expected region 'cn-beijing', got %q", req.Region)
+		if req.Region != "us-east-1" {
+			t.Errorf("expected region 'us-east-1', got %q", req.Region)
 		}
 		if req.InitialCluster == nil {
 			t.Fatal("expected initialCluster to be set")
@@ -61,13 +61,13 @@ func TestCreateWarehouse(t *testing.T) {
 		})
 	})
 
-	zone := "cn-beijing-k"
+	zone := "us-east-1a"
 	ratio := 8
 	result, err := client.CreateWarehouse(context.Background(), &CreateWarehouseRequest{
 		Name:           "test-warehouse",
 		DeploymentMode: "SaaS",
-		CloudProvider:  "aliyun",
-		Region:         "cn-beijing",
+		CloudProvider:  "aws",
+		Region:         "us-east-1",
 		InitialCluster: &InitialClusterRequest{
 			Zone:        zone,
 			ComputeVcpu: 4,
@@ -301,8 +301,8 @@ func TestGetWarehouse(t *testing.T) {
 	if wh.Status != "Running" {
 		t.Errorf("expected 'Running', got %q", wh.Status)
 	}
-	if wh.CloudProvider != "aliyun" {
-		t.Errorf("expected 'aliyun', got %q", wh.CloudProvider)
+	if wh.CloudProvider != "aws" {
+		t.Errorf("expected 'aws', got %q", wh.CloudProvider)
 	}
 }
 
@@ -466,8 +466,8 @@ func TestListWarehouses(t *testing.T) {
 		if q.Get("size") != "20" {
 			t.Errorf("expected size=20, got %q", q.Get("size"))
 		}
-		if q.Get("cloudProvider") != "aliyun" {
-			t.Errorf("expected cloudProvider=aliyun, got %q", q.Get("cloudProvider"))
+		if q.Get("cloudProvider") != "aws" {
+			t.Errorf("expected cloudProvider=aws, got %q", q.Get("cloudProvider"))
 		}
 
 		jsonResponse(w, 200, PageResponse[WarehouseItem]{
@@ -486,7 +486,7 @@ func TestListWarehouses(t *testing.T) {
 	result, err := client.ListWarehouses(context.Background(), &ListWarehousesOptions{
 		Page:          1,
 		Size:          20,
-		CloudProvider: "aliyun",
+		CloudProvider: "aws",
 	})
 	if err != nil {
 		t.Fatalf("ListWarehouses: %v", err)

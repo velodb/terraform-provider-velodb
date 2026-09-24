@@ -186,7 +186,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 			} else if !whDeleted {
 				data = append(data, map[string]any{
 					"warehouseId": "WH-MOCK-001", "name": "mock-warehouse", "status": "Running",
-					"cloudProvider": "aliyun", "region": "cn-beijing", "zone": "cn-beijing-k",
+					"cloudProvider": "aws", "region": "us-east-1", "zone": "us-east-1a",
 					"deploymentMode": "SaaS", "coreVersion": "3.0.3", "payType": "PostPaid",
 					"createdAt": now.Format(time.RFC3339),
 				})
@@ -283,9 +283,9 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 				"success": true, "requestId": "mock-get-wh",
 				"data": map[string]any{
 					"warehouseId": "WH-MOCK-001", "name": "mock-warehouse", "status": "Running",
-					"cloudProvider": "aliyun", "region": "cn-beijing", "zone": "cn-beijing-k",
+					"cloudProvider": "aws", "region": "us-east-1", "zone": "us-east-1a",
 					"deploymentMode": "SaaS", "coreVersion": "3.0.3", "payType": "PostPaid",
-					"endpointServiceId": "vpce-svc-mock", "endpointServiceName": "com.amazonaws.vpce.cn-beijing.vpce-svc-mock",
+					"endpointServiceId": "vpce-svc-mock", "endpointServiceName": "com.amazonaws.vpce.us-east-1.vpce-svc-mock",
 					"createdAt": now.Format(time.RFC3339),
 				},
 			})
@@ -446,11 +446,11 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 				}},
 			},
 			{
-				"cloudProvider":       "aliyun",
-				"region":              "cn-beijing",
-				"zone":                "cn-beijing-k",
+				"cloudProvider":       "aws",
+				"region":              "us-east-1",
+				"zone":                "us-east-1a",
 				"endpointServiceId":   "eps-mock-002",
-				"endpointServiceName": "com.aliyuncs.privatelink.cn-beijing.eps-mock-002",
+				"endpointServiceName": "com.amazonaws.vpce.us-east-1.eps-mock-002",
 				"description":         "other outbound service",
 				"connected":           false,
 				"createdAt":           now.Format(time.RFC3339),
@@ -479,7 +479,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 		return map[string]any{
 			"clusterId": "CL-MOCK-001", "warehouseId": "WH-MOCK-001",
 			"name": "mock_cluster", "status": "Running", "clusterType": "COMPUTE",
-			"cloudProvider": "aliyun", "region": "cn-beijing", "zone": "cn-beijing-k",
+			"cloudProvider": "aws", "region": "us-east-1", "zone": "us-east-1a",
 			"billingModel": "on_demand", "createdAt": now.Format(time.RFC3339),
 			"billingPools": map[string]any{
 				"onDemand": map[string]any{"nodeCount": 1, "cpu": 4, "diskSizeGb": 100},
@@ -576,14 +576,14 @@ func TestAccWarehouseResource(t *testing.T) {
 resource "velodb_warehouse" "test" {
   name            = "mock-warehouse"
   deployment_mode = "SaaS"
-  cloud_provider  = "aliyun"
-  region          = "cn-beijing"
+  cloud_provider  = "aws"
+  region          = "us-east-1"
 
   admin_password         = "TestPass@123"
   admin_password_version = 1
 
   initial_cluster {
-    zone         = "cn-beijing-k"
+    zone         = "us-east-1a"
     compute_vcpu = 4
     ratio        = 8
     cache_gb     = 1000
@@ -603,11 +603,11 @@ resource "velodb_warehouse" "test" {
 					resource.TestCheckResourceAttr("velodb_warehouse.test", "name", "mock-warehouse"),
 					resource.TestCheckResourceAttr("velodb_warehouse.test", "status", "Running"),
 					resource.TestCheckResourceAttr("velodb_warehouse.test", "initial_cluster.0.ratio", "8"),
-					resource.TestCheckResourceAttr("velodb_warehouse.test", "cloud_provider", "aliyun"),
-					resource.TestCheckResourceAttr("velodb_warehouse.test", "region", "cn-beijing"),
+					resource.TestCheckResourceAttr("velodb_warehouse.test", "cloud_provider", "aws"),
+					resource.TestCheckResourceAttr("velodb_warehouse.test", "region", "us-east-1"),
 					resource.TestCheckResourceAttr("velodb_warehouse.test", "deployment_mode", "SaaS"),
 					resource.TestCheckResourceAttr("velodb_warehouse.test", "core_version", "3.0.3"),
-					resource.TestCheckResourceAttr("velodb_warehouse.test", "endpoint_service_name", "com.amazonaws.vpce.cn-beijing.vpce-svc-mock"),
+					resource.TestCheckResourceAttr("velodb_warehouse.test", "endpoint_service_name", "com.amazonaws.vpce.us-east-1.vpce-svc-mock"),
 				),
 			},
 			// Import
@@ -633,14 +633,14 @@ func TestWarehouseImportMissingFails(t *testing.T) {
 resource "velodb_warehouse" "test" {
   name            = "mock-warehouse"
   deployment_mode = "SaaS"
-  cloud_provider  = "aliyun"
-  region          = "cn-beijing"
+  cloud_provider  = "aws"
+  region          = "us-east-1"
 
   admin_password         = "TestPass@123"
   admin_password_version = 1
 
   initial_cluster {
-    zone         = "cn-beijing-k"
+    zone         = "us-east-1a"
     compute_vcpu = 4
     cache_gb     = 100
   }
@@ -829,14 +829,14 @@ func TestWarehouseAutoPauseRequiresTimeoutWhenEnabled(t *testing.T) {
 resource "velodb_warehouse" "test" {
   name            = "mock-warehouse"
   deployment_mode = "SaaS"
-  cloud_provider  = "aliyun"
-  region          = "cn-beijing"
+  cloud_provider  = "aws"
+  region          = "us-east-1"
 
   admin_password         = "TestPass@123"
   admin_password_version = 1
 
   initial_cluster {
-    zone         = "cn-beijing-k"
+    zone         = "us-east-1a"
     compute_vcpu = 4
     cache_gb     = 100
     auto_pause {
@@ -966,8 +966,8 @@ func TestAccWarehousesDataSource(t *testing.T) {
 			{
 				Config: testProviderConfig(ts) + `
 data "velodb_warehouses" "test" {
-  cloud_provider = "aliyun"
-  region         = "cn-beijing"
+  cloud_provider = "aws"
+  region         = "us-east-1"
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -977,7 +977,7 @@ data "velodb_warehouses" "test" {
 					resource.TestCheckResourceAttr("data.velodb_warehouses.test", "warehouses.0.name", "mock-warehouse"),
 					resource.TestCheckResourceAttr("data.velodb_warehouses.test", "warehouses.0.status", "Running"),
 					resource.TestCheckResourceAttr("data.velodb_warehouses.test", "warehouses.0.endpoint_service_id", "vpce-svc-mock"),
-					resource.TestCheckResourceAttr("data.velodb_warehouses.test", "warehouses.0.endpoint_service_name", "com.amazonaws.vpce.cn-beijing.vpce-svc-mock"),
+					resource.TestCheckResourceAttr("data.velodb_warehouses.test", "warehouses.0.endpoint_service_name", "com.amazonaws.vpce.us-east-1.vpce-svc-mock"),
 				),
 			},
 		},
@@ -1342,7 +1342,7 @@ data "velodb_warehouse_connections" "test" {
 					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "private_endpoints.0.endpoint_id", "vpce-mock"),
 					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "compute_clusters.#", "1"),
 					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "compute_clusters.0.cluster_id", "CL-MOCK-001"),
-					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "endpoint_service_name", "com.amazonaws.vpce.cn-beijing.vpce-svc-mock"),
+					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "endpoint_service_name", "com.amazonaws.vpce.us-east-1.vpce-svc-mock"),
 				),
 			},
 		},
