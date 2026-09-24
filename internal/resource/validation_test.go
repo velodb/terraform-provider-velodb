@@ -278,12 +278,12 @@ func TestRejectCreateOnlyChange(t *testing.T) {
 		state     types.String
 		wantError bool
 	}{
-		{name: "unchanged", plan: types.StringValue("3.0"), state: types.StringValue("3.0"), wantError: false},
-		{name: "changed", plan: types.StringValue("3.1"), state: types.StringValue("3.0"), wantError: true},
-		{name: "unknown plan is skipped", plan: types.StringUnknown(), state: types.StringValue("3.0"), wantError: false},
-		{name: "null state (import) is skipped", plan: types.StringValue("3.0"), state: types.StringNull(), wantError: false},
+		{name: "unchanged", plan: types.StringValue("26.1"), state: types.StringValue("26.1"), wantError: false},
+		{name: "changed", plan: types.StringValue("26.2"), state: types.StringValue("26.1"), wantError: true},
+		{name: "unknown plan is skipped", plan: types.StringUnknown(), state: types.StringValue("26.1"), wantError: false},
+		{name: "null state (import) is skipped", plan: types.StringValue("26.1"), state: types.StringNull(), wantError: false},
 		{name: "both null", plan: types.StringNull(), state: types.StringNull(), wantError: false},
-		{name: "added after creation is skipped", plan: types.StringValue("3.0"), state: types.StringNull(), wantError: false},
+		{name: "added after creation is skipped", plan: types.StringValue("26.1"), state: types.StringNull(), wantError: false},
 	}
 
 	for _, tt := range tests {

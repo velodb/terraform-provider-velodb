@@ -98,8 +98,8 @@ func TestCreateWarehouseWithVersionAndAccessPolicy(t *testing.T) {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Fatalf("decoding request: %v", err)
 		}
-		if req.Version == nil || *req.Version != "3.0" {
-			t.Errorf("expected version '3.0', got %v", req.Version)
+		if req.Version == nil || *req.Version != "26.1" {
+			t.Errorf("expected version '26.1', got %v", req.Version)
 		}
 		if req.AccessPolicy == nil {
 			t.Fatal("expected accessPolicy to be set")
@@ -118,7 +118,7 @@ func TestCreateWarehouseWithVersionAndAccessPolicy(t *testing.T) {
 		})
 	})
 
-	version := "3.0"
+	version := "26.1"
 	pw := "asdAAQQ123"
 	setupMode := "advanced"
 	credentialID := int64(123)

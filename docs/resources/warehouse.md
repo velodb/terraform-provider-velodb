@@ -127,7 +127,7 @@ The provider calls the upgrade API and waits for completion when
 `core_version_id` changes. The `core_version` string attribute is read-only.
 
 To pin the engine version at creation instead, set `version` to a
-`major.minor` value (e.g. `3.0` or `26.1`). Only two-part versions are
+`major.minor` value (e.g. `26.1`). Only two-part versions are
 accepted; three-part versions are rejected. The management API selects the
 newest matching build for that line. `version` is create-only; use
 `core_version_id` to upgrade afterward. `version` and `core_version_id` are
@@ -145,7 +145,7 @@ resource "velodb_warehouse" "production" {
   # ...
   deployment_mode = "BYOC"
 
-  version = "3.0"
+  version = "26.1"
 
   access_policy {
     policy = "ALLOWLIST_ONLY"
@@ -264,7 +264,7 @@ To destroy the initial cluster later:
 - `admin_password` (String, Sensitive) Administrator password. Set on creation and used for password rotation. The password is stored in state since it cannot be read back from the API.
 - `admin_password_version` (Number) Increment this value to trigger a password change. Must be used together with `admin_password`.
 - `core_version_id` (Number) Target engine version ID. Changing this triggers a warehouse upgrade. Discover valid values via the `velodb_warehouse_versions` data source.
-- `version` (String) Initial engine version to provision, in `major.minor` numeric format (e.g. `3.0` or `26.1`). Two-part only; three-part versions are rejected. The management API selects the newest matching build for that line. Create-only; use `core_version_id` to upgrade an existing warehouse.
+- `version` (String) Initial engine version to provision, in `major.minor` numeric format (e.g. `26.1`). Two-part only; three-part versions are rejected. The management API selects the newest matching build for that line. Create-only; use `core_version_id` to upgrade an existing warehouse.
 - `setup_mode` (String) BYOC setup mode. Set to `advanced` for AWS custom-infrastructure creation. Guided/template setup is not supported. Changing this forces a new resource.
 - `credential_id` (Number) Registered credential configuration ID for advanced AWS BYOC. Changing this forces a new resource.
 - `initial_cluster` (Block List, Max: 1) Initial cluster created together with the warehouse. This is a create-only configuration. After creation, manage the cluster lifecycle by importing it as a `velodb_cluster` resource. (see [below for nested schema](#nestedblock--initial_cluster))
@@ -276,7 +276,7 @@ To destroy the initial cluster later:
 ### Read-Only
 
 - `byoc_setup` (Block List) BYOC setup guidance returned for BYOC warehouses. (see [below for nested schema](#nestedatt--byoc_setup))
-- `core_version` (String) Current human-readable engine version reported by the API (e.g. `3.0.8`). Read-only. Set `core_version_id` to trigger upgrades.
+- `core_version` (String) Current human-readable engine version reported by the API (e.g. `26.1.0`). Read-only. Set `core_version_id` to trigger upgrades.
 - `created_at` (String) Warehouse creation time in ISO 8601 / RFC 3339 format.
 - `expire_time` (String) Warehouse expiration time when available.
 - `id` (String) Warehouse identifier (e.g., `ALBJ07YE`).

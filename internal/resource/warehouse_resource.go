@@ -251,7 +251,7 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				},
 			},
 			"core_version": schema.StringAttribute{
-				Description: "Current human-readable engine version (e.g. 3.0.8). Read-only.",
+				Description: "Current human-readable engine version (e.g. 26.1.0). Read-only.",
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
@@ -262,12 +262,12 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				Optional:    true,
 			},
 			"version": schema.StringAttribute{
-				Description: "Initial engine version to provision, in `major.minor` numeric format (e.g. `3.0` or `26.1`). The management API selects the newest matching build for that major.minor line. Create-only: the API does not return it and rejects changes after creation. To upgrade an existing warehouse, set core_version_id instead.",
+				Description: "Initial engine version to provision, in `major.minor` numeric format (e.g. `26.1`). The management API selects the newest matching build for that major.minor line. Create-only: the API does not return it and rejects changes after creation. To upgrade an existing warehouse, set core_version_id instead.",
 				Optional:    true,
 				Validators: []validator.String{
 					stringvalidator.RegexMatches(
 						regexp.MustCompile(`^[0-9]+\.[0-9]+$`),
-						"must use major.minor numeric format (e.g. 3.0 or 26.1)",
+						"must use major.minor numeric format (e.g. 26.1)",
 					),
 				},
 			},

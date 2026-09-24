@@ -1,7 +1,7 @@
 # Initial version and access policy at warehouse creation.
 #
-# - `version` pins the engine version at creation (major.minor only, e.g. 3.0
-#   or 26.1; three-part versions are rejected). The API selects the newest
+# - `version` pins the engine version at creation (major.minor only, e.g.
+#   26.1; three-part versions are rejected). The API selects the newest
 #   matching build. Create-only: use `core_version_id` to upgrade an existing
 #   warehouse.
 # - `access_policy` sets the initial public access policy. BYOC-only and
@@ -43,7 +43,7 @@ resource "velodb_warehouse" "byoc_allowlist" {
   network_config_id = velodb_byoc_network.aws.id
   admin_password    = var.admin_password
 
-  version = "3.0"
+  version = "26.1"
 
   access_policy {
     policy = "ALLOWLIST_ONLY"

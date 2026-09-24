@@ -37,8 +37,8 @@ resource "velodb_warehouse" "byoc" {
   network_config_id = velodb_byoc_network.aws.id
   admin_password    = var.admin_password
 
-  # Provision a specific engine version (major.minor only, e.g. 3.0 or 26.1).
-  version = "3.0"
+  # Provision a specific engine version (major.minor only, e.g. 26.1).
+  version = "26.1"
 
   # Initial public access policy (BYOC only).
   access_policy {
