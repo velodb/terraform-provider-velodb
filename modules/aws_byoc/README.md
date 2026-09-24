@@ -44,7 +44,11 @@ The module completes and validates all AWS prerequisites before its first
 VeloDB write. AWS allocation failures stop the graph; unsupported zones,
 inactive routes, and unavailable endpoints return actionable Terraform errors.
 Destroy reverses the same graph: warehouse, network registration, credential,
-then AWS resources.
+then AWS resources. Every underlying AWS resource the running warehouse relies
+on -- the S3 gateway endpoint, the PrivateLink endpoint, the NAT default route,
+and the security-group rules -- is anchored to the credential, so it is torn
+down only after the warehouse has finished deleting rather than in parallel with
+it.
 
 The module creates a private subnet in each of the three zones, with the
 warehouse deployed in those private subnets. Outbound internet goes through a

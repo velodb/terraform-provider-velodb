@@ -22,15 +22,31 @@ resource "velodb_byoc_credential" "aws" {
   data_credential_arn       = var.data_credential_arn
   deployment_credential_arn = var.deployment_credential_arn
 
+  # The warehouse and network both reference this credential, so it is the last
+  # VeloDB resource destroyed. Anchor every underlying AWS resource here.
   depends_on = [
-    aws_iam_role_policy_attachment.data_access_attach,
-    aws_iam_role_policy_attachment.deployment_attach,
+    aws_iam_role_policy_attachment.data_access,
+    aws_iam_role_policy_attachment.deployment,
+    aws_vpc_endpoint.s3,
+    aws_vpc_endpoint.velodb,
+    aws_route.private_nat,
+    aws_vpc_security_group_ingress_rule.warehouse_self,
+    aws_vpc_security_group_egress_rule.warehouse_all,
+    aws_vpc_security_group_ingress_rule.endpoint_https,
+    aws_vpc_security_group_egress_rule.endpoint_all,
   ]
 }
 ```
 
-The explicit dependencies ensure AWS has attached both policies before VeloDB
-validates the credential.
+Anchoring the AWS IAM, storage, and network resources on the credential serves
+both directions of the graph. On create, they are ready before VeloDB validates
+the credential. On destroy, Terraform reverses the graph, so they are removed
+only after the credential -- and therefore after the warehouse has finished
+deleting. Without these dependencies Terraform is free to delete resources such
+as the S3 gateway endpoint, the PrivateLink endpoint, the NAT default route, and
+the security-group rules in parallel with the warehouse, which can strand the
+backend deletion without S3 or network access and leave the warehouse stuck
+deleting. List every AWS resource the running warehouse relies on.
 
 ## Schema
 
