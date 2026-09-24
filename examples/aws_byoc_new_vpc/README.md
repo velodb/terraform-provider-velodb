@@ -11,18 +11,20 @@ shared or separately managed AWS resources instead, use the
 [`aws_byoc_existing_infrastructure`](../aws_byoc_existing_infrastructure)
 example.
 
-The deployment includes AWS IAM, S3, a VPC, one public subnet, one or three
-private subnets, a NAT gateway, routing, security groups, VPC endpoints, VeloDB
-credential and network registrations, and a warehouse with an initial cluster.
+The deployment includes AWS IAM, S3, a VPC, one or three private subnets, a regional
+NAT gateway, routing, security groups, VPC endpoints, VeloDB credential and
+network registrations, and a warehouse with an initial cluster.
 
 ## Prerequisites
 
 - Terraform 1.5 or newer.
+- AWS provider 6.24.0 or newer (required for the regional NAT gateway).
 - VeloDB provider 1.1.8 or newer for normal user installations.
 - AWS credentials with permission to create the resources above.
 - A VeloDB API key with permission to manage BYOC warehouses.
 - One or three availability zones returned by the VeloDB BYOC discovery API.
-- Capacity for one Elastic IP and one NAT gateway.
+- An AWS Region that supports regional NAT gateways (all commercial Regions;
+  not AWS GovCloud (US) or China Regions).
 
 ## Configure authentication
 
@@ -97,7 +99,8 @@ terraform state list
 The final command must return no resources. The module waits for warehouse
 deletion before removing VeloDB registrations and AWS dependencies.
 
-The module intentionally uses one NAT gateway. The default
+The module uses a single regional NAT gateway, which is multi-AZ and highly
+available by default. The default
 `bucket_force_destroy = false` protects a nonempty production bucket from
 automatic deletion. If destroy reports `BucketNotEmpty`, confirm that its
 objects are no longer needed, empty the bucket yourself, then create and apply

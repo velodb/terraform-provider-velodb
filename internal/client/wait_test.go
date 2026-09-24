@@ -8,20 +8,12 @@ import (
 	"time"
 )
 
-func TestWaitForStatusTreatsEmptyStatusAsDeleted(t *testing.T) {
-	calls := 0
-	status, err := WaitForStatus(context.Background(), func(context.Context) (string, error) {
-		calls++
+func TestWaitForStatusDoesNotTreatEmptyStatusAsDeleted(t *testing.T) {
+	_, err := WaitForStatus(context.Background(), func(context.Context) (string, error) {
 		return "", nil
-	}, []string{"Deleted"}, FailedStatuses, time.Second, time.Hour)
-	if err != nil {
-		t.Fatalf("WaitForStatus: %v", err)
-	}
-	if status != "Deleted" {
-		t.Fatalf("expected Deleted, got %q", status)
-	}
-	if calls != 1 {
-		t.Fatalf("expected one poll, got %d", calls)
+	}, []string{"Deleted"}, FailedStatuses, 20*time.Millisecond, time.Millisecond)
+	if err == nil {
+		t.Fatal("expected timeout")
 	}
 }
 

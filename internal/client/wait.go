@@ -38,14 +38,6 @@ func WaitForStatus(ctx context.Context, fetchStatus StatusFunc, targetStatuses, 
 		} else {
 			lastErr = nil
 
-			// Some delete reads return a successful but empty payload instead of a
-			// 404. Only accept that as terminal when the caller is waiting on delete.
-			if status == "" {
-				if _, ok := targetSet["Deleted"]; ok {
-					return "Deleted", nil
-				}
-			}
-
 			if _, ok := targetSet[status]; ok {
 				return status, nil
 			}

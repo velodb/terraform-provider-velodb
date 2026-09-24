@@ -46,9 +46,21 @@ inactive routes, and unavailable endpoints return actionable Terraform errors.
 Destroy reverses the same graph: warehouse, network registration, credential,
 then AWS resources.
 
-The module uses one NAT gateway to keep the basic deployment affordable. Use a
-separate high-availability network module when one NAT gateway per zone is
-required. `bucket_force_destroy` defaults to `false` so a production bucket
+The module creates a private subnet in each of the three zones, with the
+warehouse deployed in those private subnets. Outbound internet goes through a
+single [regional NAT gateway](https://docs.aws.amazon.com/vpc/latest/userguide/nat-gateways-regional.html)
+(`availability_mode = "regional"`, automatic mode), which is multi-AZ and
+highly available by default: it expands and contracts across AZs with the
+workload and keeps zonal affinity, so an AZ outage does not cut egress for the
+surviving AZs. It needs no public subnet and manages its own Elastic IPs. This
+requires the `hashicorp/aws` provider `>= 6.24.0`; regional NAT is unavailable
+in AWS GovCloud (US) and China Regions, where a zonal NAT per AZ is needed
+instead.
+
+By default the warehouse security group only allows internal traffic and
+PrivateLink access. Set `warehouse_client_cidrs` to the CIDR blocks of any VPCs
+that must reach the warehouse directly on ports 8000-10000 (for example, peered
+client VPCs). `bucket_force_destroy` defaults to `false` so a production bucket
 with data cannot be silently emptied during destroy. Treat `name_prefix` as
 immutable after creation because changing it can replace AWS and VeloDB
 resources. If destroy stops with `BucketNotEmpty`, confirm the objects are no

@@ -40,6 +40,12 @@ variable "vpc_cidr" {
   default     = "10.57.0.0/16"
 }
 
+variable "warehouse_client_cidrs" {
+  description = "CIDR blocks of VPCs that need to reach the warehouse on ports 8000-10000. Leave empty when access is only via PrivateLink."
+  type        = list(string)
+  default     = []
+}
+
 variable "compute_vcpu" {
   description = "vCPUs for the initial cluster."
   type        = number

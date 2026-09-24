@@ -1,8 +1,9 @@
-region      = "us-east-1"
-bucket_name = "replace-with-a-globally-unique-bucket-name"
-name_prefix = "production"
-vpc_cidr    = "10.57.0.0/16"
-zones       = ["us-east-1a", "us-east-1b", "us-east-1d"]
+region                 = "us-east-1"
+bucket_name            = "replace-with-a-globally-unique-bucket-name"
+name_prefix            = "production"
+vpc_cidr               = "10.57.0.0/16"
+zones                  = ["us-east-1a", "us-east-1b", "us-east-1d"]
+warehouse_client_cidrs = []
 
 additional_clusters = {}
 

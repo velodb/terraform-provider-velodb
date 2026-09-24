@@ -4,7 +4,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = ">= 5.0"
+      version = ">= 6.24.0"
     }
     velodb = {
       source  = "velodb/velodb"
@@ -138,14 +138,6 @@ resource "aws_internet_gateway" "this" {
   tags   = merge(local.tags, { Name = "${var.name_prefix}-igw" })
 }
 
-resource "aws_subnet" "public" {
-  vpc_id                  = aws_vpc.this.id
-  availability_zone       = local.zone
-  cidr_block              = cidrsubnet(var.vpc_cidr, 8, 0)
-  map_public_ip_on_launch = true
-  tags                    = merge(local.tags, { Name = "${var.name_prefix}-public-${local.zone}" })
-}
-
 resource "aws_subnet" "private" {
   for_each = toset(var.zones)
 
@@ -156,34 +148,17 @@ resource "aws_subnet" "private" {
   tags                    = merge(local.tags, { Name = "${var.name_prefix}-private-${each.key}" })
 }
 
-resource "aws_eip" "nat" {
-  domain = "vpc"
-  tags   = merge(local.tags, { Name = "${var.name_prefix}-nat" })
-}
-
-# ponytail: one NAT keeps the basic module affordable; add a high-availability module when users require one NAT per AZ.
+# A regional NAT gateway (availability_mode = "regional", automatic mode) provides
+# multi-AZ high availability by default: it expands and contracts across AZs with the
+# workload and keeps zonal affinity, so an AZ outage does not cut egress for the
+# surviving AZs. It needs no public subnet and manages its own EIPs. Requires the
+# hashicorp/aws provider >= 6.24.0.
 resource "aws_nat_gateway" "this" {
-  allocation_id = aws_eip.nat.id
-  subnet_id     = aws_subnet.public.id
-  tags          = merge(local.tags, { Name = "${var.name_prefix}-nat" })
+  vpc_id            = aws_vpc.this.id
+  availability_mode = "regional"
+  tags              = merge(local.tags, { Name = "${var.name_prefix}-nat" })
 
   depends_on = [aws_internet_gateway.this]
-}
-
-resource "aws_route_table" "public" {
-  vpc_id = aws_vpc.this.id
-  tags   = merge(local.tags, { Name = "${var.name_prefix}-public" })
-}
-
-resource "aws_route" "public_internet" {
-  route_table_id         = aws_route_table.public.id
-  destination_cidr_block = "0.0.0.0/0"
-  gateway_id             = aws_internet_gateway.this.id
-}
-
-resource "aws_route_table_association" "public" {
-  subnet_id      = aws_subnet.public.id
-  route_table_id = aws_route_table.public.id
 }
 
 resource "aws_route_table" "private" {
@@ -225,6 +200,17 @@ resource "aws_vpc_security_group_ingress_rule" "warehouse_self" {
   from_port                    = 0
   to_port                      = 65535
   referenced_security_group_id = aws_security_group.warehouse.id
+}
+
+resource "aws_vpc_security_group_ingress_rule" "warehouse_client" {
+  for_each = toset(var.warehouse_client_cidrs)
+
+  security_group_id = aws_security_group.warehouse.id
+  ip_protocol       = "tcp"
+  from_port         = 8000
+  to_port           = 10000
+  cidr_ipv4         = each.value
+  description       = "Warehouse query access from client VPC CIDRs"
 }
 
 resource "aws_vpc_security_group_egress_rule" "warehouse_all" {
@@ -282,11 +268,11 @@ resource "velodb_byoc_credential" "this" {
     aws_iam_role_policy_attachment.deployment,
     aws_s3_bucket_public_access_block.data,
     aws_s3_bucket_ownership_controls.data,
-    aws_route_table_association.public,
     aws_route_table_association.private,
     aws_vpc_security_group_ingress_rule.endpoint_https,
     aws_vpc_security_group_egress_rule.endpoint_all,
     aws_vpc_security_group_ingress_rule.warehouse_self,
+    aws_vpc_security_group_ingress_rule.warehouse_client,
     aws_vpc_security_group_egress_rule.warehouse_all,
   ]
 
@@ -301,8 +287,8 @@ resource "velodb_byoc_credential" "this" {
       )
     }
     precondition {
-      condition     = aws_route.public_internet.state == "active" && aws_route.private_nat.state == "active"
-      error_message = "VeloDB creation blocked: AWS outbound routing is not active. Verify the internet gateway, NAT gateway, public route, and private default route before retrying."
+      condition     = aws_route.private_nat.state == "active"
+      error_message = "VeloDB creation blocked: AWS outbound routing is not active. Verify the internet gateway, regional NAT gateway, and private default route before retrying."
     }
     precondition {
       condition     = aws_vpc_endpoint.s3.state == "available" && aws_vpc_endpoint.velodb.state == "available"
