@@ -14,3 +14,5 @@ subnet_ids_by_zone = {
 
 data_credential_arn       = "arn:aws:iam::123456789012:instance-profile/velodb-data-access"
 deployment_credential_arn = "arn:aws:iam::123456789012:role/velodb-deployment"
+
+additional_clusters = {}

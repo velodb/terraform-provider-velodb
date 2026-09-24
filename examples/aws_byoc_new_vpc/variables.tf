@@ -21,7 +21,7 @@ variable "admin_password" {
 }
 
 variable "zones" {
-  description = "Exactly three VeloDB-supported availability zones."
+  description = "One VeloDB-supported zone for single-zone deployment or three for cross-zone deployment."
   type        = list(string)
 }
 
@@ -29,6 +29,17 @@ variable "vpc_cidr" {
   description = "CIDR block for the new VPC."
   type        = string
   default     = "10.57.0.0/16"
+}
+
+variable "additional_clusters" {
+  description = "Additional compute clusters keyed by a stable Terraform identifier."
+  type = map(object({
+    name         = string
+    zone         = optional(string)
+    compute_vcpu = number
+    cache_gb     = number
+  }))
+  default = {}
 }
 
 variable "tags" {

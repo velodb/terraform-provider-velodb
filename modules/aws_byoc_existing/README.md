@@ -15,12 +15,29 @@ Required existing infrastructure:
 
 - An S3 bucket.
 - A VPC with DNS support and DNS hostnames enabled.
-- Three private subnets in VeloDB-supported availability zones, each with a
-  default route through an available NAT gateway.
+- One private subnet for single-zone deployment or three private subnets for
+  cross-zone deployment. Each must be in a VeloDB-supported availability zone
+  with a default route through an available NAT gateway.
 - A warehouse security group.
 - A VeloDB interface VPC endpoint in the same VPC.
 - A data-access IAM instance profile and deployment IAM role with the required
   VeloDB policies.
+
+Create any number of additional clusters with a stable map key:
+
+```hcl
+additional_clusters = {
+  analytics = {
+    name         = "production_analytics"
+    compute_vcpu = 8
+    cache_gb     = 200
+  }
+}
+```
+
+`zone` is optional and defaults to the first configured zone. Change `name` to
+rename a cluster without changing its Terraform identity. Removing an entry
+deletes only that additional cluster.
 
 Destroy removes the warehouse and its VeloDB registrations. All AWS resources
 remain and must be removed separately by their owner if no longer needed.

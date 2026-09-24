@@ -1,7 +1,8 @@
 # AWS BYOC module
 
-Creates a new three-zone AWS VPC and the AWS IAM, S3, networking, security,
-PrivateLink, VeloDB registration, and warehouse resources required for BYOC.
+Creates a new single-zone or three-zone AWS VPC and the AWS IAM, S3,
+networking, security, PrivateLink, VeloDB registration, and warehouse resources
+required for BYOC. Three zones remain the recommended production default.
 All resources created by this module are managed in the same Terraform state
 and are subject to modification, replacement, and deletion.
 
@@ -23,8 +24,21 @@ module "velodb_byoc" {
   bucket_name    = "globally-unique-velodb-bucket"
   zones          = ["us-east-1a", "us-east-1b", "us-east-1d"]
   admin_password = var.admin_password
+
+  additional_clusters = {
+    analytics = {
+      name         = "production_analytics"
+      compute_vcpu = 8
+      cache_gb     = 200
+    }
+  }
 }
 ```
+
+Add any number of entries to `additional_clusters`. Keep each map key stable;
+change `name` when renaming a cluster so Terraform updates it instead of
+replacing it. `zone` is optional and defaults to the first configured zone.
+Removing an entry deletes only that additional cluster.
 
 The module completes and validates all AWS prerequisites before its first
 VeloDB write. AWS allocation failures stop the graph; unsupported zones,

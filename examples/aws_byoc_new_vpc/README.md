@@ -11,8 +11,8 @@ shared or separately managed AWS resources instead, use the
 [`aws_byoc_existing_infrastructure`](../aws_byoc_existing_infrastructure)
 example.
 
-The deployment includes AWS IAM, S3, a VPC, one public subnet, three private
-subnets, a NAT gateway, routing, security groups, VPC endpoints, VeloDB
+The deployment includes AWS IAM, S3, a VPC, one public subnet, one or three
+private subnets, a NAT gateway, routing, security groups, VPC endpoints, VeloDB
 credential and network registrations, and a warehouse with an initial cluster.
 
 ## Prerequisites
@@ -21,7 +21,7 @@ credential and network registrations, and a warehouse with an initial cluster.
 - VeloDB provider 1.1.8 or newer for normal user installations.
 - AWS credentials with permission to create the resources above.
 - A VeloDB API key with permission to manage BYOC warehouses.
-- Three availability zones returned by the VeloDB BYOC discovery API.
+- One or three availability zones returned by the VeloDB BYOC discovery API.
 - Capacity for one Elastic IP and one NAT gateway.
 
 ## Configure authentication
@@ -46,9 +46,32 @@ cp terraform.tfvars.example terraform.tfvars
 ```
 
 Edit `terraform.tfvars` and provide a globally unique bucket name, a resource
-name prefix, a non-overlapping VPC CIDR, and three zones supported by VeloDB in
-the selected region. Treat `name_prefix` as immutable after the first apply;
-changing it can replace AWS and VeloDB resources.
+name prefix, a non-overlapping VPC CIDR, and either one or three zones supported
+by VeloDB in the selected region. Three zones are recommended for production.
+Treat `name_prefix` as immutable after the first apply; changing it can replace
+AWS and VeloDB resources.
+
+To create more compute clusters, add entries to `additional_clusters` in
+`terraform.tfvars`:
+
+```hcl
+additional_clusters = {
+  analytics = {
+    name         = "production_analytics"
+    compute_vcpu = 8
+    cache_gb     = 200
+  }
+  etl = {
+    name         = "production_etl"
+    zone         = "us-east-1a"
+    compute_vcpu = 16
+    cache_gb     = 400
+  }
+}
+```
+
+Keep the map keys stable. Change `name` to rename a cluster; remove a map entry
+to delete only that additional cluster.
 
 ## Create the warehouse
 
