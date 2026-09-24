@@ -3,6 +3,7 @@ package datasource
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -133,9 +134,13 @@ func (d *BYOCPrerequisitesDataSource) Read(ctx context.Context, req datasource.R
 		}
 	}
 	if selected == nil {
+		supported := make([]string, 0, len(regions))
+		for i := range regions {
+			supported = append(supported, regions[i].Region)
+		}
 		resp.Diagnostics.AddError(
-			"AWS BYOC region is not available",
-			fmt.Sprintf("Region %q was not returned by the VeloDB BYOC region discovery API.", data.Region.ValueString()),
+			"AWS BYOC region is not supported",
+			fmt.Sprintf("Region %q is not supported for BYOC. Supported regions: %s.", data.Region.ValueString(), strings.Join(supported, ", ")),
 		)
 		return
 	}
