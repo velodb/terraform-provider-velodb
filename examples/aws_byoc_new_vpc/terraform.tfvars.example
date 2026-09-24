@@ -4,6 +4,8 @@ name_prefix = "production"
 vpc_cidr    = "10.57.0.0/16"
 zones       = ["us-east-1a", "us-east-1b", "us-east-1d"]
 
+additional_clusters = {}
+
 tags = {
   environment = "production"
   managed-by  = "terraform"

@@ -196,3 +196,29 @@ resource "velodb_cluster" "second" {
     enabled = false
   }
 }
+
+resource "velodb_cluster" "additional" {
+  for_each = var.additional_clusters
+
+  warehouse_id = velodb_warehouse.this.id
+  name         = each.value.name
+  cluster_type = "COMPUTE"
+  zone         = coalesce(each.value.zone, local.zone)
+  compute_vcpu = each.value.compute_vcpu
+  cache_gb     = each.value.cache_gb
+
+  auto_pause {
+    enabled = false
+  }
+
+  lifecycle {
+    precondition {
+      condition     = contains(local.zones, coalesce(each.value.zone, local.zone))
+      error_message = "Additional cluster ${each.key} must use one of the zones configured for this warehouse."
+    }
+    precondition {
+      condition     = !var.create_second_cluster || each.value.name != "${replace(var.name_prefix, "-", "_")}_second"
+      error_message = "Additional cluster ${each.key} conflicts with the deprecated create_second_cluster cluster name."
+    }
+  }
+}

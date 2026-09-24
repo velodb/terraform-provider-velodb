@@ -35,7 +35,13 @@ output "initial_cluster_id" {
 }
 
 output "second_cluster_id" {
-  value = try(velodb_cluster.second[0].id, null)
+  description = "Deprecated output for create_second_cluster. Use additional_cluster_ids instead."
+  value       = try(velodb_cluster.second[0].id, null)
+}
+
+output "additional_cluster_ids" {
+  description = "Additional cluster IDs keyed by their stable Terraform identifiers."
+  value       = { for key, cluster in velodb_cluster.additional : key => cluster.id }
 }
 
 output "aws_resources_managed" {
