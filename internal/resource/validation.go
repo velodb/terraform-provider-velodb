@@ -3,6 +3,7 @@ package resource
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -13,6 +14,21 @@ import (
 
 	"github.com/velodb/terraform-provider-velodb/internal/client"
 )
+
+// parseBYOCImportID parses a BYOC import ID of the form "aws/<id>" into its
+// cloud provider and positive numeric ID. idLabel names the ID in error
+// messages (for example "credential_id" or "network_config_id").
+func parseBYOCImportID(importID, idLabel string) (string, int64, error) {
+	parts := strings.Split(strings.TrimSpace(importID), "/")
+	if len(parts) != 2 || parts[0] != "aws" || strings.TrimSpace(parts[1]) == "" {
+		return "", 0, fmt.Errorf("expected format: aws/<%s>", idLabel)
+	}
+	id, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil || id <= 0 {
+		return "", 0, fmt.Errorf("expected format: aws/<positive %s>", idLabel)
+	}
+	return parts[0], id, nil
+}
 
 func validateCreateOnlyRatio(diags *diag.Diagnostics, planRatio, stateRatio types.Int64) {
 	if planRatio.IsUnknown() || stateRatio.IsUnknown() || planRatio.Equal(stateRatio) {

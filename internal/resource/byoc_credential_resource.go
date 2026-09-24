@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
@@ -206,7 +204,7 @@ func (r *BYOCCredentialResource) Delete(ctx context.Context, req resource.Delete
 }
 
 func (r *BYOCCredentialResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	cloudProvider, id, err := parseBYOCRegistrationImportID(req.ID)
+	cloudProvider, id, err := parseBYOCImportID(req.ID, "credential_id")
 	if err != nil {
 		resp.Diagnostics.AddError("Invalid import ID", err.Error())
 		return
@@ -248,18 +246,6 @@ func (r *BYOCCredentialResource) read(ctx context.Context, state *BYOCCredential
 	state.CreatedAt = timeOrNull(item.CreatedAt)
 	state.UpdatedAt = timeOrNull(item.UpdatedAt)
 	return true, nil
-}
-
-func parseBYOCRegistrationImportID(importID string) (string, int64, error) {
-	parts := strings.Split(strings.TrimSpace(importID), "/")
-	if len(parts) != 2 || parts[0] != "aws" || strings.TrimSpace(parts[1]) == "" {
-		return "", 0, fmt.Errorf("expected format: aws/<id>")
-	}
-	id, err := strconv.ParseInt(parts[1], 10, 64)
-	if err != nil || id <= 0 {
-		return "", 0, fmt.Errorf("expected format: aws/<positive numeric id>")
-	}
-	return parts[0], id, nil
 }
 
 func timeOrNull(value *time.Time) types.String {

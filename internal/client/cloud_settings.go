@@ -65,6 +65,7 @@ type CreateCloudSettingNetworkConfigResult struct {
 
 type CloudSettingNetworkConfig struct {
 	NetworkConfigID int64                     `json:"networkConfigId"`
+	CredentialID    int64                     `json:"credentialId"`
 	Name            string                    `json:"name"`
 	CloudProvider   string                    `json:"cloudProvider"`
 	Region          string                    `json:"region"`
