@@ -100,8 +100,8 @@ The final command must return no resources. The module waits for warehouse
 deletion before removing VeloDB registrations and AWS dependencies.
 
 The module uses a single regional NAT gateway, which is multi-AZ and highly
-available by default. The default
-`bucket_force_destroy = false` protects a nonempty production bucket from
-automatic deletion. If destroy reports `BucketNotEmpty`, confirm that its
-objects are no longer needed, empty the bucket yourself, then create and apply
-a new destroy plan. Terraform will not silently purge the objects.
+available by default. The data bucket is created with `force_destroy = false`,
+so Terraform never deletes its objects. If destroy reports `BucketNotEmpty`,
+confirm that its objects are no longer needed, empty the bucket yourself, then
+create and apply a new destroy plan. Terraform will not silently purge the
+objects.

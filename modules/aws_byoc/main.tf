@@ -65,7 +65,7 @@ data "velodb_aws_crossaccount_policy" "deployment" {
 
 resource "aws_s3_bucket" "data" {
   bucket        = var.bucket_name
-  force_destroy = var.bucket_force_destroy
+  force_destroy = false
   tags          = local.tags
 }
 

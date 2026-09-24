@@ -71,7 +71,6 @@ module "byoc" {
   vpc_cidr             = var.vpc_cidr
   zones                = var.zones
   additional_clusters  = var.additional_clusters
-  bucket_force_destroy = true
   tags                 = { purpose = "velodb-provider-live-test" }
 }
 
