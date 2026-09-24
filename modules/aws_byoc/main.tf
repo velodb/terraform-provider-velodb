@@ -263,12 +263,23 @@ resource "velodb_byoc_credential" "this" {
   data_credential_arn       = aws_iam_instance_profile.data_access.arn
   deployment_credential_arn = aws_iam_role.deployment.arn
 
+  # The credential is the last VeloDB resource destroyed (the warehouse and
+  # network both reference credential_id, so it outlives them). Anchoring every
+  # underlying AWS resource the VeloDB backend needs for provisioning and
+  # deprovisioning to the credential via depends_on guarantees they are torn down
+  # only after the credential -- and therefore after the warehouse has finished
+  # deleting -- instead of in parallel with it. The S3 gateway endpoint and the
+  # NAT default route are otherwise referenced only from the preconditions below,
+  # and precondition graph edges are not a reliable basis for destroy ordering,
+  # so they are listed here explicitly.
   depends_on = [
     aws_iam_role_policy_attachment.data_access,
     aws_iam_role_policy_attachment.deployment,
     aws_s3_bucket_public_access_block.data,
     aws_s3_bucket_ownership_controls.data,
     aws_route_table_association.private,
+    aws_route.private_nat,
+    aws_vpc_endpoint.s3,
     aws_vpc_security_group_ingress_rule.endpoint_https,
     aws_vpc_security_group_egress_rule.endpoint_all,
     aws_vpc_security_group_ingress_rule.warehouse_self,
