@@ -214,6 +214,45 @@ func TestCloudSettingNetworkConfigLifecycle(t *testing.T) {
 	}
 }
 
+func TestRetryCloudSettingCreate(t *testing.T) {
+	// Transient "invalid or not found" validation errors are retried until the
+	// referenced AWS resource propagates.
+	attempts := 0
+	err := retryCloudSettingCreate(context.Background(), time.Nanosecond, func(context.Context) error {
+		attempts++
+		if attempts < 3 {
+			return &APIError{StatusCode: http.StatusBadRequest, Code: "InvalidParameter", Message: "Bucket invalid or not found"}
+		}
+		return nil
+	})
+	if err != nil || attempts != 3 {
+		t.Fatalf("retryCloudSettingCreate transient: attempts=%d error=%v", attempts, err)
+	}
+
+	// A genuine misconfiguration ("format is invalid") is not retryable even
+	// though it shares the InvalidParameter code.
+	attempts = 0
+	want := &APIError{StatusCode: http.StatusBadRequest, Code: "InvalidParameter", Message: "Parameter dataCredentialArn format is invalid"}
+	err = retryCloudSettingCreate(context.Background(), time.Nanosecond, func(context.Context) error {
+		attempts++
+		return want
+	})
+	if !errors.Is(err, want) || attempts != 1 {
+		t.Fatalf("retryCloudSettingCreate non-retryable: attempts=%d error=%v", attempts, err)
+	}
+
+	// The retry stops when the context is cancelled and surfaces the last error.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	transient := &APIError{StatusCode: http.StatusBadRequest, Code: "InvalidParameter", Message: "Subnet invalid or not found"}
+	err = retryCloudSettingCreate(ctx, time.Hour, func(context.Context) error {
+		return transient
+	})
+	if !errors.Is(err, transient) {
+		t.Fatalf("retryCloudSettingCreate cancelled: error=%v", err)
+	}
+}
+
 func TestRetryCloudSettingDelete(t *testing.T) {
 	for _, code := range []string{"NetworkConfigInUse", "CredentialInUse"} {
 		t.Run(code, func(t *testing.T) {
