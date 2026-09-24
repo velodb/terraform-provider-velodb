@@ -84,6 +84,69 @@ func TestCreateWarehouse(t *testing.T) {
 	}
 }
 
+func TestCreateWarehouseWithVersionAndAccessPolicy(t *testing.T) {
+	ts, mux := newTestServer(t)
+	defer ts.Close()
+	client := newTestClient(t, ts)
+
+	mux.HandleFunc("/v1/warehouses", func(w http.ResponseWriter, r *http.Request) {
+		if !requireMethod(t, w, r, http.MethodPost) {
+			return
+		}
+
+		var req CreateWarehouseRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatalf("decoding request: %v", err)
+		}
+		if req.Version == nil || *req.Version != "3.0" {
+			t.Errorf("expected version '3.0', got %v", req.Version)
+		}
+		if req.AccessPolicy == nil {
+			t.Fatal("expected accessPolicy to be set")
+		}
+		if req.AccessPolicy.PublicAccessPolicy != "ALLOWLIST_ONLY" {
+			t.Errorf("expected publicAccessPolicy 'ALLOWLIST_ONLY', got %q", req.AccessPolicy.PublicAccessPolicy)
+		}
+		if len(req.AccessPolicy.Rules) != 1 || req.AccessPolicy.Rules[0].CIDR != "203.0.113.0/24" {
+			t.Errorf("expected one allowlist rule for 203.0.113.0/24, got %+v", req.AccessPolicy.Rules)
+		}
+
+		jsonResponse(w, 200, APIResponse[CreateWarehouseResult]{
+			Success:   true,
+			RequestID: "req-003",
+			Data:      CreateWarehouseResult{WarehouseID: "WH-VER-001"},
+		})
+	})
+
+	version := "3.0"
+	pw := "asdAAQQ123"
+	setupMode := "advanced"
+	credentialID := int64(123)
+	networkConfigID := int64(456)
+	result, err := client.CreateWarehouse(context.Background(), &CreateWarehouseRequest{
+		Name:            "My_Warehouse",
+		DeploymentMode:  "BYOC",
+		CloudProvider:   "aws",
+		Region:          "us-east-1",
+		Version:         &version,
+		SetupMode:       &setupMode,
+		CredentialID:    &credentialID,
+		NetworkConfigID: &networkConfigID,
+		AdminPassword:   &pw,
+		AccessPolicy: &WarehousePublicAccessPolicyRequest{
+			PublicAccessPolicy: "ALLOWLIST_ONLY",
+			Rules:              []WarehouseAllowlistRule{{CIDR: "203.0.113.0/24", Description: "office"}},
+		},
+		InitialCluster: &InitialClusterRequest{Zone: "us-east-1a", ComputeVcpu: 8, CacheGb: 400},
+	})
+	if err != nil {
+		t.Fatalf("CreateWarehouse: %v", err)
+	}
+	if result.WarehouseID != "WH-VER-001" {
+		t.Errorf("expected 'WH-VER-001', got %q", result.WarehouseID)
+	}
+}
+
 func TestCreateWarehouseBYOC(t *testing.T) {
 	ts, mux := newTestServer(t)
 	defer ts.Close()

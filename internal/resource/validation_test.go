@@ -7,6 +7,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/velodb/terraform-provider-velodb/internal/client"
@@ -189,6 +190,26 @@ func TestValidateWarehouseCreation(t *testing.T) {
 			},
 			wantError: "exactly one initial_cluster",
 		},
+		{
+			name: "allows access_policy for BYOC",
+			change: func(plan *WarehouseResourceModel) {
+				plan.AccessPolicy = warehouseAccessPolicyListForTest("DENY_ALL")
+			},
+		},
+		{
+			name: "allows allowlist access_policy with rules for BYOC",
+			change: func(plan *WarehouseResourceModel) {
+				plan.AccessPolicy = warehouseAccessPolicyListForTest("ALLOWLIST_ONLY", "203.0.113.0/24")
+			},
+		},
+		{
+			name: "rejects access_policy for SaaS",
+			change: func(plan *WarehouseResourceModel) {
+				plan.DeploymentMode = types.StringValue("SaaS")
+				plan.AccessPolicy = warehouseAccessPolicyListForTest("DENY_ALL")
+			},
+			wantError: "access_policy is only supported for BYOC",
+		},
 	}
 
 	for _, tt := range tests {
@@ -224,6 +245,104 @@ func validAdvancedBYOCWarehouseForTest() WarehouseResourceModel {
 		AdminPassword:   types.StringValue("TestPass@123"),
 		InitialCluster:  initialClusterListForTest(types.Int64Null()),
 	}
+}
+
+func warehouseAccessPolicyListForTest(policy string, cidrs ...string) types.List {
+	ruleType := types.ObjectType{AttrTypes: allowlistRuleAttrTypes()}
+	attrTypes := map[string]attr.Type{
+		"policy": types.StringType,
+		"rules":  types.SetType{ElemType: ruleType},
+	}
+	rules := types.SetNull(ruleType)
+	if len(cidrs) > 0 {
+		var elems []attr.Value
+		for _, cidr := range cidrs {
+			elems = append(elems, types.ObjectValueMust(allowlistRuleAttrTypes(), map[string]attr.Value{
+				"cidr":        types.StringValue(cidr),
+				"description": types.StringNull(),
+			}))
+		}
+		rules = types.SetValueMust(ruleType, elems)
+	}
+	obj := types.ObjectValueMust(attrTypes, map[string]attr.Value{
+		"policy": types.StringValue(policy),
+		"rules":  rules,
+	})
+	return types.ListValueMust(types.ObjectType{AttrTypes: attrTypes}, []attr.Value{obj})
+}
+
+func TestRejectCreateOnlyChange(t *testing.T) {
+	tests := []struct {
+		name      string
+		plan      types.String
+		state     types.String
+		wantError bool
+	}{
+		{name: "unchanged", plan: types.StringValue("3.0"), state: types.StringValue("3.0"), wantError: false},
+		{name: "changed", plan: types.StringValue("3.1"), state: types.StringValue("3.0"), wantError: true},
+		{name: "unknown plan is skipped", plan: types.StringUnknown(), state: types.StringValue("3.0"), wantError: false},
+		{name: "null state (import) is skipped", plan: types.StringValue("3.0"), state: types.StringNull(), wantError: false},
+		{name: "both null", plan: types.StringNull(), state: types.StringNull(), wantError: false},
+		{name: "added after creation is skipped", plan: types.StringValue("3.0"), state: types.StringNull(), wantError: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var diags diag.Diagnostics
+			rejectCreateOnlyChange(&diags, path.Root("version"), tt.plan, tt.state, "summary", "detail")
+			if diags.HasError() != tt.wantError {
+				t.Fatalf("wantError=%v, got diags=%v", tt.wantError, diags)
+			}
+		})
+	}
+}
+
+func TestWarehouseAccessPolicyRequest(t *testing.T) {
+	ctx := context.Background()
+	ruleType := types.ObjectType{AttrTypes: allowlistRuleAttrTypes()}
+	nullList := types.ListNull(types.ObjectType{AttrTypes: map[string]attr.Type{
+		"policy": types.StringType,
+		"rules":  types.SetType{ElemType: ruleType},
+	}})
+
+	t.Run("absent block returns nil", func(t *testing.T) {
+		var diags diag.Diagnostics
+		if req := warehouseAccessPolicyRequest(ctx, nullList, &diags); req != nil {
+			t.Fatalf("expected nil request, got %+v", req)
+		}
+	})
+
+	t.Run("allowlist forwards rules", func(t *testing.T) {
+		var diags diag.Diagnostics
+		req := warehouseAccessPolicyRequest(ctx, warehouseAccessPolicyListForTest("ALLOWLIST_ONLY", "203.0.113.0/24"), &diags)
+		if diags.HasError() {
+			t.Fatalf("unexpected diagnostics: %v", diags)
+		}
+		if req == nil || req.PublicAccessPolicy != "ALLOWLIST_ONLY" {
+			t.Fatalf("expected ALLOWLIST_ONLY request, got %+v", req)
+		}
+		if len(req.Rules) != 1 || req.Rules[0].CIDR != "203.0.113.0/24" {
+			t.Fatalf("expected one rule for 203.0.113.0/24, got %+v", req.Rules)
+		}
+	})
+
+	// Defense-in-depth: ValidateConfig (via validatePublicAccessPolicy) already
+	// rejects rules with a non-ALLOWLIST_ONLY policy, so this input should not
+	// reach the builder in practice. The builder still drops the rules so a
+	// validation regression cannot leak them to the API.
+	t.Run("deny_all defensively drops rules", func(t *testing.T) {
+		var diags diag.Diagnostics
+		req := warehouseAccessPolicyRequest(ctx, warehouseAccessPolicyListForTest("DENY_ALL", "203.0.113.0/24"), &diags)
+		if diags.HasError() {
+			t.Fatalf("unexpected diagnostics: %v", diags)
+		}
+		if req == nil || req.PublicAccessPolicy != "DENY_ALL" {
+			t.Fatalf("expected DENY_ALL request, got %+v", req)
+		}
+		if len(req.Rules) != 0 {
+			t.Fatalf("expected no rules for DENY_ALL, got %+v", req.Rules)
+		}
+	})
 }
 
 func autoPauseListForTest(enabled types.Bool, idleTimeout types.Int64) types.List {
