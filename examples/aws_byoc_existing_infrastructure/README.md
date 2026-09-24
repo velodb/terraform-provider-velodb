@@ -14,9 +14,9 @@ network registrations and the warehouse.
 - VeloDB provider 1.1.8 or newer.
 - AWS credentials that can read the referenced resources.
 - A VeloDB API key that can manage BYOC warehouses.
-- An existing S3 bucket, VPC, three private subnets with working NAT gateway
-  egress, warehouse security group, VeloDB interface VPC endpoint, data-access
-  instance profile, and deployment IAM role.
+- An existing S3 bucket, VPC, one or three private subnets with working NAT
+  gateway egress, warehouse security group, VeloDB interface VPC endpoint,
+  data-access instance profile, and deployment IAM role.
 
 ## Configure authentication
 
@@ -38,6 +38,22 @@ cp terraform.tfvars.example terraform.tfvars
 Replace every placeholder in `terraform.tfvars` with an existing resource ID,
 ARN, or name. The three subnet map keys must be their actual availability zones.
 Treat `name_prefix` as immutable after the first apply.
+
+To create more compute clusters, add entries to `additional_clusters` in
+`terraform.tfvars`:
+
+```hcl
+additional_clusters = {
+  analytics = {
+    name         = "production_analytics"
+    compute_vcpu = 8
+    cache_gb     = 200
+  }
+}
+```
+
+Keep the map keys stable. `zone` defaults to the first configured zone. Change
+`name` to rename a cluster; remove a map entry to delete only that cluster.
 
 Do not run `terraform import` for the existing AWS resources. Importing them
 would make Terraform manage their lifecycle, including replacement or deletion.

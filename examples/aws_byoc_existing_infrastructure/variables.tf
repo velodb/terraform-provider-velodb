@@ -26,8 +26,19 @@ variable "vpc_id" {
 }
 
 variable "subnet_ids_by_zone" {
-  description = "Three existing private subnet IDs keyed by availability zone."
+  description = "One or three existing private subnet IDs keyed by availability zone."
   type        = map(string)
+}
+
+variable "additional_clusters" {
+  description = "Additional compute clusters keyed by a stable Terraform identifier."
+  type = map(object({
+    name         = string
+    zone         = optional(string)
+    compute_vcpu = number
+    cache_gb     = number
+  }))
+  default = {}
 }
 
 variable "security_group_id" {

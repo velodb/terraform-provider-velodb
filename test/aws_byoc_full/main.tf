@@ -41,9 +41,14 @@ variable "admin_password" {
   sensitive   = true
 }
 
-variable "create_second_cluster" {
-  type    = bool
-  default = false
+variable "additional_clusters" {
+  type = map(object({
+    name         = string
+    zone         = optional(string)
+    compute_vcpu = number
+    cache_gb     = number
+  }))
+  default = {}
 }
 
 variable "vpc_cidr" {
@@ -59,30 +64,30 @@ variable "zones" {
 module "byoc" {
   source = "../../modules/aws_byoc"
 
-  region                = var.region
-  bucket_name           = var.bucket_name
-  name_prefix           = var.name_prefix
-  admin_password        = var.admin_password
-  vpc_cidr              = var.vpc_cidr
-  zones                 = var.zones
-  create_second_cluster = var.create_second_cluster
-  bucket_force_destroy  = true
-  tags                  = { purpose = "velodb-provider-live-test" }
+  region               = var.region
+  bucket_name          = var.bucket_name
+  name_prefix          = var.name_prefix
+  admin_password       = var.admin_password
+  vpc_cidr             = var.vpc_cidr
+  zones                = var.zones
+  additional_clusters  = var.additional_clusters
+  bucket_force_destroy = true
+  tags                 = { purpose = "velodb-provider-live-test" }
 }
 
 output "test_status" {
   value = {
-    aws_account_id     = module.byoc.aws_account_id
-    zones              = module.byoc.zones
-    bucket             = module.byoc.bucket_name
-    vpc_id             = module.byoc.vpc_id
-    private_subnet_ids = module.byoc.private_subnet_ids
-    endpoint_id        = module.byoc.endpoint_id
-    credential_id      = module.byoc.credential_id
-    network_config_id  = module.byoc.network_config_id
-    warehouse_id       = module.byoc.warehouse_id
-    warehouse_status   = module.byoc.warehouse_status
-    initial_cluster_id = module.byoc.initial_cluster_id
-    second_cluster_id  = module.byoc.second_cluster_id
+    aws_account_id         = module.byoc.aws_account_id
+    zones                  = module.byoc.zones
+    bucket                 = module.byoc.bucket_name
+    vpc_id                 = module.byoc.vpc_id
+    private_subnet_ids     = module.byoc.private_subnet_ids
+    endpoint_id            = module.byoc.endpoint_id
+    credential_id          = module.byoc.credential_id
+    network_config_id      = module.byoc.network_config_id
+    warehouse_id           = module.byoc.warehouse_id
+    warehouse_status       = module.byoc.warehouse_status
+    initial_cluster_id     = module.byoc.initial_cluster_id
+    additional_cluster_ids = module.byoc.additional_cluster_ids
   }
 }

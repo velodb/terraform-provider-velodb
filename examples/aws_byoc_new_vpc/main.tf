@@ -22,13 +22,14 @@ provider "velodb" {}
 module "velodb_byoc" {
   source = "../../modules/aws_byoc"
 
-  region         = var.region
-  bucket_name    = var.bucket_name
-  name_prefix    = var.name_prefix
-  admin_password = var.admin_password
-  vpc_cidr       = var.vpc_cidr
-  zones          = var.zones
-  tags           = var.tags
+  region              = var.region
+  bucket_name         = var.bucket_name
+  name_prefix         = var.name_prefix
+  admin_password      = var.admin_password
+  vpc_cidr            = var.vpc_cidr
+  zones               = var.zones
+  additional_clusters = var.additional_clusters
+  tags                = var.tags
 }
 
 output "warehouse_id" {
@@ -41,6 +42,10 @@ output "warehouse_status" {
 
 output "initial_cluster_id" {
   value = module.velodb_byoc.initial_cluster_id
+}
+
+output "additional_cluster_ids" {
+  value = module.velodb_byoc.additional_cluster_ids
 }
 
 output "vpc_id" {

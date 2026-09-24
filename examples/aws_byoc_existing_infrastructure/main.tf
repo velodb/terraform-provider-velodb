@@ -32,6 +32,7 @@ module "velodb_byoc" {
   endpoint_id               = var.endpoint_id
   data_credential_arn       = var.data_credential_arn
   deployment_credential_arn = var.deployment_credential_arn
+  additional_clusters       = var.additional_clusters
 }
 
 output "warehouse_id" {
@@ -44,6 +45,10 @@ output "warehouse_status" {
 
 output "initial_cluster_id" {
   value = module.velodb_byoc.initial_cluster_id
+}
+
+output "additional_cluster_ids" {
+  value = module.velodb_byoc.additional_cluster_ids
 }
 
 output "aws_resources_managed" {
