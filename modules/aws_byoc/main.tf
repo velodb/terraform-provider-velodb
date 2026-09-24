@@ -292,8 +292,13 @@ resource "velodb_byoc_credential" "this" {
 
   lifecycle {
     precondition {
-      condition     = alltrue([for zone in var.zones : contains(local.supported_zones, zone)])
-      error_message = "VeloDB creation blocked: one or more selected availability zones are unsupported. Choose three zones returned by velodb_byoc_prerequisites."
+      condition = alltrue([for zone in var.zones : contains(local.supported_zones, zone)])
+      error_message = format(
+        "VeloDB creation blocked: availability zone(s) [%s] are not supported in %s. Choose three zones from the supported set: [%s].",
+        join(", ", [for zone in var.zones : zone if !contains(local.supported_zones, zone)]),
+        var.region,
+        join(", ", sort(tolist(local.supported_zones))),
+      )
     }
     precondition {
       condition     = aws_route.public_internet.state == "active" && aws_route.private_nat.state == "active"

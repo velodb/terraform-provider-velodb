@@ -96,8 +96,13 @@ resource "velodb_byoc_credential" "this" {
 
   lifecycle {
     precondition {
-      condition     = alltrue([for zone in local.zones : contains(local.supported_zones, zone)])
-      error_message = "VeloDB creation blocked: one or more selected availability zones are unsupported. Choose zones returned by velodb_byoc_prerequisites."
+      condition = alltrue([for zone in local.zones : contains(local.supported_zones, zone)])
+      error_message = format(
+        "VeloDB creation blocked: availability zone(s) [%s] are not supported in %s. Choose zones from the supported set: [%s].",
+        join(", ", [for zone in local.zones : zone if !contains(local.supported_zones, zone)]),
+        var.region,
+        join(", ", sort(tolist(local.supported_zones))),
+      )
     }
     precondition {
       condition     = data.aws_s3_bucket.selected.bucket_region == var.region
