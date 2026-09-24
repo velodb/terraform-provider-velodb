@@ -63,13 +63,28 @@ warehouse deployed in those private subnets. Each subnet gets a `/20` block of
 `us-east-1b` → block 2, and so on), so a zone always maps to the same CIDR
 regardless of its position in `zones`. This keeps zone changes safe: swapping
 one zone for another (for example `us-east-1b` → `us-east-1c`) gives the new
-subnet its own free block instead of colliding with the one being removed. Only
-standard availability zones (`<region><letter>`, letters `a`–`h`) are supported;
-Local Zones and Wavelength zones are not. Because the mapping changed in this
-release, upgrading an existing deployment whose `zones` list skips a letter (for
-example `["us-east-1a", "us-east-1b", "us-east-1d"]`) reassigns the affected
-subnet CIDR and triggers a one-time subnet, network, and warehouse replacement
-on the next apply even if `zones` is unchanged; plan the upgrade accordingly.
+subnet its own free block instead of colliding with the one being removed.
+
+Set `subnet_cidrs` to override the derived block for specific zones — a map of
+zone to CIDR, merged over the defaults, where unset zones keep their derived
+block. Use it to place subnets for non-standard zones (Local Zones, Wavelength,
+or a region with more than eight availability zones, none of which the derived
+`<region><letter>` scheme with letters `a`–`h` supports), or to align subnets
+with an external network plan. An explicit override also bypasses the letter
+lookup entirely for that zone.
+
+Because the derived mapping changed in this release, upgrading an existing
+deployment whose `zones` list skips a letter (for example
+`["us-east-1a", "us-east-1b", "us-east-1d"]`) reassigns the affected subnet CIDR
+and triggers a one-time subnet, network, and warehouse replacement on the next
+apply even if `zones` is unchanged. To upgrade in place without that
+replacement, pin the current CIDRs first, for example:
+
+```hcl
+subnet_cidrs = {
+  "us-east-1d" = "10.57.48.0/20" # the block this zone had under the old scheme
+}
+```
 
 Outbound internet goes through a
 single [regional NAT gateway](https://docs.aws.amazon.com/vpc/latest/userguide/nat-gateways-regional.html)

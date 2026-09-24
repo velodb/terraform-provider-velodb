@@ -102,3 +102,33 @@ run "swapped_zones_acd" {
     error_message = "us-east-1c must not inherit the CIDR that us-east-1b used, which would deadlock subnet replacement."
   }
 }
+
+# An explicit subnet_cidrs override wins for the named zone (e.g. to pin an
+# existing deployment's CIDR before upgrading), while unset zones keep their
+# derived block. This is what lets a gapped-zone deployment upgrade in place
+# without a subnet/network/warehouse replacement.
+run "explicit_cidr_override" {
+  command = plan
+
+  variables {
+    zones = ["us-east-1a", "us-east-1b", "us-east-1d"]
+    subnet_cidrs = {
+      "us-east-1d" = "10.58.48.0/20"
+    }
+  }
+
+  assert {
+    condition     = aws_subnet.private["us-east-1d"].cidr_block == "10.58.48.0/20"
+    error_message = "us-east-1d must use the explicit subnet_cidrs override, not the derived block."
+  }
+
+  assert {
+    condition     = aws_subnet.private["us-east-1a"].cidr_block == "10.58.16.0/20"
+    error_message = "Zones without an override must keep their derived block."
+  }
+
+  assert {
+    condition     = aws_subnet.private["us-east-1b"].cidr_block == "10.58.32.0/20"
+    error_message = "Zones without an override must keep their derived block."
+  }
+}
