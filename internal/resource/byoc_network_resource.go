@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
@@ -263,7 +264,7 @@ func (r *BYOCNetworkResource) Delete(ctx context.Context, req resource.DeleteReq
 }
 
 func (r *BYOCNetworkResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	cloudProvider, id, err := parseBYOCNetworkImportID(req.ID)
+	cloudProvider, id, credentialID, err := parseBYOCNetworkImportID(req.ID)
 	if err != nil {
 		resp.Diagnostics.AddError("Invalid import ID", err.Error())
 		return
@@ -272,21 +273,17 @@ func (r *BYOCNetworkResource) ImportState(ctx context.Context, req resource.Impo
 		resp.Diagnostics.AddError("Provider not configured", "The VeloDB client is not available during import.")
 		return
 	}
-	item, err := r.client.GetCloudSettingNetworkConfig(ctx, cloudProvider, id)
-	if err != nil {
+	// credential_id must be supplied in the import ID: the VeloDB API does not
+	// associate a credential with a network configuration (the association lives
+	// on the warehouse), so the network-config details never report a
+	// credential_id for it to be read back automatically.
+	if _, err := r.client.GetCloudSettingNetworkConfig(ctx, cloudProvider, id); err != nil {
 		resp.Diagnostics.AddError(userError("importing BYOC network configuration", err))
-		return
-	}
-	if item.CredentialID <= 0 {
-		resp.Diagnostics.AddError(
-			"Cannot determine credential_id",
-			fmt.Sprintf("The VeloDB API returned no credential_id for %s network configuration %d, so it cannot be imported automatically.", cloudProvider, id),
-		)
 		return
 	}
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("cloud_provider"), cloudProvider)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), id)...)
-	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("credential_id"), item.CredentialID)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("credential_id"), credentialID)...)
 }
 
 func (r *BYOCNetworkResource) read(ctx context.Context, state *BYOCNetworkResourceModel, diags *diag.Diagnostics) (bool, error) {
@@ -300,12 +297,10 @@ func (r *BYOCNetworkResource) read(ctx context.Context, state *BYOCNetworkResour
 	}
 
 	state.ID = types.Int64Value(item.NetworkConfigID)
-	// Only refresh credential_id when the API actually reports it; a zero value
-	// means the field was absent from the response, and overwriting the known
-	// value with 0 would break Create (inconsistent result) or force a replace.
-	if item.CredentialID != 0 {
-		state.CredentialID = types.Int64Value(item.CredentialID)
-	}
+	// credential_id is intentionally not refreshed from the API: the network
+	// config details do not carry it (the credential is associated at the
+	// warehouse level), and it is a RequiresReplace value sourced from config
+	// or the import ID.
 	state.CloudProvider = types.StringValue(item.CloudProvider)
 	state.Name = types.StringValue(item.Name)
 	state.ZoneMappings = flattenBYOCZoneMappings(ctx, item.ZoneMappings, diags)
@@ -346,9 +341,19 @@ func byocZoneMappingAttrTypes() map[string]attr.Type {
 	return map[string]attr.Type{"zone_id": types.StringType, "subnet_id": types.StringType}
 }
 
-func parseBYOCNetworkImportID(importID string) (string, int64, error) {
-	if len(strings.Split(strings.TrimSpace(importID), "/")) == 3 {
-		return "", 0, fmt.Errorf("expected format: aws/<network_config_id> (credential_id is now read automatically and must not be included)")
+// parseBYOCNetworkImportID parses an import ID of the form
+// "aws/<network_config_id>/<credential_id>". Both IDs are required because the
+// VeloDB API does not report the credential associated with a network
+// configuration, so the user must supply it.
+func parseBYOCNetworkImportID(importID string) (string, int64, int64, error) {
+	parts := strings.Split(strings.TrimSpace(importID), "/")
+	if len(parts) != 3 || parts[0] != "aws" {
+		return "", 0, 0, fmt.Errorf("expected format: aws/<network_config_id>/<credential_id>")
 	}
-	return parseBYOCImportID(importID, "network_config_id")
+	networkID, networkErr := strconv.ParseInt(parts[1], 10, 64)
+	credentialID, credentialErr := strconv.ParseInt(parts[2], 10, 64)
+	if networkErr != nil || credentialErr != nil || networkID <= 0 || credentialID <= 0 {
+		return "", 0, 0, fmt.Errorf("expected format: aws/<positive network_config_id>/<positive credential_id>")
+	}
+	return parts[0], networkID, credentialID, nil
 }
