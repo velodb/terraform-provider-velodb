@@ -40,6 +40,13 @@ change `name` when renaming a cluster so Terraform updates it instead of
 replacing it. `zone` is optional and defaults to the first configured zone.
 Removing an entry deletes only that additional cluster.
 
+Set `tags` to apply extra key/value pairs to the AWS resources and the VeloDB
+warehouse (all get a `managed-by = terraform` tag by default). Warehouse tags
+are create-only, so they cannot be changed after the warehouse exists. Set
+`engine_version` (e.g. `"26.1"`, `major.minor`) to pin the initial engine
+version; leave it unset to let the management API pick the default. It is also
+create-only — use `core_version_id` to upgrade an existing warehouse.
+
 The module completes and validates all AWS prerequisites before its first
 VeloDB write. AWS allocation failures stop the graph; unsupported zones,
 inactive routes, and unavailable endpoints return actionable Terraform errors.

@@ -109,7 +109,18 @@ variable "additional_clusters" {
 }
 
 variable "tags" {
-  description = "Additional tags for AWS resources."
+  description = "Additional tags for AWS resources and the VeloDB warehouse."
   type        = map(string)
   default     = {}
+}
+
+variable "engine_version" {
+  description = "Initial engine version to provision, in major.minor numeric format (e.g. 26.1). Create-only; leave null to let the management API pick the default."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.engine_version == null || can(regex("^[0-9]+\\.[0-9]+$", var.engine_version))
+    error_message = "engine_version must use major.minor numeric format (e.g. 26.1)."
+  }
 }

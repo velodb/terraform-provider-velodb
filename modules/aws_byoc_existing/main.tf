@@ -71,6 +71,7 @@ locals {
   zones           = sort(keys(var.subnet_ids_by_zone))
   zone            = local.zones[0]
   supported_zones = toset([for zone in data.velodb_byoc_prerequisites.aws.zones : zone.zone])
+  tags            = merge({ managed-by = "terraform" }, var.tags)
 }
 
 resource "terraform_data" "name_prefix_guard" {
@@ -165,6 +166,8 @@ resource "velodb_warehouse" "this" {
   credential_id     = velodb_byoc_credential.this.id
   network_config_id = velodb_byoc_network.this.id
   admin_password    = var.admin_password
+  version           = var.engine_version
+  tags              = local.tags
 
   initial_cluster {
     zone         = local.zone

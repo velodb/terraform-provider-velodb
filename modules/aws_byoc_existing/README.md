@@ -39,5 +39,12 @@ additional_clusters = {
 rename a cluster without changing its Terraform identity. Removing an entry
 deletes only that additional cluster.
 
+Set `tags` to apply extra key/value pairs to the VeloDB warehouse (it gets a
+`managed-by = terraform` tag by default). Warehouse tags are create-only and
+cannot be changed after the warehouse exists. Set `engine_version` (e.g.
+`"26.1"`, `major.minor`) to pin the initial engine version; leave it unset to
+let the management API pick the default. It is also create-only — use
+`core_version_id` to upgrade an existing warehouse.
+
 Destroy removes the warehouse and its VeloDB registrations. All AWS resources
 remain and must be removed separately by their owner if no longer needed.
