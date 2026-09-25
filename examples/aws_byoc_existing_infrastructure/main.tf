@@ -33,6 +33,9 @@ module "velodb_byoc" {
   data_credential_arn       = var.data_credential_arn
   deployment_credential_arn = var.deployment_credential_arn
   additional_clusters       = var.additional_clusters
+  tags                      = var.tags
+  initial_core_version      = var.initial_core_version
+  public_access_policy      = var.public_access_policy
 }
 
 output "warehouse_id" {

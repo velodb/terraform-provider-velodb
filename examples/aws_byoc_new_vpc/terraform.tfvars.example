@@ -20,3 +20,15 @@ tags = {
   environment = "production"
   managed-by  = "terraform"
 }
+
+# Pin the initial core version (create-only). Leave unset for the API default.
+# initial_core_version = "26.1"
+
+# Initial public network access policy (create-only). Leave unset for the API
+# default; manage it later with the velodb_warehouse_public_access_policy resource.
+# public_access_policy = {
+#   policy = "ALLOWLIST_ONLY"
+#   rules = [
+#     { cidr = "203.0.113.0/24", description = "office" },
+#   ]
+# }

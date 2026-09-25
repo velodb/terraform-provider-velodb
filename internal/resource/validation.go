@@ -108,7 +108,7 @@ func cacheGbAfterCPUResize(oldVcpu, oldCacheGb, newVcpu int64) int64 {
 	return scaled
 }
 
-// warehouseAccessPolicyRequest converts the create-only access_policy block into
+// warehouseAccessPolicyRequest converts the create-only public_access_policy block into
 // an API request. Returns nil when the block is absent. Allowlist rules are only
 // forwarded when the policy is ALLOWLIST_ONLY.
 func warehouseAccessPolicyRequest(ctx context.Context, accessPolicy types.List, diags *diag.Diagnostics) *client.WarehousePublicAccessPolicyRequest {
@@ -233,9 +233,9 @@ func validateWarehouseCreation(diags *diag.Diagnostics, plan *WarehouseResourceM
 		!plan.DeploymentMode.IsNull() && !plan.DeploymentMode.IsUnknown() &&
 		normalizeDeploymentMode(plan.DeploymentMode.ValueString()) != "BYOC" {
 		diags.AddError(
-			"access_policy is only supported for BYOC warehouses",
-			"The management API rejects an initial access_policy for SaaS warehouses. "+
-				"Remove access_policy, or set deployment_mode to BYOC.",
+			"public_access_policy is only supported for BYOC warehouses",
+			"The management API rejects an initial public_access_policy for SaaS warehouses. "+
+				"Remove public_access_policy, or set deployment_mode to BYOC.",
 		)
 	}
 
