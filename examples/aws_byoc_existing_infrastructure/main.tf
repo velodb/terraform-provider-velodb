@@ -36,6 +36,11 @@ module "velodb_byoc" {
   tags                      = var.tags
   initial_core_version      = var.initial_core_version
   public_access_policy      = var.public_access_policy
+
+  create_tde_encryption_key = var.create_tde_encryption_key
+  tde_kms_key_arn           = var.tde_kms_key_arn
+  create_ebs_encryption_key = var.create_ebs_encryption_key
+  ebs_kms_key_arn           = var.ebs_kms_key_arn
 }
 
 output "warehouse_id" {
@@ -56,4 +61,12 @@ output "additional_cluster_ids" {
 
 output "aws_resources_managed" {
   value = module.velodb_byoc.aws_resources_managed
+}
+
+output "tde_encryption_key_id" {
+  value = module.velodb_byoc.tde_encryption_key_id
+}
+
+output "ebs_encryption_key_id" {
+  value = module.velodb_byoc.ebs_encryption_key_id
 }

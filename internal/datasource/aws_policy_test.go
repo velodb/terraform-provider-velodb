@@ -147,6 +147,89 @@ func TestAWSPolicyBuildersRejectInvalidInputs(t *testing.T) {
 	}
 }
 
+func TestBuildAWSKMSKeyPolicy(t *testing.T) {
+	dataRole := "arn:aws:iam::111122223333:role/velodb-data"
+	deployRole := "arn:aws:iam::111122223333:role/velodb-deploy"
+
+	if _, err := buildAWSKMSKeyPolicy(false, false, "", ""); err == nil {
+		t.Fatal("expected error when neither use is set")
+	}
+	if _, err := buildAWSKMSKeyPolicy(true, false, "", ""); err == nil {
+		t.Fatal("expected error when use_tde set without data_role_arn")
+	}
+	if _, err := buildAWSKMSKeyPolicy(false, true, "", ""); err == nil {
+		t.Fatal("expected error when use_ebs set without deployment_role_arn")
+	}
+	if _, err := buildAWSKMSKeyPolicy(true, true, "arn:aws:iam::111122223333:role/a", "arn:aws:iam::999988887777:role/b"); err == nil {
+		t.Fatal("expected error when data and deployment roles are in different accounts")
+	}
+
+	policyJSON, err := buildAWSKMSKeyPolicy(true, true, dataRole, deployRole)
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy := decodeAWSPolicy(t, policyJSON)
+
+	root := requireSid(t, policy, "EnableRootAccount")
+	if root.Principal["AWS"] != "arn:aws:iam::111122223333:root" {
+		t.Fatalf("root principal = %v", root.Principal)
+	}
+	if len(root.Actions) != 1 || root.Actions[0] != "kms:*" {
+		t.Fatalf("root actions = %v", root.Actions)
+	}
+
+	tde := requireSid(t, policy, "AllowSelectDBTdeAccess")
+	if tde.Principal["AWS"] != dataRole {
+		t.Fatalf("tde principal = %v", tde.Principal)
+	}
+	assertActions(t, tde, "kms:Encrypt", "kms:Decrypt", "kms:GenerateDataKey*", "kms:DescribeKey")
+	if tde.Condition != nil {
+		t.Fatalf("tde must not have a condition: %v", tde.Condition)
+	}
+
+	ebs := requireSid(t, policy, "AllowSelectDBEbsAccess")
+	if ebs.Principal["AWS"] != deployRole {
+		t.Fatalf("ebs principal = %v", ebs.Principal)
+	}
+	assertActions(t, ebs, "kms:Decrypt", "kms:GenerateDataKey*", "kms:CreateGrant", "kms:ReEncrypt*", "kms:DescribeKey")
+	if got := ebs.Condition["ForAnyValue:StringLike"]["kms:ViaService"]; got != "ec2.*.amazonaws.com" {
+		t.Fatalf("ebs kms:ViaService = %q", got)
+	}
+
+	// TDE-only: no EBS statement.
+	tdeOnly := decodeAWSPolicy(t, mustBuildKMSKeyPolicy(t, true, false, dataRole, ""))
+	if len(tdeOnly.Statements) != 2 {
+		t.Fatalf("tde-only statements = %d, want 2", len(tdeOnly.Statements))
+	}
+}
+
+func mustBuildKMSKeyPolicy(t *testing.T, useTDE, useEBS bool, dataRole, deployRole string) string {
+	t.Helper()
+	value, err := buildAWSKMSKeyPolicy(useTDE, useEBS, dataRole, deployRole)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return value
+}
+
+func requireSid(t *testing.T, policy awsPolicyDocument, sid string) awsPolicyStatement {
+	t.Helper()
+	for _, statement := range policy.Statements {
+		if statement.Sid == sid {
+			return statement
+		}
+	}
+	t.Fatalf("missing statement %q", sid)
+	return awsPolicyStatement{}
+}
+
+func assertActions(t *testing.T, statement awsPolicyStatement, want ...string) {
+	t.Helper()
+	if strings.Join(statement.Actions, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("actions = %v, want %v", statement.Actions, want)
+	}
+}
+
 func decodeAWSPolicy(t *testing.T, value string) awsPolicyDocument {
 	t.Helper()
 	var policy awsPolicyDocument

@@ -269,8 +269,10 @@ To destroy the initial cluster later:
 - `initial_core_version` (String) Initial core version to provision, in `major.minor` numeric format (e.g. `26.1`). Two-part only; three-part versions are rejected. The management API selects the newest matching build for that line. Create-only; use `core_version_id` to upgrade an existing warehouse.
 - `setup_mode` (String) BYOC setup mode. Set to `advanced` for AWS custom-infrastructure creation. Guided/template setup is not supported. Changing this forces a new resource.
 - `credential_id` (Number) Registered credential configuration ID for advanced AWS BYOC. Changing this forces a new resource.
+- `ebs_encryption_key_id` (Number) Registered encryption key ID used to encrypt the warehouse's EBS volumes. Create the key with `velodb_encryption_key` (`use_ebs = true`). Changing this forces a new resource.
 - `initial_cluster` (Block List, Max: 1) Initial cluster created together with the warehouse. This is a create-only configuration. After creation, manage the cluster lifecycle by importing it as a `velodb_cluster` resource. (see [below for nested schema](#nestedblock--initial_cluster))
 - `network_config_id` (Number) Registered network configuration ID for advanced AWS BYOC. Changing this forces a new resource.
+- `tde_encryption_key_id` (Number) Registered encryption key ID used for transparent data encryption (TDE) of warehouse data. Create the key with `velodb_encryption_key` (`use_tde = true`). Changing this forces a new resource.
 - `tags` (Map of String) Warehouse tags as key/value pairs. Create-only: the management API accepts tags only at creation and does not return or update them, so changing tags after creation is rejected.
 - `timeouts` (Block, Optional) (see [below for nested schema](#nestedblock--timeouts))
 - `vpc_mode` (String) VPC consistency hint for Template mode: `existing` or `new`. Changing this forces a new resource.

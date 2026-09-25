@@ -15,6 +15,7 @@ var (
 	_ datasource.DataSource = &AWSCrossAccountPolicyDataSource{}
 	_ datasource.DataSource = &AWSDataAccessAssumeRolePolicyDataSource{}
 	_ datasource.DataSource = &AWSDataAccessPolicyDataSource{}
+	_ datasource.DataSource = &AWSKMSKeyPolicyDataSource{}
 )
 
 type AWSAssumeRolePolicyDataSource struct{}
@@ -221,6 +222,70 @@ func (d *AWSDataAccessPolicyDataSource) Read(ctx context.Context, req datasource
 	value, err := buildAWSDataAccessPolicy(data.BucketName.ValueString(), data.RoleARN.ValueString(), data.TDEKMSARN.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Invalid AWS data-access policy input", err.Error())
+		return
+	}
+	data.JSON = types.StringValue(value)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+}
+
+type AWSKMSKeyPolicyDataSource struct{}
+
+type AWSKMSKeyPolicyDataSourceModel struct {
+	UseTDE            types.Bool   `tfsdk:"use_tde"`
+	UseEBS            types.Bool   `tfsdk:"use_ebs"`
+	DataRoleARN       types.String `tfsdk:"data_role_arn"`
+	DeploymentRoleARN types.String `tfsdk:"deployment_role_arn"`
+	JSON              types.String `tfsdk:"json"`
+}
+
+func NewAWSKMSKeyPolicyDataSource() datasource.DataSource {
+	return &AWSKMSKeyPolicyDataSource{}
+}
+
+func (d *AWSKMSKeyPolicyDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
+	resp.TypeName = req.ProviderTypeName + "_aws_kms_key_policy"
+}
+
+func (d *AWSKMSKeyPolicyDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
+	resp.Schema = schema.Schema{
+		Description: "Generates the resource-based KMS key policy VeloDB Cloud requires on the customer-provided KMS key registered as a velodb_encryption_key.",
+		Attributes: map[string]schema.Attribute{
+			"use_tde": schema.BoolAttribute{
+				Description: "Grant the data-access role transparent data encryption (TDE) permissions. Requires data_role_arn.",
+				Optional:    true,
+			},
+			"use_ebs": schema.BoolAttribute{
+				Description: "Grant the deployment role EBS volume encryption permissions. Requires deployment_role_arn.",
+				Optional:    true,
+			},
+			"data_role_arn": schema.StringAttribute{
+				Description: "AWS IAM data-access role ARN. Required when use_tde is true.",
+				Optional:    true,
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(awsRoleARNPattern, "must be a commercial AWS IAM role ARN"),
+				},
+			},
+			"deployment_role_arn": schema.StringAttribute{
+				Description: "AWS IAM deployment role ARN. Required when use_ebs is true.",
+				Optional:    true,
+				Validators: []validator.String{
+					stringvalidator.RegexMatches(awsRoleARNPattern, "must be a commercial AWS IAM role ARN"),
+				},
+			},
+			"json": schema.StringAttribute{Description: "AWS KMS key policy document as JSON.", Computed: true},
+		},
+	}
+}
+
+func (d *AWSKMSKeyPolicyDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
+	var data AWSKMSKeyPolicyDataSourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	value, err := buildAWSKMSKeyPolicy(data.UseTDE.ValueBool(), data.UseEBS.ValueBool(), data.DataRoleARN.ValueString(), data.DeploymentRoleARN.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid AWS KMS key policy input", err.Error())
 		return
 	}
 	data.JSON = types.StringValue(value)

@@ -46,6 +46,7 @@ nav:
     - velodb_warehouse: resources/warehouse.md
     - velodb_byoc_credential: resources/byoc_credential.md
     - velodb_byoc_network: resources/byoc_network.md
+    - velodb_encryption_key: resources/encryption_key.md
     - velodb_cluster: resources/cluster.md
     - velodb_warehouse_public_access_policy: resources/warehouse_public_access_policy.md
     - velodb_warehouse_private_endpoint: resources/warehouse_private_endpoint.md
@@ -56,6 +57,7 @@ nav:
     - velodb_aws_crossaccount_policy: data-sources/aws_crossaccount_policy.md
     - velodb_aws_data_access_assume_role_policy: data-sources/aws_data_access_assume_role_policy.md
     - velodb_aws_data_access_policy: data-sources/aws_data_access_policy.md
+    - velodb_aws_kms_key_policy: data-sources/aws_kms_key_policy.md
     - velodb_warehouses: data-sources/warehouses.md
     - velodb_clusters: data-sources/clusters.md
     - velodb_warehouse_connections: data-sources/warehouse_connections.md

@@ -98,6 +98,39 @@ type ListCloudSettingNetworkConfigsOptions struct {
 	Region string
 }
 
+type CreateEncryptionKeyRequest struct {
+	Name   string `json:"name"`
+	KeyARN string `json:"keyArn"`
+	// UseTDE and UseEBS are sent as 0/1 integers per the VeloDB API. At least one
+	// must be 1.
+	UseTDE *int `json:"useTde,omitempty"`
+	UseEBS *int `json:"useEbs,omitempty"`
+}
+
+type CreateEncryptionKeyResult struct {
+	EncryptionKeyID int64 `json:"encryptionKeyId"`
+}
+
+type EncryptionKey struct {
+	EncryptionKeyID int64    `json:"encryptionKeyId"`
+	Name            string   `json:"name"`
+	CloudProvider   string   `json:"cloudProvider"`
+	Region          string   `json:"region"`
+	KeyARN          string   `json:"keyArn,omitempty"`
+	UseTDE          bool     `json:"useTde"`
+	UseEBS          bool     `json:"useEbs"`
+	WarehouseCount  int      `json:"warehouseCount"`
+	WarehouseIDs    []string `json:"warehouseIds,omitempty"`
+	CreatedAt       string   `json:"createdAt,omitempty"`
+	UpdatedAt       string   `json:"updatedAt,omitempty"`
+}
+
+type ListEncryptionKeysOptions struct {
+	Page   int
+	Size   int
+	Region string
+}
+
 func cloudSettingsPath(cloudProvider, kind string) string {
 	return fmt.Sprintf("/v1/cloud-settings/%s/%s", url.PathEscape(cloudProvider), kind)
 }
@@ -210,6 +243,61 @@ func (c *FormationClient) ListCloudSettingNetworkConfigs(ctx context.Context, cl
 
 func (c *FormationClient) DeleteCloudSettingNetworkConfig(ctx context.Context, cloudProvider string, networkConfigID int64) error {
 	return c.deleteCloudSetting(ctx, fmt.Sprintf("%s/%d", cloudSettingsPath(cloudProvider, "network-configs"), networkConfigID), "NetworkConfigInUse")
+}
+
+func (c *FormationClient) CreateEncryptionKey(ctx context.Context, cloudProvider string, req *CreateEncryptionKeyRequest) (*CreateEncryptionKeyResult, error) {
+	var result CreateEncryptionKeyResult
+	err := c.createCloudSettingWithRetry(ctx, func(ctx context.Context) error {
+		resp, err := c.post(ctx, cloudSettingsPath(cloudProvider, "encryption-keys"), req)
+		if err != nil {
+			return err
+		}
+		var body APIResponse[CreateEncryptionKeyResult]
+		if err := parseResponse(resp, &body); err != nil {
+			return err
+		}
+		result = body.Data
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (c *FormationClient) GetEncryptionKey(ctx context.Context, cloudProvider string, encryptionKeyID int64) (*EncryptionKey, error) {
+	resp, err := c.get(ctx, fmt.Sprintf("%s/%d", cloudSettingsPath(cloudProvider, "encryption-keys"), encryptionKeyID), nil)
+	if err != nil {
+		return nil, err
+	}
+	var result APIResponse[EncryptionKey]
+	if err := parseResponse(resp, &result); err != nil {
+		return nil, err
+	}
+	return &result.Data, nil
+}
+
+func (c *FormationClient) ListEncryptionKeys(ctx context.Context, cloudProvider string, opts *ListEncryptionKeysOptions) (*PageResponse[EncryptionKey], error) {
+	query := url.Values{}
+	if opts != nil {
+		addPagination(query, opts.Page, opts.Size)
+		if opts.Region != "" {
+			query.Set("region", opts.Region)
+		}
+	}
+	resp, err := c.get(ctx, cloudSettingsPath(cloudProvider, "encryption-keys"), query)
+	if err != nil {
+		return nil, err
+	}
+	var result PageResponse[EncryptionKey]
+	if err := parseResponse(resp, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func (c *FormationClient) DeleteEncryptionKey(ctx context.Context, cloudProvider string, encryptionKeyID int64) error {
+	return c.deleteCloudSetting(ctx, fmt.Sprintf("%s/%d", cloudSettingsPath(cloudProvider, "encryption-keys"), encryptionKeyID), "EncryptionKeyInUse")
 }
 
 func (c *FormationClient) deleteCloudSetting(ctx context.Context, path, inUseCode string) error {

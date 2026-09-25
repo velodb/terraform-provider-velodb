@@ -90,6 +90,7 @@ func (p *VeloDBProvider) Resources(_ context.Context) []func() resource.Resource
 		velodb_resource.NewWarehousePrivateEndpointResource,
 		velodb_resource.NewBYOCCredentialResource,
 		velodb_resource.NewBYOCNetworkResource,
+		velodb_resource.NewEncryptionKeyResource,
 	}
 }
 
@@ -105,6 +106,7 @@ func (p *VeloDBProvider) DataSources(_ context.Context) []func() datasource.Data
 		velodb_datasource.NewAWSCrossAccountPolicyDataSource,
 		velodb_datasource.NewAWSDataAccessAssumeRolePolicyDataSource,
 		velodb_datasource.NewAWSDataAccessPolicyDataSource,
+		velodb_datasource.NewAWSKMSKeyPolicyDataSource,
 	}
 }
 

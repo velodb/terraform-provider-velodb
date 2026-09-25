@@ -65,8 +65,8 @@ create them in `aws_byoc`, or take them as inputs in `aws_byoc_existing`).
 |---|---|---|---|
 | `credential_id` | ✅ | ♻️ Replaces | `derived` |
 | `network_config_id` | ✅ | ♻️ Replaces | `derived` |
-| `tde_encryption_key_id` | ✅ | 🚫 Create-only | ❌ |
-| `ebs_encryption_key_id` | ✅ | 🚫 Create-only | ❌ |
+| `tde_encryption_key_id` | ✅ | ♻️ Replaces | ✅ `create_tde_encryption_key` / `tde_kms_key_arn` |
+| `ebs_encryption_key_id` | ✅ | ♻️ Replaces | ✅ `create_ebs_encryption_key` / `ebs_kms_key_arn` |
 
 ## Initial cluster
 

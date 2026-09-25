@@ -169,6 +169,9 @@ resource "velodb_warehouse" "this" {
   initial_core_version = var.initial_core_version
   tags                 = local.tags
 
+  tde_encryption_key_id = local.tde_encryption_enabled ? one(velodb_encryption_key.tde[*].id) : null
+  ebs_encryption_key_id = local.ebs_encryption_enabled ? one(velodb_encryption_key.ebs[*].id) : null
+
   dynamic "public_access_policy" {
     for_each = var.public_access_policy == null ? [] : [var.public_access_policy]
     content {
