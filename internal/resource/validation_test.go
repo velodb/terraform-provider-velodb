@@ -210,6 +210,22 @@ func TestValidateWarehouseCreation(t *testing.T) {
 			},
 			wantError: "public_access_policy is only supported for BYOC",
 		},
+		{
+			name:         "tolerates access_policy with unknown deployment_mode while planning",
+			allowUnknown: true,
+			change: func(plan *WarehouseResourceModel) {
+				plan.DeploymentMode = types.StringUnknown()
+				plan.AccessPolicy = warehouseAccessPolicyListForTest("DENY_ALL")
+			},
+		},
+		{
+			name: "rejects access_policy with unknown deployment_mode at create",
+			change: func(plan *WarehouseResourceModel) {
+				plan.DeploymentMode = types.StringUnknown()
+				plan.AccessPolicy = warehouseAccessPolicyListForTest("DENY_ALL")
+			},
+			wantError: "public_access_policy is only supported for BYOC",
+		},
 	}
 
 	for _, tt := range tests {
