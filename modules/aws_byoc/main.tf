@@ -21,9 +21,25 @@ data "velodb_byoc_prerequisites" "aws" {
 }
 
 locals {
-  zone                    = var.zones[0]
-  supported_zones         = toset([for zone in data.velodb_byoc_prerequisites.aws.zones : zone.zone])
-  private_subnet_ids      = { for zone, subnet in aws_subnet.private : zone => subnet.id }
+  zone               = var.zones[0]
+  supported_zones    = toset([for zone in data.velodb_byoc_prerequisites.aws.zones : zone.zone])
+  private_subnet_ids = { for zone, subnet in aws_subnet.private : zone => subnet.id }
+
+  # Per-AZ /20 subnet CIDRs, keyed on the zone letter so each AZ always maps to
+  # the same block regardless of its position in var.zones. Deriving the block
+  # from the list index instead would let a newly added zone inherit the CIDR of
+  # a zone being removed (e.g. swapping us-east-1b for us-east-1c). The old
+  # subnet cannot be deleted while the VeloDB VPC endpoint ENI still occupies it,
+  # and the new subnet cannot be created because its CIDR conflicts, deadlocking
+  # the replacement. Index 0 stays reserved so the letters map to blocks 1-8.
+  # An explicit var.subnet_cidrs entry overrides the derived block for a zone and
+  # short-circuits the letter lookup, so non-standard zones can be placed too.
+  az_letters = ["a", "b", "c", "d", "e", "f", "g", "h"]
+  subnet_cidr_by_zone = { for zone in var.zones : zone => (
+    contains(keys(var.subnet_cidrs), zone)
+    ? var.subnet_cidrs[zone]
+    : cidrsubnet(var.vpc_cidr, 4, index(local.az_letters, trimprefix(zone, var.region)) + 1)
+  ) }
   data_access_role_name   = "${var.name_prefix}-data-access"
   deployment_role_name    = "${var.name_prefix}-deployment"
   data_access_role_arn    = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${local.data_access_role_name}"
@@ -143,9 +159,20 @@ resource "aws_subnet" "private" {
 
   vpc_id                  = aws_vpc.this.id
   availability_zone       = each.key
-  cidr_block              = cidrsubnet(var.vpc_cidr, 4, index(var.zones, each.key) + 1)
+  cidr_block              = local.subnet_cidr_by_zone[each.key]
   map_public_ip_on_launch = false
   tags                    = merge(local.tags, { Name = "${var.name_prefix}-private-${each.key}" })
+
+  lifecycle {
+    precondition {
+      condition     = alltrue([for zone in keys(var.subnet_cidrs) : contains(var.zones, zone)])
+      error_message = "Every subnet_cidrs key must be one of the configured zones. Remove or correct overrides for zones not listed in var.zones."
+    }
+    precondition {
+      condition     = length(distinct(values(local.subnet_cidr_by_zone))) == length(var.zones)
+      error_message = "Effective subnet CIDRs must be unique across zones. A subnet_cidrs override collides with another zone's CIDR."
+    }
+  }
 }
 
 # A regional NAT gateway (availability_mode = "regional", automatic mode) provides

@@ -40,6 +40,17 @@ variable "vpc_cidr" {
   default     = "10.57.0.0/16"
 }
 
+variable "subnet_cidrs" {
+  description = "Optional availability-zone to subnet CIDR overrides. Each key must be one of the configured zones; unset zones fall back to a /20 block derived from the AZ letter. Pin an existing deployment's current CIDRs here before upgrading to avoid a subnet/network/warehouse replacement, or place subnets for non-standard zones or an external network plan."
+  type        = map(string)
+  default     = {}
+
+  validation {
+    condition     = alltrue([for cidr in values(var.subnet_cidrs) : can(cidrhost(cidr, 0))])
+    error_message = "Each subnet_cidrs value must be a valid IPv4 CIDR block, for example \"10.57.16.0/20\"."
+  }
+}
+
 variable "warehouse_client_cidrs" {
   description = "CIDR blocks of VPCs that need to reach the warehouse on ports 8000-10000. Leave empty when access is only via PrivateLink."
   type        = list(string)

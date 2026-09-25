@@ -9,7 +9,7 @@ endpoint_id       = "vpce-0123456789abcdef0"
 subnet_ids_by_zone = {
   us-east-1a = "subnet-0123456789abcdef0"
   us-east-1b = "subnet-1123456789abcdef0"
-  us-east-1d = "subnet-2123456789abcdef0"
+  us-east-1c = "subnet-2123456789abcdef0"
 }
 
 data_credential_arn       = "arn:aws:iam::123456789012:instance-profile/velodb-data-access"

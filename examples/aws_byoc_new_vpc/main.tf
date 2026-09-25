@@ -28,6 +28,7 @@ module "velodb_byoc" {
   admin_password         = var.admin_password
   vpc_cidr               = var.vpc_cidr
   zones                  = var.zones
+  subnet_cidrs           = var.subnet_cidrs
   warehouse_client_cidrs = var.warehouse_client_cidrs
   additional_clusters    = var.additional_clusters
   tags                   = var.tags
