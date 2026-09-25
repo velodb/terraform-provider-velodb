@@ -148,14 +148,14 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				},
 			},
 			"cloud_provider": schema.StringAttribute{
-				Description: "Cloud provider (e.g., aws, aliyun).",
+				Description: "Cloud provider. Only aws is supported.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
 			},
 			"region": schema.StringAttribute{
-				Description: "Cloud region (e.g., us-east-1, cn-beijing).",
+				Description: "Cloud region (e.g., us-east-1).",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),

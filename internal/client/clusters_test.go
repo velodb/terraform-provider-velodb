@@ -51,7 +51,7 @@ func TestCreateCluster(t *testing.T) {
 		})
 	})
 
-	zone := "cn-beijing-k"
+	zone := "us-east-1a"
 	ratio := 4
 	timeout := 50
 	result, err := client.CreateCluster(context.Background(), "WH-001", &CreateClusterRequest{

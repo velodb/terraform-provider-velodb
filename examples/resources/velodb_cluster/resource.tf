@@ -3,7 +3,7 @@ resource "velodb_cluster" "etl" {
   warehouse_id  = velodb_warehouse.saas.id
   name          = "compute_etl"
   cluster_type  = "COMPUTE"
-  zone          = "cn-beijing-k"
+  zone          = "us-east-1a"
   compute_vcpu  = 4
   cache_gb      = 100
   desired_state = "running"
@@ -24,7 +24,7 @@ resource "velodb_cluster" "dev" {
   warehouse_id  = velodb_warehouse.saas.id
   name          = "compute_dev"
   cluster_type  = "COMPUTE"
-  zone          = "cn-beijing-k"
+  zone          = "us-east-1a"
   compute_vcpu  = 4
   cache_gb      = 100
   desired_state = "paused"
