@@ -349,23 +349,40 @@ resource "velodb_byoc_network" "this" {
 }
 
 resource "velodb_warehouse" "this" {
-  name              = "${var.name_prefix}-warehouse"
-  deployment_mode   = "BYOC"
-  cloud_provider    = "aws"
-  region            = var.region
-  setup_mode        = "advanced"
-  credential_id     = velodb_byoc_credential.this.id
-  network_config_id = velodb_byoc_network.this.id
-  admin_password    = var.admin_password
-  version           = var.engine_version
-  tags              = local.tags
+  name                 = "${var.name_prefix}-warehouse"
+  deployment_mode      = "BYOC"
+  cloud_provider       = "aws"
+  region               = var.region
+  setup_mode           = "advanced"
+  credential_id        = velodb_byoc_credential.this.id
+  network_config_id    = velodb_byoc_network.this.id
+  admin_password       = var.admin_password
+  initial_core_version = var.initial_core_version
+  tags                 = local.tags
+
+  dynamic "public_access_policy" {
+    for_each = var.public_access_policy == null ? [] : [var.public_access_policy]
+    content {
+      policy = public_access_policy.value.policy
+
+      # rules is a nested attribute (SetNestedAttribute), so it is assigned a
+      # list, not written as repeated blocks. Only meaningful for ALLOWLIST_ONLY.
+      rules = public_access_policy.value.policy == "ALLOWLIST_ONLY" ? [
+        for r in public_access_policy.value.rules : {
+          cidr        = r.cidr
+          description = r.description
+        }
+      ] : null
+    }
+  }
 
   initial_cluster {
     zone         = local.zone
     compute_vcpu = var.compute_vcpu
     cache_gb     = var.cache_gb
     auto_pause {
-      enabled = false
+      enabled              = var.auto_pause.enabled
+      idle_timeout_minutes = var.auto_pause.idle_timeout_minutes
     }
   }
 
@@ -386,7 +403,8 @@ resource "velodb_cluster" "additional" {
   cache_gb     = each.value.cache_gb
 
   auto_pause {
-    enabled = false
+    enabled              = each.value.auto_pause.enabled
+    idle_timeout_minutes = each.value.auto_pause.idle_timeout_minutes
   }
 
   lifecycle {

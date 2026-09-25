@@ -65,10 +65,10 @@ type WarehouseResourceModel struct {
 	EndpointServiceName     types.String   `tfsdk:"endpoint_service_name"`
 	AdminPassword           types.String   `tfsdk:"admin_password"`
 	AdminPasswordVersion    types.Int64    `tfsdk:"admin_password_version"`
-	Version                 types.String   `tfsdk:"version"`
+	Version                 types.String   `tfsdk:"initial_core_version"`
 	Tags                    types.Map      `tfsdk:"tags"`
 	InitialCluster          types.List     `tfsdk:"initial_cluster"`
-	AccessPolicy            types.List     `tfsdk:"access_policy"`
+	AccessPolicy            types.List     `tfsdk:"public_access_policy"`
 	Timeouts                timeouts.Value `tfsdk:"timeouts"`
 	// Computed
 	Status             types.String `tfsdk:"status"`
@@ -251,18 +251,18 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				},
 			},
 			"core_version": schema.StringAttribute{
-				Description: "Current human-readable engine version (e.g. 26.1.0). Read-only.",
+				Description: "Current human-readable core version (e.g. 26.1.0). Read-only.",
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"core_version_id": schema.Int64Attribute{
-				Description: "Target engine version ID. Changing triggers an upgrade. Discover valid IDs via the velodb_warehouse_versions data source. The API does not return this value on Read, so the resource preserves whatever was last applied (or null if never set).",
+				Description: "Target core version ID. Changing triggers an upgrade. Discover valid IDs via the velodb_warehouse_versions data source. The API does not return this value on Read, so the resource preserves whatever was last applied (or null if never set).",
 				Optional:    true,
 			},
-			"version": schema.StringAttribute{
-				Description: "Initial engine version to provision, in `major.minor` numeric format (e.g. `26.1`). The management API selects the newest matching build for that major.minor line. Create-only: the API does not return it and rejects changes after creation. To upgrade an existing warehouse, set core_version_id instead.",
+			"initial_core_version": schema.StringAttribute{
+				Description: "Initial core version to provision, in `major.minor` numeric format (e.g. `26.1`). The management API selects the newest matching build for that major.minor line. Create-only: the API does not return it and rejects changes after creation. To upgrade an existing warehouse, set core_version_id instead.",
 				Optional:    true,
 				Validators: []validator.String{
 					stringvalidator.RegexMatches(
@@ -406,7 +406,7 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 					},
 				},
 			},
-			"access_policy": schema.ListNestedBlock{
+			"public_access_policy": schema.ListNestedBlock{
 				Description: "Initial public access policy applied at warehouse creation. BYOC only and create-only: the policy is set once during provisioning. Manage it afterward with the velodb_warehouse_public_access_policy resource.",
 				Validators: []validator.List{
 					listvalidator.SizeAtMost(1),
@@ -463,25 +463,25 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 }
 
 func (r *WarehouseResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	// version (initial engine version) and core_version_id (explicit upgrade
-	// target) are mutually exclusive: setting both provisions at version and then
-	// immediately upgrades, a redundant double operation.
+	// initial_core_version (initial core version) and core_version_id (explicit
+	// upgrade target) are mutually exclusive: setting both provisions at
+	// initial_core_version and then immediately upgrades, a redundant double operation.
 	var version types.String
 	var coreVersionID types.Int64
-	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("version"), &version)...)
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("initial_core_version"), &version)...)
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("core_version_id"), &coreVersionID)...)
 	if !version.IsNull() && !version.IsUnknown() && !coreVersionID.IsNull() && !coreVersionID.IsUnknown() {
 		resp.Diagnostics.AddError(
-			"version and core_version_id cannot be set together",
-			"Set version to pin the engine version at creation, or core_version_id to upgrade an existing "+
-				"warehouse — not both. Setting both provisions at version and then upgrades in the same apply.",
+			"initial_core_version and core_version_id cannot be set together",
+			"Set initial_core_version to pin the core version at creation, or core_version_id to upgrade an existing "+
+				"warehouse — not both. Setting both provisions at initial_core_version and then upgrades in the same apply.",
 		)
 	}
 
-	// Validate access_policy first: it is independent of initial_cluster, which
-	// short-circuits validation below when unknown.
+	// Validate public_access_policy first: it is independent of initial_cluster,
+	// which short-circuits validation below when unknown.
 	var accessPolicy types.List
-	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("access_policy"), &accessPolicy)...)
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("public_access_policy"), &accessPolicy)...)
 	if !accessPolicy.IsNull() && !accessPolicy.IsUnknown() && len(accessPolicy.Elements()) > 0 {
 		var policies []WarehouseAccessPolicyModel
 		resp.Diagnostics.Append(accessPolicy.ElementsAs(ctx, &policies, false)...)
@@ -538,14 +538,14 @@ func (r *WarehouseResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 			"Warehouse tags cannot be changed after creation",
 			"The VeloDB management API accepts warehouse tags only at creation time and cannot update them. "+
 				"Revert the tags change, or destroy and recreate the warehouse to apply new tags.")
-		rejectCreateOnlyChange(&resp.Diagnostics, path.Root("version"), plan.Version, state.Version,
-			"Warehouse version cannot be changed after creation",
-			"The VeloDB management API accepts version only when creating a warehouse. "+
-				"Revert the version change and set core_version_id to upgrade an existing warehouse "+
+		rejectCreateOnlyChange(&resp.Diagnostics, path.Root("initial_core_version"), plan.Version, state.Version,
+			"Warehouse initial_core_version cannot be changed after creation",
+			"The VeloDB management API accepts initial_core_version only when creating a warehouse. "+
+				"Revert the initial_core_version change and set core_version_id to upgrade an existing warehouse "+
 				"(discover valid IDs via the velodb_warehouse_versions data source).")
-		rejectCreateOnlyChange(&resp.Diagnostics, path.Root("access_policy"), plan.AccessPolicy, state.AccessPolicy,
-			"Warehouse access_policy cannot be changed after creation",
-			"access_policy sets the initial public access policy only at creation time. "+
+		rejectCreateOnlyChange(&resp.Diagnostics, path.Root("public_access_policy"), plan.AccessPolicy, state.AccessPolicy,
+			"Warehouse public_access_policy cannot be changed after creation",
+			"public_access_policy sets the initial public access policy only at creation time. "+
 				"Revert the change and manage the policy after creation with the "+
 				"velodb_warehouse_public_access_policy resource.")
 		return
@@ -698,7 +698,7 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 		if plan.CoreVersionID.ValueInt64() <= 0 {
 			resp.Diagnostics.AddError(
 				"Invalid core_version_id",
-				"core_version_id must be a positive engine version ID.",
+				"core_version_id must be a positive core version ID.",
 			)
 			return
 		}
@@ -795,7 +795,7 @@ func (r *WarehouseResource) Update(ctx context.Context, req resource.UpdateReque
 		if plan.CoreVersionID.ValueInt64() <= 0 {
 			resp.Diagnostics.AddError(
 				"Invalid core_version_id",
-				"core_version_id must be a positive engine version ID. "+
+				"core_version_id must be a positive core version ID. "+
 					"This is typically caused by referencing default_id from velodb_warehouse_versions when the API returned no available versions. "+
 					"Either remove core_version_id from the configuration or pin a specific version_id.",
 			)

@@ -41,10 +41,26 @@ deletes only that additional cluster.
 
 Set `tags` to apply extra key/value pairs to the VeloDB warehouse (it gets a
 `managed-by = terraform` tag by default). Warehouse tags are create-only and
-cannot be changed after the warehouse exists. Set `engine_version` (e.g.
-`"26.1"`, `major.minor`) to pin the initial engine version; leave it unset to
+cannot be changed after the warehouse exists. Set `initial_core_version` (e.g.
+`"26.1"`, `major.minor`) to pin the initial core version; leave it unset to
 let the management API pick the default. It is also create-only — use
 `core_version_id` to upgrade an existing warehouse.
+
+Set `public_access_policy` to apply an initial public access policy at creation: an
+object with `policy` (`DENY_ALL`, `ALLOW_ALL`, or `ALLOWLIST_ONLY`) and, for
+`ALLOWLIST_ONLY`, a list of `rules` (`cidr` plus optional `description`). It is
+create-only; manage the policy afterward with the
+`velodb_warehouse_public_access_policy` resource. Leave it unset to let the
+management API pick the default. For example:
+
+```hcl
+public_access_policy = {
+  policy = "ALLOWLIST_ONLY"
+  rules = [
+    { cidr = "203.0.113.0/24", description = "office" },
+  ]
+}
+```
 
 Destroy removes the warehouse and its VeloDB registrations. All AWS resources
 remain and must be removed separately by their owner if no longer needed.

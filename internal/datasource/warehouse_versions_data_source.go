@@ -49,7 +49,7 @@ func (d *WarehouseVersionsDataSource) Schema(_ context.Context, _ datasource.Sch
 				Computed:    true,
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
-						"version_id":  schema.Int64Attribute{Computed: true, Description: "Engine version ID — pass as core_version_id."},
+						"version_id":  schema.Int64Attribute{Computed: true, Description: "Core version ID — pass as core_version_id."},
 						"version":     schema.StringAttribute{Computed: true, Description: "Human-readable version (e.g. 26.1.0)."},
 						"description": schema.StringAttribute{Computed: true, Description: "Version description or release label."},
 						"is_default":  schema.BoolAttribute{Computed: true, Description: "Whether this is the default upgrade target."},

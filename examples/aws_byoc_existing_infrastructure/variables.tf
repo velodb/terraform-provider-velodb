@@ -60,3 +60,27 @@ variable "deployment_credential_arn" {
   description = "Existing VeloDB deployment IAM role ARN."
   type        = string
 }
+
+variable "tags" {
+  description = "Additional tags for the VeloDB warehouse."
+  type        = map(string)
+  default     = {}
+}
+
+variable "initial_core_version" {
+  description = "Initial core version to provision, in major.minor numeric format (e.g. 26.1). Create-only; leave null to let the management API pick the default."
+  type        = string
+  default     = null
+}
+
+variable "public_access_policy" {
+  description = "Initial public access policy applied at warehouse creation. Create-only; leave null to let the management API pick the default. rules apply only when policy is ALLOWLIST_ONLY."
+  type = object({
+    policy = string
+    rules = optional(list(object({
+      cidr        = string
+      description = optional(string)
+    })), [])
+  })
+  default = null
+}

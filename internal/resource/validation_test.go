@@ -208,7 +208,7 @@ func TestValidateWarehouseCreation(t *testing.T) {
 				plan.DeploymentMode = types.StringValue("SaaS")
 				plan.AccessPolicy = warehouseAccessPolicyListForTest("DENY_ALL")
 			},
-			wantError: "access_policy is only supported for BYOC",
+			wantError: "public_access_policy is only supported for BYOC",
 		},
 	}
 

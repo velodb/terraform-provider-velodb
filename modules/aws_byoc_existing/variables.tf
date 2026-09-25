@@ -91,20 +91,53 @@ variable "cache_gb" {
   }
 }
 
+variable "auto_pause" {
+  description = "Auto-pause for the initial cluster. Set enabled = true with idle_timeout_minutes to pause the cluster after that many idle minutes."
+  type = object({
+    enabled              = bool
+    idle_timeout_minutes = optional(number)
+  })
+  default = {
+    enabled = false
+  }
+}
+
 variable "tags" {
   description = "Additional tags for the VeloDB warehouse."
   type        = map(string)
   default     = {}
 }
 
-variable "engine_version" {
-  description = "Initial engine version to provision, in major.minor numeric format (e.g. 26.1). Create-only; leave null to let the management API pick the default."
+variable "initial_core_version" {
+  description = "Initial core version to provision, in major.minor numeric format (e.g. 26.1). Create-only; leave null to let the management API pick the default."
   type        = string
   default     = null
 
   validation {
-    condition     = var.engine_version == null || can(regex("^[0-9]+\\.[0-9]+$", var.engine_version))
-    error_message = "engine_version must use major.minor numeric format (e.g. 26.1)."
+    condition     = var.initial_core_version == null || can(regex("^[0-9]+\\.[0-9]+$", var.initial_core_version))
+    error_message = "initial_core_version must use major.minor numeric format (e.g. 26.1)."
+  }
+}
+
+variable "public_access_policy" {
+  description = "Initial public access policy applied at warehouse creation. Create-only; leave null to let the management API pick the default. Manage it afterward with the velodb_warehouse_public_access_policy resource. rules apply only when policy is ALLOWLIST_ONLY."
+  type = object({
+    policy = string
+    rules = optional(list(object({
+      cidr        = string
+      description = optional(string)
+    })), [])
+  })
+  default = null
+
+  validation {
+    condition     = var.public_access_policy == null || contains(["DENY_ALL", "ALLOW_ALL", "ALLOWLIST_ONLY"], try(var.public_access_policy.policy, ""))
+    error_message = "public_access_policy.policy must be one of DENY_ALL, ALLOW_ALL, or ALLOWLIST_ONLY."
+  }
+
+  validation {
+    condition     = var.public_access_policy == null || try(var.public_access_policy.policy, "") == "ALLOWLIST_ONLY" || length(try(var.public_access_policy.rules, [])) == 0
+    error_message = "public_access_policy.rules may only be set when policy is ALLOWLIST_ONLY."
   }
 }
 
@@ -115,6 +148,10 @@ variable "additional_clusters" {
     zone         = optional(string)
     compute_vcpu = number
     cache_gb     = number
+    auto_pause = optional(object({
+      enabled              = bool
+      idle_timeout_minutes = optional(number)
+    }), { enabled = false })
   }))
   default = {}
 
