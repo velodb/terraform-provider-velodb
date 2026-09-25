@@ -15,7 +15,7 @@ Not to be confused with the warehouse's **inbound** PrivateLink service (auto-pr
 
 ## Supported cloud providers
 
-AWS (`aws`), Aliyun (`aliyun`), Tencent Cloud (`tencent_cloud`), Huawei Cloud (`hwcloud`), AWS China (`aws-cn`).
+AWS (`aws`).
 
 ## AWS Registration Requirements
 
@@ -80,7 +80,7 @@ resource "velodb_private_link_endpoint_service" "corp" {
 
 ### Required
 
-- `cloud_provider` (String) `aws`, `aliyun`, `tencent_cloud`, `hwcloud`, or `aws-cn`. Changing forces new resource.
+- `cloud_provider` (String) Only `aws` is supported. Changing forces new resource.
 - `endpoint_service_name` (String) Cloud-side endpoint service name. For AWS: the full `com.amazonaws.vpce.<region>.<svc-id>` string. Changing forces new resource.
 - `region` (String) Cloud region. Changing forces new resource.
 

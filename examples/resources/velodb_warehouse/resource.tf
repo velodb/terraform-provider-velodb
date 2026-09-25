@@ -2,14 +2,14 @@
 resource "velodb_warehouse" "saas" {
   name            = "analytics-saas"
   deployment_mode = "SaaS"
-  cloud_provider  = "aliyun"
-  region          = "cn-beijing"
+  cloud_provider  = "aws"
+  region          = "us-east-1"
 
   admin_password         = var.admin_password
   admin_password_version = 1
 
   initial_cluster {
-    zone         = "cn-beijing-k"
+    zone         = "us-east-1a"
     compute_vcpu = 4
     cache_gb     = 1000
     auto_pause {

@@ -253,10 +253,10 @@ To destroy the initial cluster later:
 
 ### Required
 
-- `cloud_provider` (String) Cloud provider for the warehouse (e.g., `aws`, `aliyun`). Changing this forces a new resource.
+- `cloud_provider` (String) Cloud provider for the warehouse. Only `aws` is supported. Changing this forces a new resource.
 - `deployment_mode` (String) Deployment mode: `BYOC` or `SaaS`. Changing this forces a new resource.
 - `name` (String) Warehouse display name.
-- `region` (String) Cloud region (e.g., `us-east-1`, `cn-beijing`). Changing this forces a new resource.
+- `region` (String) Cloud region (e.g., `us-east-1`). Changing this forces a new resource.
 
 ### Optional
 
