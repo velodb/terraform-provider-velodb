@@ -38,6 +38,11 @@ variable "vpc_cidr" {
   description = "CIDR block for the new VPC."
   type        = string
   default     = "10.57.0.0/16"
+
+  validation {
+    condition     = can(cidrhost(var.vpc_cidr, 0))
+    error_message = "vpc_cidr must be a valid IPv4 CIDR block, for example \"10.57.0.0/16\"."
+  }
 }
 
 variable "subnet_cidrs" {
@@ -55,6 +60,18 @@ variable "warehouse_client_cidrs" {
   description = "CIDR blocks of VPCs that need to reach the warehouse on ports 8000-10000. Leave empty when access is only via PrivateLink."
   type        = list(string)
   default     = []
+
+  validation {
+    condition     = alltrue([for cidr in var.warehouse_client_cidrs : can(cidrhost(cidr, 0))])
+    error_message = "Each warehouse_client_cidrs value must be a valid IPv4 CIDR block, for example \"10.0.0.0/16\"."
+  }
+
+  validation {
+    # Reject /0 (e.g. 0.0.0.0/0), which would open the warehouse ports to the
+    # entire internet. Scope access to the specific client VPC CIDRs instead.
+    condition     = alltrue([for cidr in var.warehouse_client_cidrs : can(cidrhost(cidr, 0)) ? tonumber(split("/", cidr)[1]) > 0 : true])
+    error_message = "warehouse_client_cidrs must not include a /0 block such as 0.0.0.0/0; specify the client VPC CIDRs that need warehouse access."
+  }
 }
 
 variable "compute_vcpu" {
@@ -170,5 +187,12 @@ variable "public_access_policy" {
   validation {
     condition     = var.public_access_policy == null || try(var.public_access_policy.policy, "") == "ALLOWLIST_ONLY" || length(try(var.public_access_policy.rules, [])) == 0
     error_message = "public_access_policy.rules may only be set when policy is ALLOWLIST_ONLY."
+  }
+
+  validation {
+    condition = var.public_access_policy == null || alltrue([
+      for r in try(var.public_access_policy.rules, []) : can(cidrhost(r.cidr, 0))
+    ])
+    error_message = "Each public_access_policy.rules[].cidr must be a valid IPv4 CIDR block, for example \"203.0.113.0/24\"."
   }
 }

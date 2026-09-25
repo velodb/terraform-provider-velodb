@@ -553,6 +553,13 @@ func (r *ClusterResource) Delete(ctx context.Context, req resource.DeleteRequest
 		if err != nil {
 			return "", err
 		}
+		// Some backends signal a completed delete with a 200 and an empty body
+		// instead of a 404. That deserializes into a zero-value ClusterDetail
+		// (no ID, blank status), which would otherwise never match "Deleted" and
+		// spin the waiter until timeout. Treat an absent cluster as deleted.
+		if cl == nil || cl.ClusterID == "" {
+			return "Deleted", nil
+		}
 		return cl.Status, nil
 	}, []string{"Deleted"}, client.FailedStatuses, deleteTimeout, 15*time.Second)
 	if err != nil {
