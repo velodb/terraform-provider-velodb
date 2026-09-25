@@ -229,14 +229,20 @@ func validateWarehouseCreation(diags *diag.Diagnostics, plan *WarehouseResourceM
 		)
 	}
 
-	if !plan.AccessPolicy.IsNull() && !plan.AccessPolicy.IsUnknown() && len(plan.AccessPolicy.Elements()) > 0 &&
-		!plan.DeploymentMode.IsNull() && !plan.DeploymentMode.IsUnknown() &&
-		normalizeDeploymentMode(plan.DeploymentMode.ValueString()) != "BYOC" {
-		diags.AddError(
-			"public_access_policy is only supported for BYOC warehouses",
-			"The management API rejects an initial public_access_policy for SaaS warehouses. "+
-				"Remove public_access_policy, or set deployment_mode to BYOC.",
-		)
+	if !plan.AccessPolicy.IsNull() && !plan.AccessPolicy.IsUnknown() && len(plan.AccessPolicy.Elements()) > 0 {
+		modeResolved := !plan.DeploymentMode.IsNull() && !plan.DeploymentMode.IsUnknown()
+		// An unknown deployment_mode is tolerated during planning (allowUnknown),
+		// but by create time it must resolve to BYOC. Skipping the guard on an
+		// unknown mode at create would let a SaaS warehouse slip through to the
+		// API, which rejects an initial public_access_policy for SaaS.
+		if (modeResolved && normalizeDeploymentMode(plan.DeploymentMode.ValueString()) != "BYOC") ||
+			(!modeResolved && !allowUnknown) {
+			diags.AddError(
+				"public_access_policy is only supported for BYOC warehouses",
+				"The management API rejects an initial public_access_policy for SaaS warehouses. "+
+					"Remove public_access_policy, or set deployment_mode to BYOC.",
+			)
+		}
 	}
 
 	if plan.DeploymentMode.IsNull() || plan.DeploymentMode.IsUnknown() || normalizeDeploymentMode(plan.DeploymentMode.ValueString()) != "BYOC" {

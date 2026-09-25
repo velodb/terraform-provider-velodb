@@ -172,6 +172,19 @@ resource "aws_subnet" "private" {
       condition     = length(distinct(values(local.subnet_cidr_by_zone))) == length(var.zones)
       error_message = "Effective subnet CIDRs must be unique across zones. A subnet_cidrs override collides with another zone's CIDR."
     }
+    precondition {
+      # Each override must sit inside vpc_cidr: its prefix must be at least as
+      # long as the VPC's, and its network address masked to the VPC prefix must
+      # equal the VPC network. Derived (non-overridden) CIDRs come from
+      # cidrsubnet(var.vpc_cidr, ...) and are always contained.
+      condition = alltrue([
+        for cidr in values(var.subnet_cidrs) : (
+          tonumber(split("/", cidr)[1]) >= tonumber(split("/", var.vpc_cidr)[1]) &&
+          cidrhost("${cidrhost(cidr, 0)}/${split("/", var.vpc_cidr)[1]}", 0) == cidrhost(var.vpc_cidr, 0)
+        )
+      ])
+      error_message = "Every subnet_cidrs value must fall within vpc_cidr (${var.vpc_cidr}). Correct the override or widen vpc_cidr."
+    }
   }
 }
 

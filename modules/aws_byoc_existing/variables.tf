@@ -139,6 +139,13 @@ variable "public_access_policy" {
     condition     = var.public_access_policy == null || try(var.public_access_policy.policy, "") == "ALLOWLIST_ONLY" || length(try(var.public_access_policy.rules, [])) == 0
     error_message = "public_access_policy.rules may only be set when policy is ALLOWLIST_ONLY."
   }
+
+  validation {
+    condition = var.public_access_policy == null || alltrue([
+      for r in try(var.public_access_policy.rules, []) : can(cidrhost(r.cidr, 0))
+    ])
+    error_message = "Each public_access_policy.rules[].cidr must be a valid IPv4 CIDR block, for example \"203.0.113.0/24\"."
+  }
 }
 
 variable "additional_clusters" {

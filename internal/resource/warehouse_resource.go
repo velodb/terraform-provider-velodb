@@ -869,6 +869,13 @@ func (r *WarehouseResource) Delete(ctx context.Context, req resource.DeleteReque
 		if err != nil {
 			return "", err
 		}
+		// Some backends signal a completed delete with a 200 and an empty body
+		// instead of a 404. That deserializes into a zero-value WarehouseItem
+		// (no ID, blank status), which would otherwise never match "Deleted" and
+		// spin the waiter until timeout. Treat an absent warehouse as deleted.
+		if wh == nil || wh.WarehouseID == "" {
+			return "Deleted", nil
+		}
 		return wh.Status, nil
 	}, []string{"Deleted"}, nil, deleteTimeout, 15*time.Second)
 	if err != nil {
