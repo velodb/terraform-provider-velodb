@@ -67,6 +67,10 @@ data "velodb_aws_data_access_assume_role_policy" "data_access" {
 data "velodb_aws_data_access_policy" "data_access" {
   bucket_name = var.bucket_name
   role_arn    = local.data_access_role_arn
+
+  # Grants the data-access role KMS permissions on the TDE key. Null when no
+  # customer-managed TDE key is configured.
+  tde_kms_arn = local.tde_encryption_key_arn
 }
 
 data "velodb_aws_assume_role_policy" "deployment" {
@@ -373,6 +377,9 @@ resource "velodb_warehouse" "this" {
   initial_core_version = var.initial_core_version
   tags                 = local.tags
 
+  tde_encryption_key_id = local.tde_encryption_enabled ? one(velodb_encryption_key.tde[*].id) : null
+  ebs_encryption_key_id = local.ebs_encryption_enabled ? one(velodb_encryption_key.ebs[*].id) : null
+
   dynamic "public_access_policy" {
     for_each = var.public_access_policy == null ? [] : [var.public_access_policy]
     content {
@@ -434,7 +441,9 @@ check "policy_documents" {
     error_message = "Deployment policy must contain 17 statements."
   }
   assert {
-    condition     = length(jsondecode(data.velodb_aws_data_access_policy.data_access.json).Statement) == 3
-    error_message = "Data-access policy must contain three statements without TDE."
+    # The data-access policy has three statements, plus a fourth KMSAccess
+    # statement when a TDE key is wired in (tde_kms_arn is set).
+    condition     = length(jsondecode(data.velodb_aws_data_access_policy.data_access.json).Statement) == (local.tde_encryption_enabled ? 4 : 3)
+    error_message = "Data-access policy must contain three statements (four when a TDE encryption key is configured)."
   }
 }
