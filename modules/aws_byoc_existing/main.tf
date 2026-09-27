@@ -203,6 +203,16 @@ resource "velodb_warehouse" "this" {
     create = "45m"
     delete = "30m"
   }
+
+  lifecycle {
+    # Enforces the same cache_gb rule additional_clusters validates. This is a
+    # precondition rather than a variable validation because it references two
+    # variables, which variable validation cannot do before Terraform 1.9.
+    precondition {
+      condition     = var.cache_gb >= max(100, var.compute_vcpu * 25)
+      error_message = "cache_gb must be at least max(100, compute_vcpu * 25) for the initial cluster."
+    }
+  }
 }
 
 resource "velodb_cluster" "additional" {

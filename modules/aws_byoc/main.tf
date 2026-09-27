@@ -35,10 +35,21 @@ locals {
   # An explicit var.subnet_cidrs entry overrides the derived block for a zone and
   # short-circuits the letter lookup, so non-standard zones can be placed too.
   az_letters = ["a", "b", "c", "d", "e", "f", "g", "h"]
+  # Zones needing a derived CIDR (no explicit override) whose AZ letter is not
+  # a-h -- e.g. a 9th+ AZ or a Local/Wavelength zone. These cannot be auto-derived
+  # and require an explicit subnet_cidrs entry; a precondition on
+  # aws_subnet.private rejects them with a clear message. They are parked on the
+  # reserved index-0 block here only so the map lookup stays valid until then.
+  zones_needing_override = [
+    for zone in var.zones : zone
+    if !contains(keys(var.subnet_cidrs), zone) && !contains(local.az_letters, trimprefix(zone, var.region))
+  ]
   subnet_cidr_by_zone = { for zone in var.zones : zone => (
     contains(keys(var.subnet_cidrs), zone)
     ? var.subnet_cidrs[zone]
-    : cidrsubnet(var.vpc_cidr, 4, index(local.az_letters, trimprefix(zone, var.region)) + 1)
+    : contains(local.az_letters, trimprefix(zone, var.region))
+    ? cidrsubnet(var.vpc_cidr, 4, index(local.az_letters, trimprefix(zone, var.region)) + 1)
+    : cidrsubnet(var.vpc_cidr, 4, 0)
   ) }
   data_access_role_name   = "${var.name_prefix}-data-access"
   deployment_role_name    = "${var.name_prefix}-deployment"
@@ -168,6 +179,10 @@ resource "aws_subnet" "private" {
   tags                    = merge(local.tags, { Name = "${var.name_prefix}-private-${each.key}" })
 
   lifecycle {
+    precondition {
+      condition     = length(local.zones_needing_override) == 0
+      error_message = "No subnet CIDR can be auto-derived for zone(s) [${join(", ", local.zones_needing_override)}]: only ${var.region}a through ${var.region}h are auto-assigned. Add an explicit subnet_cidrs entry for each of these zones (for example a 9th+ AZ or a Local/Wavelength zone)."
+    }
     precondition {
       condition     = alltrue([for zone in keys(var.subnet_cidrs) : contains(var.zones, zone)])
       error_message = "Every subnet_cidrs key must be one of the configured zones. Remove or correct overrides for zones not listed in var.zones."
@@ -409,6 +424,16 @@ resource "velodb_warehouse" "this" {
   timeouts {
     create = "45m"
     delete = "30m"
+  }
+
+  lifecycle {
+    # Enforces the same cache_gb rule additional_clusters validates. This is a
+    # precondition rather than a variable validation because it references two
+    # variables, which variable validation cannot do before Terraform 1.9.
+    precondition {
+      condition     = var.cache_gb >= max(100, var.compute_vcpu * 25)
+      error_message = "cache_gb must be at least max(100, compute_vcpu * 25) for the initial cluster."
+    }
   }
 }
 
