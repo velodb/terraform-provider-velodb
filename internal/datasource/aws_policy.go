@@ -255,11 +255,19 @@ func buildAWSCrossAccountPolicy(bucketName, instanceProfileARN string) (string, 
 //   - AllowVeloDBEbsAccess grants the deployment role the EBS actions, scoped to
 //     EC2 via the kms:ViaService condition.
 //
-// The manager template emits no account-root statement, so neither do we: the
-// policy grants only the specific role each enabled use needs. Because the two
-// statements are independent, a single KMS key can serve both TDE and EBS at
-// once (use_tde and use_ebs both true) — the key backs the warehouse's data and
-// its EBS volumes.
+// The policy also opens with the standard EnableIAMUserPermissions statement,
+// which grants the key's own account (root) full control and delegates key
+// administration to IAM. AWS KMS runs a policy-lockout safety check on CreateKey
+// and rejects any policy that would not let the account manage the key policy in
+// the future ("The new key policy will not allow you to update the key policy in
+// the future."), so a key created without this statement cannot be provisioned.
+// It also ensures the customer retains control of a key living in their own
+// account. The manager validates by presence of the VeloDB grant statements, so
+// the extra admin statement is compatible.
+//
+// Because the role statements are independent, a single KMS key can serve both
+// TDE and EBS at once (use_tde and use_ebs both true) — the key backs the
+// warehouse's data and its EBS volumes.
 //
 // At least one of useTDE/useEBS must be set; each enabled use requires its
 // corresponding role ARN.
@@ -268,11 +276,14 @@ func buildAWSKMSKeyPolicy(useTDE, useEBS bool, dataRoleARN, deploymentRoleARN st
 		return "", fmt.Errorf("at least one of use_tde or use_ebs must be true")
 	}
 
+	var accountID string
 	var statements []awsPolicyStatement
 	if useTDE {
-		if _, err := awsAccountIDFromRoleARN(dataRoleARN); err != nil {
+		id, err := awsAccountIDFromRoleARN(dataRoleARN)
+		if err != nil {
 			return "", fmt.Errorf("data_role_arn is required when use_tde is true: %w", err)
 		}
+		accountID = id
 		statements = append(statements, awsPolicyStatement{
 			Sid:       "AllowVeloDBTdeAccess",
 			Effect:    "Allow",
@@ -282,9 +293,11 @@ func buildAWSKMSKeyPolicy(useTDE, useEBS bool, dataRoleARN, deploymentRoleARN st
 		})
 	}
 	if useEBS {
-		if _, err := awsAccountIDFromRoleARN(deploymentRoleARN); err != nil {
+		id, err := awsAccountIDFromRoleARN(deploymentRoleARN)
+		if err != nil {
 			return "", fmt.Errorf("deployment_role_arn is required when use_ebs is true: %w", err)
 		}
+		accountID = id
 		statements = append(statements, awsPolicyStatement{
 			Sid:       "AllowVeloDBEbsAccess",
 			Effect:    "Allow",
@@ -294,7 +307,18 @@ func buildAWSKMSKeyPolicy(useTDE, useEBS bool, dataRoleARN, deploymentRoleARN st
 			Condition: map[string]map[string]string{"ForAnyValue:StringLike": {"kms:ViaService": "ec2.*.amazonaws.com"}},
 		})
 	}
-	return marshalAWSPolicy(statements)
+
+	// Prepend the account-root admin statement so AWS accepts CreateKey and the
+	// customer keeps control of the key. useTDE/useEBS roles are in the customer's
+	// BYOC account, so accountID identifies the account that owns the key.
+	rootStatement := awsPolicyStatement{
+		Sid:       "EnableIAMUserPermissions",
+		Effect:    "Allow",
+		Actions:   []string{"kms:*"},
+		Resources: []string{"*"},
+		Principal: map[string]string{"AWS": "arn:aws:iam::" + accountID + ":root"},
+	}
+	return marshalAWSPolicy(append([]awsPolicyStatement{rootStatement}, statements...))
 }
 
 func marshalAWSPolicy(statements []awsPolicyStatement) (string, error) {

@@ -161,17 +161,25 @@ func TestBuildAWSKMSKeyPolicy(t *testing.T) {
 		t.Fatal("expected error when use_ebs set without deployment_role_arn")
 	}
 
-	// A single key can back both TDE and EBS at once — the manager emits no
-	// account-root statement, so the two role statements coexist independently.
+	// A single key can back both TDE and EBS at once — the account-root admin
+	// statement plus the two independent role statements.
 	policyJSON, err := buildAWSKMSKeyPolicy(true, true, dataRole, deployRole)
 	if err != nil {
 		t.Fatal(err)
 	}
 	policy := decodeAWSPolicy(t, policyJSON)
 
-	if len(policy.Statements) != 2 {
-		t.Fatalf("tde+ebs statements = %d, want 2 (no account-root statement)", len(policy.Statements))
+	if len(policy.Statements) != 3 {
+		t.Fatalf("tde+ebs statements = %d, want 3 (account-root + tde + ebs)", len(policy.Statements))
 	}
+
+	// AWS rejects CreateKey without an admin statement that keeps the account able
+	// to manage the key policy; assert it is present and grants the account root.
+	root := requireSid(t, policy, "EnableIAMUserPermissions")
+	if root.Principal["AWS"] != "arn:aws:iam::111122223333:root" {
+		t.Fatalf("root principal = %v", root.Principal)
+	}
+	assertActions(t, root, "kms:*")
 
 	tde := requireSid(t, policy, "AllowVeloDBTdeAccess")
 	if tde.Principal["AWS"] != dataRole {
@@ -191,11 +199,13 @@ func TestBuildAWSKMSKeyPolicy(t *testing.T) {
 		t.Fatalf("ebs kms:ViaService = %q", got)
 	}
 
-	// TDE-only: exactly the one TDE statement, no EBS statement.
+	// TDE-only: the account-root admin statement plus the one TDE statement, no
+	// EBS statement.
 	tdeOnly := decodeAWSPolicy(t, mustBuildKMSKeyPolicy(t, true, false, dataRole, ""))
-	if len(tdeOnly.Statements) != 1 {
-		t.Fatalf("tde-only statements = %d, want 1", len(tdeOnly.Statements))
+	if len(tdeOnly.Statements) != 2 {
+		t.Fatalf("tde-only statements = %d, want 2 (account-root + tde)", len(tdeOnly.Statements))
 	}
+	requireSid(t, tdeOnly, "EnableIAMUserPermissions")
 	requireSid(t, tdeOnly, "AllowVeloDBTdeAccess")
 }
 

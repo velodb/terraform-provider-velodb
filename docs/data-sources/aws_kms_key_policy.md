@@ -9,6 +9,10 @@ Generates the resource-based KMS key policy that VeloDB Cloud requires on the
 customer-provided KMS key registered as a
 [`velodb_encryption_key`](../resources/encryption_key.md). The policy grants:
 
+- the key's own account (root) full administrative control via the standard
+  `EnableIAMUserPermissions` statement — AWS KMS rejects `CreateKey` for a policy
+  that would leave the account unable to manage the key policy, and this keeps
+  the customer in control of a key in their own account;
 - the data-access role transparent data encryption (TDE) access when `use_tde` is
   set, and
 - the deployment role EBS volume encryption access (scoped to EC2 via a
