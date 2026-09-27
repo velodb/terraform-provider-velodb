@@ -79,9 +79,10 @@ variable "compute_vcpu" {
   type        = number
   default     = 4
 
+  # Same rule the API enforces for additional clusters; keep the two in sync.
   validation {
-    condition     = var.compute_vcpu >= 4
-    error_message = "compute_vcpu must be at least 4."
+    condition     = contains([4, 8, 16], var.compute_vcpu) || (var.compute_vcpu > 16 && var.compute_vcpu % 16 == 0)
+    error_message = "compute_vcpu must be 4, 8, 16, or a multiple of 16 greater than 16."
   }
 }
 
@@ -90,6 +91,9 @@ variable "cache_gb" {
   type        = number
   default     = 100
 
+  # Baseline floor only. The full rule (cache_gb >= max(100, compute_vcpu * 25))
+  # is cross-variable, which variable validation cannot express before Terraform
+  # 1.9; it is enforced as a precondition on velodb_warehouse.this in main.tf.
   validation {
     condition     = var.cache_gb >= 100
     error_message = "cache_gb must be at least 100."

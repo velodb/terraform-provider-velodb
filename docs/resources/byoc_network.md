@@ -62,7 +62,23 @@ Required:
 ## Import
 
 Import requires both IDs because the network API does not return its credential
-configuration ID:
+configuration ID. Find `network_config_id` with the
+[velodb_byoc_network_configs](../data-sources/byoc_network_configs.md) data source,
+and `credential_id` with the
+[velodb_byoc_credentials](../data-sources/byoc_credentials.md) data source.
+
+In Terraform 1.5 and later, use an `import` block. You can pair it with
+`terraform plan -generate-config-out=generated.tf` to generate the resource
+configuration:
+
+```hcl
+import {
+  to = velodb_byoc_network.example
+  id = "aws/<network_config_id>/<credential_id>"
+}
+```
+
+In Terraform 1.4 and earlier, use the `terraform import` command:
 
 ```shell
 terraform import velodb_byoc_network.example aws/<network_config_id>/<credential_id>

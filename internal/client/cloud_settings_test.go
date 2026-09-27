@@ -10,17 +10,25 @@ import (
 	"time"
 )
 
-func TestCloudSettingWarehouseIDListJSON(t *testing.T) {
-	payload := []byte(`{"warehouseIdList":["WH-001","WH-002"]}`)
+func TestCloudSettingWarehouseIDsJSON(t *testing.T) {
+	// The formation API serializes this field as "warehouseIds" for credentials,
+	// network configs, and encryption keys alike (see formation
+	// api/response/cloud_setting.go). Decode against that exact key.
+	payload := []byte(`{"warehouseIds":["WH-001","WH-002"]}`)
 
 	var credential CloudSettingCredential
 	if err := json.Unmarshal(payload, &credential); err != nil || len(credential.WarehouseIDs) != 2 || credential.WarehouseIDs[1] != "WH-002" {
-		t.Fatalf("credential warehouseIdList: result=%#v error=%v", credential.WarehouseIDs, err)
+		t.Fatalf("credential warehouseIds: result=%#v error=%v", credential.WarehouseIDs, err)
 	}
 
 	var network CloudSettingNetworkConfig
 	if err := json.Unmarshal(payload, &network); err != nil || len(network.WarehouseIDs) != 2 || network.WarehouseIDs[1] != "WH-002" {
-		t.Fatalf("network warehouseIdList: result=%#v error=%v", network.WarehouseIDs, err)
+		t.Fatalf("network warehouseIds: result=%#v error=%v", network.WarehouseIDs, err)
+	}
+
+	var key EncryptionKey
+	if err := json.Unmarshal(payload, &key); err != nil || len(key.WarehouseIDs) != 2 || key.WarehouseIDs[1] != "WH-002" {
+		t.Fatalf("encryption key warehouseIds: result=%#v error=%v", key.WarehouseIDs, err)
 	}
 }
 

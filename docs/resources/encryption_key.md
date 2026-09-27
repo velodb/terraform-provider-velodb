@@ -70,6 +70,22 @@ resource "velodb_encryption_key" "tde" {
 
 ## Import
 
+Find `encryption_key_id` with the
+[velodb_encryption_keys](../data-sources/encryption_keys.md) data source.
+
+In Terraform 1.5 and later, use an `import` block. You can pair it with
+`terraform plan -generate-config-out=generated.tf` to generate the resource
+configuration:
+
+```hcl
+import {
+  to = velodb_encryption_key.example
+  id = "aws/<encryption_key_id>"
+}
+```
+
+In Terraform 1.4 and earlier, use the `terraform import` command:
+
 ```shell
 terraform import velodb_encryption_key.example aws/<encryption_key_id>
 ```
