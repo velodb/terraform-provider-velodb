@@ -248,6 +248,55 @@ func buildAWSCrossAccountPolicy(bucketName, instanceProfileARN string) (string, 
 	})
 }
 
+// buildAWSKMSKeyPolicy builds the resource-based key policy a customer must
+// attach to the KMS key registered as a velodb_encryption_key. It mirrors the
+// statements VeloDB Cloud (selectdb-cloud-manager) validates:
+//   - AllowVeloDBTdeAccess grants the data-access role the TDE actions.
+//   - AllowVeloDBEbsAccess grants the deployment role the EBS actions, scoped to
+//     EC2 via the kms:ViaService condition.
+//
+// The manager template emits no account-root statement, so neither do we: the
+// policy grants only the specific role each enabled use needs. Because the two
+// statements are independent, a single KMS key can serve both TDE and EBS at
+// once (use_tde and use_ebs both true) — the key backs the warehouse's data and
+// its EBS volumes.
+//
+// At least one of useTDE/useEBS must be set; each enabled use requires its
+// corresponding role ARN.
+func buildAWSKMSKeyPolicy(useTDE, useEBS bool, dataRoleARN, deploymentRoleARN string) (string, error) {
+	if !useTDE && !useEBS {
+		return "", fmt.Errorf("at least one of use_tde or use_ebs must be true")
+	}
+
+	var statements []awsPolicyStatement
+	if useTDE {
+		if _, err := awsAccountIDFromRoleARN(dataRoleARN); err != nil {
+			return "", fmt.Errorf("data_role_arn is required when use_tde is true: %w", err)
+		}
+		statements = append(statements, awsPolicyStatement{
+			Sid:       "AllowVeloDBTdeAccess",
+			Effect:    "Allow",
+			Actions:   []string{"kms:Encrypt", "kms:Decrypt", "kms:GenerateDataKey*", "kms:DescribeKey"},
+			Resources: []string{"*"},
+			Principal: map[string]string{"AWS": dataRoleARN},
+		})
+	}
+	if useEBS {
+		if _, err := awsAccountIDFromRoleARN(deploymentRoleARN); err != nil {
+			return "", fmt.Errorf("deployment_role_arn is required when use_ebs is true: %w", err)
+		}
+		statements = append(statements, awsPolicyStatement{
+			Sid:       "AllowVeloDBEbsAccess",
+			Effect:    "Allow",
+			Actions:   []string{"kms:Decrypt", "kms:GenerateDataKey*", "kms:CreateGrant", "kms:ReEncrypt*", "kms:DescribeKey"},
+			Resources: []string{"*"},
+			Principal: map[string]string{"AWS": deploymentRoleARN},
+			Condition: map[string]map[string]string{"ForAnyValue:StringLike": {"kms:ViaService": "ec2.*.amazonaws.com"}},
+		})
+	}
+	return marshalAWSPolicy(statements)
+}
+
 func marshalAWSPolicy(statements []awsPolicyStatement) (string, error) {
 	policy, err := json.MarshalIndent(awsPolicyDocument{Version: awsPolicyVersion, Statements: statements}, "", "  ")
 	if err != nil {

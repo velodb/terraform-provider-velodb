@@ -87,7 +87,8 @@ block. Use it to place subnets for non-standard zones (Local Zones, Wavelength,
 or a region with more than eight availability zones, none of which the derived
 `<region><letter>` scheme with letters `a`–`h` supports), or to align subnets
 with an external network plan. An explicit override also bypasses the letter
-lookup entirely for that zone.
+lookup entirely for that zone. Each override must be a valid IPv4 CIDR that
+falls within `vpc_cidr`; the module rejects overrides outside the VPC range.
 
 Because the derived mapping changed in this release, upgrading an existing
 deployment whose `zones` list skips a letter (for example
@@ -115,7 +116,9 @@ instead.
 By default the warehouse security group only allows internal traffic and
 PrivateLink access. Set `warehouse_client_cidrs` to the CIDR blocks of any VPCs
 that must reach the warehouse directly on ports 8000-10000 (for example, peered
-client VPCs). The data bucket is created with `force_destroy = false` so
+client VPCs). Each entry must be a valid IPv4 CIDR; a `/0` block such as
+`0.0.0.0/0` is rejected so the warehouse ports are never opened to the entire
+internet. The data bucket is created with `force_destroy = false` so
 Terraform never deletes its objects: the module creates the bucket, but the
 warehouse writes the data, so destroy will not silently empty it. Treat
 `name_prefix` as

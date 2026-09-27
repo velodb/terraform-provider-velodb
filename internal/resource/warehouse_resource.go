@@ -337,12 +337,24 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				},
 			},
 			"tde_encryption_key_id": schema.Int64Attribute{
-				Description: "TDE encryption key ID.",
+				Description: "Registered encryption key ID used for transparent data encryption (TDE) of warehouse data. Create the key with velodb_encryption_key (use_tde = true). Create-only.",
 				Optional:    true,
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.RequiresReplace(),
+				},
+				Validators: []validator.Int64{
+					int64validator.AtLeast(1),
+				},
 			},
 			"ebs_encryption_key_id": schema.Int64Attribute{
-				Description: "EBS encryption key ID.",
+				Description: "Registered encryption key ID used to encrypt the warehouse's EBS volumes. Create the key with velodb_encryption_key (use_ebs = true). Create-only.",
 				Optional:    true,
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.RequiresReplace(),
+				},
+				Validators: []validator.Int64{
+					int64validator.AtLeast(1),
+				},
 			},
 			"enable_tls": schema.BoolAttribute{
 				Description: "MySQL/JDBC TLS switch",
@@ -869,6 +881,13 @@ func (r *WarehouseResource) Delete(ctx context.Context, req resource.DeleteReque
 		if err != nil {
 			return "", err
 		}
+		// Some backends signal a completed delete with a 200 and an empty body
+		// instead of a 404. That deserializes into a zero-value WarehouseItem
+		// (no ID, blank status), which would otherwise never match "Deleted" and
+		// spin the waiter until timeout. Treat an absent warehouse as deleted.
+		if wh == nil || wh.WarehouseID == "" {
+			return "Deleted", nil
+		}
 		return wh.Status, nil
 	}, []string{"Deleted"}, nil, deleteTimeout, 15*time.Second)
 	if err != nil {
@@ -934,6 +953,11 @@ func (r *WarehouseResource) readWarehouseIntoState(ctx context.Context, warehous
 	state.PayType = stringOrNull(wh.PayType)
 	state.EndpointServiceID = stringOrNull(wh.EndpointServiceID)
 	state.EndpointServiceName = stringOrNull(wh.EndpointServiceName)
+	// tde_encryption_key_id / ebs_encryption_key_id are create-only (RequiresReplace)
+	// and Optional (not Computed), so -- like credential_id / network_config_id --
+	// they are deliberately not read back: overwriting them from the API would
+	// produce "inconsistent result after apply" on create and spurious replace
+	// diffs if the API ever omits or defaults them.
 
 	if wh.CreatedAt != nil {
 		state.CreatedAt = types.StringValue(wh.CreatedAt.Format(time.RFC3339))

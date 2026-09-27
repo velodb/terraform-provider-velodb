@@ -22,6 +22,26 @@ output "network_config_id" {
   value = velodb_byoc_network.this.id
 }
 
+output "tde_encryption_key_id" {
+  description = "VeloDB encryption key ID used for warehouse TDE, or null when not configured."
+  value       = one(velodb_encryption_key.tde[*].id)
+}
+
+output "ebs_encryption_key_id" {
+  description = "VeloDB encryption key ID used for warehouse EBS encryption, or null when not configured."
+  value       = one(velodb_encryption_key.ebs[*].id)
+}
+
+output "tde_kms_key_arn" {
+  description = "ARN of the KMS key registered for warehouse TDE, or null when not configured."
+  value       = local.tde_encryption_key_arn
+}
+
+output "ebs_kms_key_arn" {
+  description = "ARN of the KMS key registered for warehouse EBS encryption, or null when not configured."
+  value       = local.ebs_encryption_key_arn
+}
+
 output "warehouse_id" {
   value = velodb_warehouse.this.id
 }

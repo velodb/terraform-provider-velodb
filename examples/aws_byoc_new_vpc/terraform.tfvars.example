@@ -32,3 +32,13 @@ tags = {
 #     { cidr = "203.0.113.0/24", description = "office" },
 #   ]
 # }
+
+# Transparent Data Encryption (TDE) key. Either let the module create a new AWS
+# KMS key or bring an existing one — the two options are mutually exclusive.
+# create_tde_encryption_key = true
+# tde_kms_key_arn           = "arn:aws:kms:us-east-1:111122223333:key/00000000-0000-0000-0000-000000000000"
+
+# EBS encryption key. Either let the module create a new AWS KMS key or bring an
+# existing one — the two options are mutually exclusive.
+# create_ebs_encryption_key = true
+# ebs_kms_key_arn           = "arn:aws:kms:us-east-1:111122223333:key/00000000-0000-0000-0000-000000000000"
