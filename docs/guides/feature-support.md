@@ -1,9 +1,15 @@
 # Warehouse feature support
 
 What each `velodb_warehouse` feature does at **creation** and **update** time,
-and whether the BYOC Terraform modules (`modules/aws_byoc`,
-`modules/aws_byoc_existing`) expose it. Behavior is defined by the VeloDB Cloud
-Management API (`formation/api`); this table tracks the Terraform surface over it.
+which **deployment modes** (SaaS / BYOC) support it, and whether the BYOC
+Terraform modules (`modules/aws_byoc`, `modules/aws_byoc_existing`) expose it.
+Behavior is defined by the VeloDB Cloud Management API (`formation/api`); this
+table tracks the Terraform surface over it.
+
+A `velodb_warehouse` is either **SaaS** (VeloDB-hosted) or **BYOC** (deployed in
+your own cloud account), selected by `deployment_mode`. Most features apply to
+both; some are BYOC-only. The Terraform **modules** provision BYOC warehouses
+only — SaaS warehouses use the `velodb_warehouse` resource directly.
 
 **Update legend**
 
@@ -11,6 +17,12 @@ Management API (`formation/api`); this table tracks the Terraform surface over i
 - ♻️ **Replaces** — changing it destroys and recreates the warehouse.
 - 🚫 **Create-only** — set once at creation; a later change is rejected.
 - — **N/A** — read-only, or applied through a different endpoint/resource.
+
+**Deployment-mode legend**
+
+- **Both** — supported for SaaS and BYOC warehouses.
+- **BYOC** — BYOC warehouses only.
+- **SaaS** — SaaS warehouses only.
 
 **Modules legend**
 
@@ -21,38 +33,43 @@ Management API (`formation/api`); this table tracks the Terraform surface over i
 
 ## Core
 
-| Attribute | Creation | Update | Modules |
-|---|---|---|---|
-| `name` | ✅ | ✅ In-place | `auto` (from `name_prefix`) |
-| `deployment_mode` | ✅ | ♻️ Replaces | `auto` (`BYOC`) |
-| `cloud_provider` | ✅ | ♻️ Replaces | `auto` (`aws`) |
-| `region` | ✅ | ♻️ Replaces | ✅ `region` |
-| `setup_mode` | ✅ | ♻️ Replaces | `auto` (`advanced`) |
-| `vpc_mode` | ✅ | ♻️ Replaces | `auto` |
-| `admin_password` | ✅ | ✅ In-place (bump `admin_password_version`) | ✅ `admin_password` |
-| `tags` | ✅ | 🚫 Create-only | ✅ `tags` |
+| Attribute | Creation | Update | Modes | Modules |
+|---|---|---|---|---|
+| `name` | ✅ | ✅ In-place | Both | `auto` (from `name_prefix`) |
+| `deployment_mode` | ✅ | ♻️ Replaces | Both | `auto` (`BYOC`) |
+| `cloud_provider` | ✅ | ♻️ Replaces | Both¹ | `auto` (`aws`) |
+| `region` | ✅ | ♻️ Replaces | Both | ✅ `region` |
+| `setup_mode` | ✅ | ♻️ Replaces | BYOC | `auto` (`advanced`) |
+| `vpc_mode` | ✅ | ♻️ Replaces | BYOC | `auto` |
+| `admin_password` | ✅ | ✅ In-place (bump `admin_password_version`) | Both | ✅ `admin_password` |
+| `tags` | ✅ | 🚫 Create-only | Both | ✅ `tags` |
+
+¹ SaaS supports multiple providers (for example `aliyun`); advanced BYOC (what the
+modules use) requires `aws`.
 
 ## Core version
 
-| Attribute | Creation | Update | Modules |
-|---|---|---|---|
-| `initial_core_version` | ✅ | 🚫 Create-only | ✅ `initial_core_version` |
-| `core_version_id` | — | ✅ In-place (upgrade) | ❌ |
-| `core_version` | — (read-only) | — | — |
+| Attribute | Creation | Update | Modes | Modules |
+|---|---|---|---|---|
+| `initial_core_version` | ✅ | 🚫 Create-only | Both | ✅ `initial_core_version` |
+| `core_version_id` | — | ✅ In-place (upgrade) | Both | ❌ |
+| `core_version` | — (read-only) | — | Both | — |
 
 Pin the initial `major.minor` with `initial_core_version`; upgrade later by setting
 `core_version_id`. The two are mutually exclusive.
 
 ## Network & access
 
-| Attribute | Creation | Update | Modules |
-|---|---|---|---|
-| `public_access_policy` | ✅ | 🚫 Create-only¹ | ✅ `public_access_policy` |
-| `enable_tls` | ✅ | 🚫 Create-only | ❌ |
-| `enable_https` | ✅ | 🚫 Create-only | ❌ |
+| Attribute | Creation | Update | Modes | Modules |
+|---|---|---|---|---|
+| `public_access_policy` | ✅ | 🚫 Create-only¹ | BYOC² | ✅ `public_access_policy` |
+| `enable_tls` | ✅ | 🚫 Create-only | Both | ❌ |
+| `enable_https` | ✅ | 🚫 Create-only | Both | ❌ |
 
 ¹ Change it after creation with the separate `velodb_warehouse_public_access_policy`
 resource. `public_access_policy.rules` is a list — write `rules = [ { cidr = "…" } ]`.
+
+² The management API rejects an initial `public_access_policy` for SaaS warehouses.
 
 ## BYOC infrastructure
 
@@ -61,25 +78,28 @@ and network config; the S3 bucket, subnets, security group, and endpoint are
 configured on `velodb_byoc_credential` / `velodb_byoc_network` (the modules
 create them in `aws_byoc`, or take them as inputs in `aws_byoc_existing`).
 
-| Attribute | Creation | Update | Modules |
-|---|---|---|---|
-| `credential_id` | ✅ | ♻️ Replaces | `derived` |
-| `network_config_id` | ✅ | ♻️ Replaces | `derived` |
-| `tde_encryption_key_id` | ✅ | ♻️ Replaces | ✅ `create_tde_encryption_key` / `tde_kms_key_arn` |
-| `ebs_encryption_key_id` | ✅ | ♻️ Replaces | ✅ `create_ebs_encryption_key` / `ebs_kms_key_arn` |
+All features in this section are **BYOC only** — SaaS warehouses are hosted by
+VeloDB and do not take a credential, network config, or customer-managed keys.
+
+| Attribute | Creation | Update | Modes | Modules |
+|---|---|---|---|---|
+| `credential_id` | ✅ | ♻️ Replaces | BYOC | `derived` |
+| `network_config_id` | ✅ | ♻️ Replaces | BYOC | `derived` |
+| `tde_encryption_key_id` | ✅ | ♻️ Replaces | BYOC | ✅ `create_tde_encryption_key` / `tde_kms_key_arn` |
+| `ebs_encryption_key_id` | ✅ | ♻️ Replaces | BYOC | ✅ `create_ebs_encryption_key` / `ebs_kms_key_arn` |
 
 ## Initial cluster
 
 Set on the warehouse at creation; resize or add clusters afterward with the
 `velodb_cluster` resource (modules expose `additional_clusters`).
 
-| Attribute | Creation | Update | Modules |
-|---|---|---|---|
-| `initial_cluster.compute_vcpu` | ✅ | — (via `velodb_cluster`) | ✅ `compute_vcpu` |
-| `initial_cluster.cache_gb` | ✅ | — (via `velodb_cluster`) | ✅ `cache_gb` |
-| `initial_cluster.auto_pause` | ✅ | — (via `velodb_cluster`) | ✅ `auto_pause` |
-| `initial_cluster.ratio` | ✅ | — (via `velodb_cluster`) | ❌ (modules use explicit sizes) |
-| additional clusters | — | ✅ `velodb_cluster` | ✅ `additional_clusters` (incl. `auto_pause`) |
+| Attribute | Creation | Update | Modes | Modules |
+|---|---|---|---|---|
+| `initial_cluster.compute_vcpu` | ✅ | — (via `velodb_cluster`) | Both | ✅ `compute_vcpu` |
+| `initial_cluster.cache_gb` | ✅ | — (via `velodb_cluster`) | Both | ✅ `cache_gb` |
+| `initial_cluster.auto_pause` | ✅ | — (via `velodb_cluster`) | Both | ✅ `auto_pause` |
+| `initial_cluster.ratio` | ✅ | — (via `velodb_cluster`) | Both | ❌ (modules use explicit sizes) |
+| additional clusters | — | ✅ `velodb_cluster` | Both | ✅ `additional_clusters` (incl. `auto_pause`) |
 
 ## API features not yet exposed in the provider
 
