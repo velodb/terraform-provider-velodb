@@ -8,6 +8,15 @@
 #     an existing key, ensure its key policy already grants those roles access
 #     (the velodb_aws_kms_key_policy data source generates the required policy).
 # When neither is set for a use, that encryption key is not configured.
+#
+# NOTE: Unlike the aws_byoc module (which creates the roles and also attaches a
+# KMS statement to the data-access role's IAM policy), this module does not own
+# the existing data-access/deployment roles and grants key access via the KMS key
+# policy alone. That is sufficient on standard AWS accounts. If your account
+# enforces identity-side KMS permissions (an SCP or permission boundary that
+# requires kms:* on the identity, not just the resource policy), grant the
+# existing roles the necessary KMS permissions on these keys yourself, or TDE/EBS
+# operations will fail at runtime with KMS AccessDenied.
 
 locals {
   data_access_role_arn = data.aws_iam_instance_profile.data_access.role_arn
