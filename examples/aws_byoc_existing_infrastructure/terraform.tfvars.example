@@ -1,18 +1,108 @@
-region      = "us-east-1"
+# Copy to terraform.tfvars and replace every placeholder with a real value.
+# admin_password is set via the TF_VAR_admin_password environment variable, not here.
+
+# ---------------------------------------------------------------------------
+# Core settings
+# ---------------------------------------------------------------------------
+
+# AWS region containing the existing BYOC infrastructure.
+region = "us-east-1"
+
+# Existing S3 bucket name.
 bucket_name = "replace-with-your-existing-bucket-name"
+
+# Prefix for VeloDB resources. Immutable after the first apply.
 name_prefix = "production"
 
-vpc_id            = "vpc-0123456789abcdef0"
-security_group_id = "sg-0123456789abcdef0"
-endpoint_id       = "vpce-0123456789abcdef0"
+# ---------------------------------------------------------------------------
+# Existing network (bring-your-own)
+# ---------------------------------------------------------------------------
 
+# Existing VPC ID.
+vpc_id = "vpc-0123456789abcdef0"
+
+# Existing warehouse security group ID.
+security_group_id = "sg-0123456789abcdef0"
+
+# Existing VeloDB interface VPC endpoint ID.
+endpoint_id = "vpce-0123456789abcdef0"
+
+# One or three existing private subnet IDs keyed by their actual availability zone.
 subnet_ids_by_zone = {
   us-east-1a = "subnet-0123456789abcdef0"
   us-east-1b = "subnet-1123456789abcdef0"
   us-east-1c = "subnet-2123456789abcdef0"
 }
 
-data_credential_arn       = "arn:aws:iam::123456789012:instance-profile/velodb-data-access"
+# ---------------------------------------------------------------------------
+# Existing IAM (bring-your-own)
+# ---------------------------------------------------------------------------
+
+# Existing data-access IAM instance-profile ARN.
+data_credential_arn = "arn:aws:iam::123456789012:instance-profile/velodb-data-access"
+
+# Existing VeloDB deployment IAM role ARN.
 deployment_credential_arn = "arn:aws:iam::123456789012:role/velodb-deployment"
 
-additional_clusters = {}
+# ---------------------------------------------------------------------------
+# Additional compute clusters (optional)
+# ---------------------------------------------------------------------------
+# Keyed by a stable Terraform identifier. Keep keys stable; change `name` to
+# rename a cluster, remove a map entry to delete only that cluster.
+# `zone` is optional and defaults to the first configured zone.
+
+additional_clusters = {
+  analytics = {
+    name         = "production_analytics"
+    zone         = "us-east-1a"
+    compute_vcpu = 8
+    cache_gb     = 200
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Warehouse options (optional)
+# ---------------------------------------------------------------------------
+
+# Additional tags for the VeloDB warehouse.
+tags = {
+  environment = "production"
+  team        = "data-platform"
+}
+
+# Initial core version in major.minor numeric format (e.g. 26.1). Create-only.
+# Leave null to let the management API pick the default.
+initial_core_version = "26.1"
+
+# Initial public access policy applied at warehouse creation. Create-only.
+# Leave null to let the management API pick the default.
+# `rules` apply only when policy is ALLOWLIST_ONLY.
+public_access_policy = {
+  policy = "ALLOWLIST_ONLY"
+  rules = [
+    {
+      cidr        = "203.0.113.0/24"
+      description = "office network"
+    },
+  ]
+}
+
+# ---------------------------------------------------------------------------
+# Encryption keys (optional)
+# ---------------------------------------------------------------------------
+# Encryption is OFF by default (both values below left as-is). To enable TDE or
+# EBS encryption, set EXACTLY ONE of the two options for that key -- the create_*
+# flag and the *_kms_key_arn value are mutually exclusive:
+#   - create_*_encryption_key = true                       -> module creates a new KMS key
+#   - *_kms_key_arn = "arn:aws:kms:REGION:ACCOUNT:key/ID"  -> register an existing key
+# Leaving create_* = false AND *_kms_key_arn = null disables that key. Do NOT
+# leave a placeholder ARN here: a non-null ARN enables encryption with a key that
+# does not exist and the apply will fail.
+
+# TDE (transparent data encryption) key:
+create_tde_encryption_key = false
+tde_kms_key_arn           = null
+
+# EBS volume encryption key:
+create_ebs_encryption_key = false
+ebs_kms_key_arn           = null
