@@ -43,7 +43,7 @@ func (d *PrivateLinkEndpointServicesDataSource) Schema(_ context.Context, _ data
 		Description: "List outbound PrivateLink endpoint services registered with VeloDB Cloud.",
 		Attributes: map[string]schema.Attribute{
 			"cloud_provider": schema.StringAttribute{
-				Description: "Cloud provider filter (e.g., aws, aliyun).",
+				Description: "Cloud provider filter (e.g., aws).",
 				Optional:    true,
 			},
 			"region": schema.StringAttribute{

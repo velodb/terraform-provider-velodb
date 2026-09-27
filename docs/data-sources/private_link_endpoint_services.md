@@ -40,7 +40,7 @@ output "connected" {
 
 ### Optional
 
-- `cloud_provider` (String) Cloud provider filter, such as `aws` or `aliyun`.
+- `cloud_provider` (String) Cloud provider filter (e.g., `aws`).
 - `endpoint_service_id` (String) Exact cloud-side endpoint service ID filter.
 - `endpoint_service_name` (String) Exact cloud-side endpoint service name filter.
 - `region` (String) Cloud region filter.

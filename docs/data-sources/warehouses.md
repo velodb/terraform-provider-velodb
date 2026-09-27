@@ -28,9 +28,9 @@ output "warehouse_names" {
 ### Filter by Cloud Provider and Region
 
 ```terraform
-data "velodb_warehouses" "beijing_saas" {
-  cloud_provider  = "aliyun"
-  region          = "cn-beijing"
+data "velodb_warehouses" "us_saas" {
+  cloud_provider  = "aws"
+  region          = "us-east-1"
   deployment_mode = "SaaS"
 }
 ```
@@ -60,11 +60,11 @@ provider surfaces a single aggregated warning (rather than one per warehouse).
 
 ### Optional
 
-- `cloud_provider` (String) Cloud provider filter (e.g., `aws`, `aliyun`).
+- `cloud_provider` (String) Cloud provider filter (e.g., `aws`).
 - `deployment_mode` (String) Deployment mode filter: `BYOC` or `SaaS`.
 - `keyword` (String) Legacy local fuzzy match against warehouse name or exact ID.
 - `name` (String) Partial warehouse name filter.
-- `region` (String) Cloud region filter (e.g., `us-east-1`, `cn-beijing`).
+- `region` (String) Cloud region filter (e.g., `us-east-1`).
 - `warehouse_id` (String) Exact warehouse ID filter.
 
 ### Read-Only

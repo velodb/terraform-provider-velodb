@@ -175,7 +175,7 @@ func TestValidateWarehouseCreation(t *testing.T) {
 				plan.NetworkConfigID = types.Int64Unknown()
 			},
 		},
-		{name: "rejects non-AWS", change: func(plan *WarehouseResourceModel) { plan.CloudProvider = types.StringValue("aliyun") }, wantError: "AWS is required"},
+		{name: "rejects non-AWS", change: func(plan *WarehouseResourceModel) { plan.CloudProvider = types.StringValue("gcp") }, wantError: "AWS is required"},
 		{name: "requires setup mode", change: func(plan *WarehouseResourceModel) { plan.SetupMode = types.StringNull() }, wantError: "setup_mode is required"},
 		{name: "rejects guided setup", change: func(plan *WarehouseResourceModel) { plan.SetupMode = types.StringValue("guided") }, wantError: "Only advanced BYOC"},
 		{name: "requires credential", change: func(plan *WarehouseResourceModel) { plan.CredentialID = types.Int64Null() }, wantError: "credential_id is required"},
