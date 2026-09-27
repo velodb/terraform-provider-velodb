@@ -77,3 +77,27 @@ variable "public_access_policy" {
   })
   default = null
 }
+
+variable "create_tde_encryption_key" {
+  description = "Create a new AWS KMS key for warehouse TDE and register it with VeloDB."
+  type        = bool
+  default     = false
+}
+
+variable "tde_kms_key_arn" {
+  description = "ARN of an existing AWS KMS key to register for warehouse TDE. Mutually exclusive with create_tde_encryption_key."
+  type        = string
+  default     = null
+}
+
+variable "create_ebs_encryption_key" {
+  description = "Create a new AWS KMS key for warehouse EBS encryption and register it with VeloDB."
+  type        = bool
+  default     = false
+}
+
+variable "ebs_kms_key_arn" {
+  description = "ARN of an existing AWS KMS key to register for warehouse EBS encryption. Mutually exclusive with create_ebs_encryption_key."
+  type        = string
+  default     = null
+}

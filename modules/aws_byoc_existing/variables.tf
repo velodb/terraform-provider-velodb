@@ -191,3 +191,38 @@ variable "additional_clusters" {
     error_message = "Each additional cluster cache_gb must be at least max(100, compute_vcpu * 25)."
   }
 }
+
+variable "create_tde_encryption_key" {
+  description = "Create a new AWS KMS key for warehouse transparent data encryption (TDE) and register it with VeloDB. Mutually exclusive with tde_kms_key_arn."
+  type        = bool
+  default     = false
+}
+
+variable "tde_kms_key_arn" {
+  description = "ARN of an existing AWS KMS key to register for warehouse TDE. Mutually exclusive with create_tde_encryption_key. Leave null to not use a customer-managed TDE key."
+  type        = string
+  default     = null
+}
+
+variable "create_ebs_encryption_key" {
+  description = "Create a new AWS KMS key for warehouse EBS volume encryption and register it with VeloDB. Mutually exclusive with ebs_kms_key_arn."
+  type        = bool
+  default     = false
+}
+
+variable "ebs_kms_key_arn" {
+  description = "ARN of an existing AWS KMS key to register for warehouse EBS encryption. Mutually exclusive with create_ebs_encryption_key. Leave null to not use a customer-managed EBS key."
+  type        = string
+  default     = null
+}
+
+variable "kms_key_deletion_window_in_days" {
+  description = "Deletion window for KMS keys created by this module (create_tde_encryption_key / create_ebs_encryption_key)."
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.kms_key_deletion_window_in_days >= 7 && var.kms_key_deletion_window_in_days <= 30
+    error_message = "kms_key_deletion_window_in_days must be between 7 and 30."
+  }
+}

@@ -105,6 +105,137 @@ func TestCloudSettingCredentialLifecycle(t *testing.T) {
 	}
 }
 
+// TestEncryptionKeyGetPopulatesAllFields guards the terraform import path: after
+// ImportState sets cloud_provider+id, the framework calls Read -> GetEncryptionKey,
+// which must repopulate every attribute the resource maps. In particular key_arn is
+// a Required attribute, so if the GET response did not carry keyArn an imported key
+// would show a permanent RequiresReplace diff.
+func TestEncryptionKeyGetPopulatesAllFields(t *testing.T) {
+	ts, mux := newTestServer(t)
+	defer ts.Close()
+	client := newTestClient(t, ts)
+
+	want := EncryptionKey{
+		EncryptionKeyID: 789,
+		Name:            "analytics-tde",
+		CloudProvider:   "aws",
+		Region:          "us-east-1",
+		KeyARN:          "arn:aws:kms:us-east-1:123456789012:key/abcd-1234",
+		UseTDE:          true,
+		UseEBS:          true,
+		WarehouseCount:  2,
+		WarehouseIDs:    []string{"WH-001", "WH-002"},
+		CreatedAt:       "2026-01-02T03:04:05Z",
+		UpdatedAt:       "2026-01-03T04:05:06Z",
+	}
+
+	mux.HandleFunc("/v1/cloud-settings/aws/encryption-keys/789", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		jsonResponse(w, http.StatusOK, APIResponse[EncryptionKey]{Success: true, RequestID: "req-get-key", Data: want})
+	})
+
+	got, err := client.GetEncryptionKey(context.Background(), "aws", 789)
+	if err != nil {
+		t.Fatalf("GetEncryptionKey: %v", err)
+	}
+	if got.EncryptionKeyID != want.EncryptionKeyID || got.Name != want.Name ||
+		got.CloudProvider != want.CloudProvider || got.Region != want.Region ||
+		got.KeyARN != want.KeyARN || got.UseTDE != want.UseTDE || got.UseEBS != want.UseEBS ||
+		got.WarehouseCount != want.WarehouseCount || got.CreatedAt != want.CreatedAt ||
+		got.UpdatedAt != want.UpdatedAt {
+		t.Fatalf("GetEncryptionKey decoded = %#v, want %#v", got, want)
+	}
+	if len(got.WarehouseIDs) != 2 || got.WarehouseIDs[0] != "WH-001" || got.WarehouseIDs[1] != "WH-002" {
+		t.Fatalf("WarehouseIDs = %#v", got.WarehouseIDs)
+	}
+}
+
+func TestEncryptionKeyLifecycle(t *testing.T) {
+	ts, mux := newTestServer(t)
+	defer ts.Close()
+	client := newTestClient(t, ts)
+
+	key := EncryptionKey{
+		EncryptionKeyID: 789,
+		Name:            "analytics-tde",
+		CloudProvider:   "aws",
+		Region:          "us-east-1",
+		KeyARN:          "arn:aws:kms:us-east-1:123456789012:key/abcd-1234",
+		UseTDE:          true,
+		UseEBS:          false,
+		WarehouseCount:  1,
+		WarehouseIDs:    []string{"WH-001"},
+	}
+
+	mux.HandleFunc("/v1/cloud-settings/aws/encryption-keys", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			var req CreateEncryptionKeyRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				t.Fatalf("decoding encryption key request: %v", err)
+			}
+			if req.KeyARN != key.KeyARN || req.Name != key.Name {
+				t.Fatalf("unexpected encryption key request: %#v", req)
+			}
+			if req.UseTDE == nil || *req.UseTDE != 1 || req.UseEBS == nil || *req.UseEBS != 0 {
+				t.Fatalf("unexpected use flags: useTde=%v useEbs=%v", req.UseTDE, req.UseEBS)
+			}
+			jsonResponse(w, http.StatusCreated, APIResponse[CreateEncryptionKeyResult]{
+				Success: true, RequestID: "req-create-key",
+				Data: CreateEncryptionKeyResult{EncryptionKeyID: key.EncryptionKeyID},
+			})
+		case http.MethodGet:
+			if r.URL.Query().Get("page") != "1" || r.URL.Query().Get("size") != "20" || r.URL.Query().Get("region") != key.Region {
+				t.Fatalf("unexpected encryption key list query: %s", r.URL.RawQuery)
+			}
+			jsonResponse(w, http.StatusOK, PageResponse[EncryptionKey]{
+				Success: true, RequestID: "req-list-keys", Data: []EncryptionKey{key}, Page: 1, Size: 20, Total: 1,
+			})
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/v1/cloud-settings/aws/encryption-keys/789", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			jsonResponse(w, http.StatusOK, APIResponse[EncryptionKey]{Success: true, RequestID: "req-get-key", Data: key})
+		case http.MethodDelete:
+			jsonResponse(w, http.StatusOK, APIResponse[struct{}]{Success: true, RequestID: "req-delete-key", Data: struct{}{}})
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
+		}
+	})
+
+	useTDE, useEBS := 1, 0
+	created, err := client.CreateEncryptionKey(context.Background(), "aws", &CreateEncryptionKeyRequest{
+		Name:   key.Name,
+		KeyARN: key.KeyARN,
+		UseTDE: &useTDE,
+		UseEBS: &useEBS,
+	})
+	if err != nil || created.EncryptionKeyID != key.EncryptionKeyID {
+		t.Fatalf("CreateEncryptionKey: result=%#v error=%v", created, err)
+	}
+
+	got, err := client.GetEncryptionKey(context.Background(), "aws", key.EncryptionKeyID)
+	if err != nil || !got.UseTDE || got.UseEBS || len(got.WarehouseIDs) != 1 || got.WarehouseIDs[0] != "WH-001" {
+		t.Fatalf("GetEncryptionKey: result=%#v error=%v", got, err)
+	}
+
+	list, err := client.ListEncryptionKeys(context.Background(), "aws", &ListEncryptionKeysOptions{Page: 1, Size: 20, Region: key.Region})
+	if err != nil || list.Total != 1 || len(list.Data) != 1 || list.Data[0].EncryptionKeyID != key.EncryptionKeyID {
+		t.Fatalf("ListEncryptionKeys: result=%#v error=%v", list, err)
+	}
+
+	if err := client.DeleteEncryptionKey(context.Background(), "aws", key.EncryptionKeyID); err != nil {
+		t.Fatalf("DeleteEncryptionKey: %v", err)
+	}
+}
+
 func TestCloudSettingNetworkConfigLifecycle(t *testing.T) {
 	ts, mux := newTestServer(t)
 	defer ts.Close()
