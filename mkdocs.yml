@@ -53,6 +53,9 @@ nav:
     - velodb_private_link_endpoint_service: resources/private_link_endpoint_service.md
   - Data Sources:
     - velodb_byoc_prerequisites: data-sources/byoc_prerequisites.md
+    - velodb_byoc_credentials: data-sources/byoc_credentials.md
+    - velodb_byoc_network_configs: data-sources/byoc_network_configs.md
+    - velodb_encryption_keys: data-sources/encryption_keys.md
     - velodb_aws_assume_role_policy: data-sources/aws_assume_role_policy.md
     - velodb_aws_crossaccount_policy: data-sources/aws_crossaccount_policy.md
     - velodb_aws_data_access_assume_role_policy: data-sources/aws_data_access_assume_role_policy.md

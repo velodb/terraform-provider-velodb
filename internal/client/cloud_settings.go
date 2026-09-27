@@ -48,7 +48,7 @@ type CloudSettingCredential struct {
 	DeploymentCredentialARN string     `json:"deploymentCredentialArn,omitempty"`
 	ExternalID              string     `json:"externalId,omitempty"`
 	WarehouseCount          int        `json:"warehouseCount"`
-	WarehouseIDs            []string   `json:"warehouseIdList,omitempty"`
+	WarehouseIDs            []string   `json:"warehouseIds,omitempty"`
 	CreatedAt               *time.Time `json:"createdAt,omitempty"`
 	UpdatedAt               *time.Time `json:"updatedAt,omitempty"`
 }
@@ -87,7 +87,7 @@ type CloudSettingNetworkConfig struct {
 	SecurityGroupID string                    `json:"securityGroupId"`
 	EndpointID      string                    `json:"endpointId,omitempty"`
 	WarehouseCount  int                       `json:"warehouseCount"`
-	WarehouseIDs    []string                  `json:"warehouseIdList,omitempty"`
+	WarehouseIDs    []string                  `json:"warehouseIds,omitempty"`
 	CreatedAt       *time.Time                `json:"createdAt,omitempty"`
 	UpdatedAt       *time.Time                `json:"updatedAt,omitempty"`
 }
