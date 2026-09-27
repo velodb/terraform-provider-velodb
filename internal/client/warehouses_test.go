@@ -306,6 +306,64 @@ func TestGetWarehouse(t *testing.T) {
 	}
 }
 
+// TestGetWarehousePopulatesImportFields guards the terraform import path: after
+// ImportState sets id, the framework calls Read -> GetWarehouse -> readWarehouseIntoState,
+// which repopulates state from this response. Every field that Read maps must decode
+// here, otherwise an imported warehouse shows a permanent diff. Create-only fields
+// (admin_password, initial_cluster, credential_id, network_config_id, encryption keys)
+// are intentionally not read back and so are not part of this contract.
+func TestGetWarehousePopulatesImportFields(t *testing.T) {
+	ts, mux := newTestServer(t)
+	defer ts.Close()
+	client := newTestClient(t, ts)
+
+	created := mockTime
+	expire := created.Add(24 * time.Hour)
+
+	mux.HandleFunc("/v1/warehouses/WH-IMPORT", func(w http.ResponseWriter, r *http.Request) {
+		if !requireMethod(t, w, r, http.MethodGet) {
+			return
+		}
+		jsonResponse(w, 200, APIResponse[WarehouseItem]{
+			Success:   true,
+			RequestID: "req-import",
+			Data: WarehouseItem{
+				WarehouseID:         "WH-IMPORT",
+				Name:                "imported-warehouse",
+				Status:              "Running",
+				CloudProvider:       "aws",
+				Region:              "us-east-1",
+				Zone:                "us-east-1a",
+				DeploymentMode:      "BYOC",
+				CoreVersion:         "3.0.3",
+				PayType:             "PostPaid",
+				EndpointServiceID:   "vpce-svc-import",
+				EndpointServiceName: "com.amazonaws.vpce.us-east-1.vpce-svc-import",
+				CreatedAt:           &created,
+				ExpireTime:          &expire,
+			},
+		})
+	})
+
+	wh, err := client.GetWarehouse(context.Background(), "WH-IMPORT")
+	if err != nil {
+		t.Fatalf("GetWarehouse: %v", err)
+	}
+	if wh.WarehouseID != "WH-IMPORT" || wh.Name != "imported-warehouse" ||
+		wh.Status != "Running" || wh.CloudProvider != "aws" || wh.Region != "us-east-1" ||
+		wh.Zone != "us-east-1a" || wh.DeploymentMode != "BYOC" || wh.CoreVersion != "3.0.3" ||
+		wh.PayType != "PostPaid" || wh.EndpointServiceID != "vpce-svc-import" ||
+		wh.EndpointServiceName != "com.amazonaws.vpce.us-east-1.vpce-svc-import" {
+		t.Fatalf("GetWarehouse decoded = %#v", wh)
+	}
+	if wh.CreatedAt == nil || !wh.CreatedAt.Equal(created) {
+		t.Fatalf("CreatedAt = %v, want %v", wh.CreatedAt, created)
+	}
+	if wh.ExpireTime == nil || !wh.ExpireTime.Equal(expire) {
+		t.Fatalf("ExpireTime = %v, want %v", wh.ExpireTime, expire)
+	}
+}
+
 func TestGetWarehouseEndpointServiceFromNestedInfo(t *testing.T) {
 	ts, mux := newTestServer(t)
 	defer ts.Close()
