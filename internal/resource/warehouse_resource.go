@@ -546,20 +546,44 @@ func (r *WarehouseResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 		if resp.Diagnostics.HasError() {
 			return
 		}
-		rejectCreateOnlyChange(&resp.Diagnostics, path.Root("tags"), plan.Tags, state.Tags,
-			"Warehouse tags cannot be changed after creation",
-			"The VeloDB management API accepts warehouse tags only at creation time and cannot update them. "+
-				"Revert the tags change, or destroy and recreate the warehouse to apply new tags.")
-		rejectCreateOnlyChange(&resp.Diagnostics, path.Root("initial_core_version"), plan.Version, state.Version,
-			"Warehouse initial_core_version cannot be changed after creation",
-			"The VeloDB management API accepts initial_core_version only when creating a warehouse. "+
-				"Revert the initial_core_version change and set core_version_id to upgrade an existing warehouse "+
-				"(discover valid IDs via the velodb_warehouse_versions data source).")
-		rejectCreateOnlyChange(&resp.Diagnostics, path.Root("public_access_policy"), plan.AccessPolicy, state.AccessPolicy,
-			"Warehouse public_access_policy cannot be changed after creation",
-			"public_access_policy sets the initial public access policy only at creation time. "+
-				"Revert the change and manage the policy after creation with the "+
-				"velodb_warehouse_public_access_policy resource.")
+		// Create-only attributes the API accepts only at creation. Keep this
+		// table in sync with the RequiresReplace attributes in the schema and the
+		// create-only fields deliberately not read back in readWarehouseIntoState.
+		createOnly := []struct {
+			p                 path.Path
+			planVal, stateVal attr.Value
+			summary, detail   string
+		}{
+			{
+				p:        path.Root("tags"),
+				planVal:  plan.Tags,
+				stateVal: state.Tags,
+				summary:  "Warehouse tags cannot be changed after creation",
+				detail: "The VeloDB management API accepts warehouse tags only at creation time and cannot update them. " +
+					"Revert the tags change, or destroy and recreate the warehouse to apply new tags.",
+			},
+			{
+				p:        path.Root("initial_core_version"),
+				planVal:  plan.Version,
+				stateVal: state.Version,
+				summary:  "Warehouse initial_core_version cannot be changed after creation",
+				detail: "The VeloDB management API accepts initial_core_version only when creating a warehouse. " +
+					"Revert the initial_core_version change and set core_version_id to upgrade an existing warehouse " +
+					"(discover valid IDs via the velodb_warehouse_versions data source).",
+			},
+			{
+				p:        path.Root("public_access_policy"),
+				planVal:  plan.AccessPolicy,
+				stateVal: state.AccessPolicy,
+				summary:  "Warehouse public_access_policy cannot be changed after creation",
+				detail: "public_access_policy sets the initial public access policy only at creation time. " +
+					"Revert the change and manage the policy after creation with the " +
+					"velodb_warehouse_public_access_policy resource.",
+			},
+		}
+		for _, a := range createOnly {
+			rejectCreateOnlyChange(&resp.Diagnostics, a.p, a.planVal, a.stateVal, a.summary, a.detail)
+		}
 		return
 	}
 
