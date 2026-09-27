@@ -16,8 +16,11 @@ locals {
   tde_encryption_key_arn = var.create_tde_encryption_key ? one(aws_kms_key.tde[*].arn) : var.tde_kms_key_arn
   ebs_encryption_key_arn = var.create_ebs_encryption_key ? one(aws_kms_key.ebs[*].arn) : var.ebs_kms_key_arn
 
-  tde_encryption_enabled = local.tde_encryption_key_arn != null
-  ebs_encryption_enabled = local.ebs_encryption_key_arn != null
+  # Derive "enabled" from the inputs, not from the key ARN. When creating a new
+  # KMS key its ARN is unknown until apply, which would make count / check
+  # conditions unknown at plan time. The inputs are always known at plan time.
+  tde_encryption_enabled = var.create_tde_encryption_key || var.tde_kms_key_arn != null
+  ebs_encryption_enabled = var.create_ebs_encryption_key || var.ebs_kms_key_arn != null
 }
 
 resource "terraform_data" "encryption_guard" {
