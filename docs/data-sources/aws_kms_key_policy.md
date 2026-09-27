@@ -7,8 +7,7 @@ description: Generates the KMS key policy VeloDB requires on a warehouse encrypt
 
 Generates the resource-based KMS key policy that VeloDB Cloud requires on the
 customer-provided KMS key registered as a
-[`velodb_encryption_key`](../resources/encryption_key.md). The policy delegates to
-the account's IAM policies and grants:
+[`velodb_encryption_key`](../resources/encryption_key.md). The policy grants:
 
 - the data-access role transparent data encryption (TDE) access when `use_tde` is
   set, and

@@ -160,25 +160,20 @@ func TestBuildAWSKMSKeyPolicy(t *testing.T) {
 	if _, err := buildAWSKMSKeyPolicy(false, true, "", ""); err == nil {
 		t.Fatal("expected error when use_ebs set without deployment_role_arn")
 	}
-	if _, err := buildAWSKMSKeyPolicy(true, true, "arn:aws:iam::111122223333:role/a", "arn:aws:iam::999988887777:role/b"); err == nil {
-		t.Fatal("expected error when data and deployment roles are in different accounts")
-	}
 
+	// A single key can back both TDE and EBS at once — the manager emits no
+	// account-root statement, so the two role statements coexist independently.
 	policyJSON, err := buildAWSKMSKeyPolicy(true, true, dataRole, deployRole)
 	if err != nil {
 		t.Fatal(err)
 	}
 	policy := decodeAWSPolicy(t, policyJSON)
 
-	root := requireSid(t, policy, "EnableRootAccount")
-	if root.Principal["AWS"] != "arn:aws:iam::111122223333:root" {
-		t.Fatalf("root principal = %v", root.Principal)
-	}
-	if len(root.Actions) != 1 || root.Actions[0] != "kms:*" {
-		t.Fatalf("root actions = %v", root.Actions)
+	if len(policy.Statements) != 2 {
+		t.Fatalf("tde+ebs statements = %d, want 2 (no account-root statement)", len(policy.Statements))
 	}
 
-	tde := requireSid(t, policy, "AllowSelectDBTdeAccess")
+	tde := requireSid(t, policy, "AllowVeloDBTdeAccess")
 	if tde.Principal["AWS"] != dataRole {
 		t.Fatalf("tde principal = %v", tde.Principal)
 	}
@@ -187,7 +182,7 @@ func TestBuildAWSKMSKeyPolicy(t *testing.T) {
 		t.Fatalf("tde must not have a condition: %v", tde.Condition)
 	}
 
-	ebs := requireSid(t, policy, "AllowSelectDBEbsAccess")
+	ebs := requireSid(t, policy, "AllowVeloDBEbsAccess")
 	if ebs.Principal["AWS"] != deployRole {
 		t.Fatalf("ebs principal = %v", ebs.Principal)
 	}
@@ -196,11 +191,12 @@ func TestBuildAWSKMSKeyPolicy(t *testing.T) {
 		t.Fatalf("ebs kms:ViaService = %q", got)
 	}
 
-	// TDE-only: no EBS statement.
+	// TDE-only: exactly the one TDE statement, no EBS statement.
 	tdeOnly := decodeAWSPolicy(t, mustBuildKMSKeyPolicy(t, true, false, dataRole, ""))
-	if len(tdeOnly.Statements) != 2 {
-		t.Fatalf("tde-only statements = %d, want 2", len(tdeOnly.Statements))
+	if len(tdeOnly.Statements) != 1 {
+		t.Fatalf("tde-only statements = %d, want 1", len(tdeOnly.Statements))
 	}
+	requireSid(t, tdeOnly, "AllowVeloDBTdeAccess")
 }
 
 func mustBuildKMSKeyPolicy(t *testing.T, useTDE, useEBS bool, dataRole, deployRole string) string {

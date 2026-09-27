@@ -250,11 +250,16 @@ func buildAWSCrossAccountPolicy(bucketName, instanceProfileARN string) (string, 
 
 // buildAWSKMSKeyPolicy builds the resource-based key policy a customer must
 // attach to the KMS key registered as a velodb_encryption_key. It mirrors the
-// statements required by VeloDB Cloud (selectdb-cloud-manager):
-//   - EnableRootAccount delegates to the account's IAM policies.
-//   - AllowSelectDBTdeAccess grants the data-access role the TDE actions.
-//   - AllowSelectDBEbsAccess grants the deployment role the EBS actions, scoped
-//     to EC2 via the kms:ViaService condition.
+// statements VeloDB Cloud (selectdb-cloud-manager) validates:
+//   - AllowVeloDBTdeAccess grants the data-access role the TDE actions.
+//   - AllowVeloDBEbsAccess grants the deployment role the EBS actions, scoped to
+//     EC2 via the kms:ViaService condition.
+//
+// The manager template emits no account-root statement, so neither do we: the
+// policy grants only the specific role each enabled use needs. Because the two
+// statements are independent, a single KMS key can serve both TDE and EBS at
+// once (use_tde and use_ebs both true) — the key backs the warehouse's data and
+// its EBS volumes.
 //
 // At least one of useTDE/useEBS must be set; each enabled use requires its
 // corresponding role ARN.
@@ -263,39 +268,13 @@ func buildAWSKMSKeyPolicy(useTDE, useEBS bool, dataRoleARN, deploymentRoleARN st
 		return "", fmt.Errorf("at least one of use_tde or use_ebs must be true")
 	}
 
-	var accountID string
+	var statements []awsPolicyStatement
 	if useTDE {
-		id, err := awsAccountIDFromRoleARN(dataRoleARN)
-		if err != nil {
+		if _, err := awsAccountIDFromRoleARN(dataRoleARN); err != nil {
 			return "", fmt.Errorf("data_role_arn is required when use_tde is true: %w", err)
 		}
-		accountID = id
-	}
-	if useEBS {
-		id, err := awsAccountIDFromRoleARN(deploymentRoleARN)
-		if err != nil {
-			return "", fmt.Errorf("deployment_role_arn is required when use_ebs is true: %w", err)
-		}
-		// A KMS key belongs to a single account. If both roles are supplied they
-		// must be in the same account, otherwise the EnableRootAccount statement
-		// (which delegates key administration to one account root) would silently
-		// lock out the other role's account.
-		if accountID != "" && accountID != id {
-			return "", fmt.Errorf("data_role_arn and deployment_role_arn must be in the same AWS account")
-		}
-		accountID = id
-	}
-
-	statements := []awsPolicyStatement{{
-		Sid:       "EnableRootAccount",
-		Effect:    "Allow",
-		Actions:   []string{"kms:*"},
-		Resources: []string{"*"},
-		Principal: map[string]string{"AWS": "arn:aws:iam::" + accountID + ":root"},
-	}}
-	if useTDE {
 		statements = append(statements, awsPolicyStatement{
-			Sid:       "AllowSelectDBTdeAccess",
+			Sid:       "AllowVeloDBTdeAccess",
 			Effect:    "Allow",
 			Actions:   []string{"kms:Encrypt", "kms:Decrypt", "kms:GenerateDataKey*", "kms:DescribeKey"},
 			Resources: []string{"*"},
@@ -303,8 +282,11 @@ func buildAWSKMSKeyPolicy(useTDE, useEBS bool, dataRoleARN, deploymentRoleARN st
 		})
 	}
 	if useEBS {
+		if _, err := awsAccountIDFromRoleARN(deploymentRoleARN); err != nil {
+			return "", fmt.Errorf("deployment_role_arn is required when use_ebs is true: %w", err)
+		}
 		statements = append(statements, awsPolicyStatement{
-			Sid:       "AllowSelectDBEbsAccess",
+			Sid:       "AllowVeloDBEbsAccess",
 			Effect:    "Allow",
 			Actions:   []string{"kms:Decrypt", "kms:GenerateDataKey*", "kms:CreateGrant", "kms:ReEncrypt*", "kms:DescribeKey"},
 			Resources: []string{"*"},
