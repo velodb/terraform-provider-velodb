@@ -44,8 +44,8 @@ only — SaaS warehouses use the `velodb_warehouse` resource directly.
 | `admin_password` | ✅ | ✅ In-place (bump `admin_password_version`) | Both | ✅ `admin_password` |
 | `tags` | ✅ | 🚫 Create-only | Both | ✅ `tags` |
 
-¹ SaaS supports multiple providers (for example `aliyun`); advanced BYOC (what the
-modules use) requires `aws`.
+¹ Advanced BYOC (what the modules use) requires `aws`. VeloDB Cloud SaaS also
+runs on Azure, but this Terraform provider has only been tested with `aws`.
 
 ## Core version
 
