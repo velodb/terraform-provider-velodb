@@ -105,6 +105,54 @@ func TestCloudSettingCredentialLifecycle(t *testing.T) {
 	}
 }
 
+// TestEncryptionKeyGetPopulatesAllFields guards the terraform import path: after
+// ImportState sets cloud_provider+id, the framework calls Read -> GetEncryptionKey,
+// which must repopulate every attribute the resource maps. In particular key_arn is
+// a Required attribute, so if the GET response did not carry keyArn an imported key
+// would show a permanent RequiresReplace diff.
+func TestEncryptionKeyGetPopulatesAllFields(t *testing.T) {
+	ts, mux := newTestServer(t)
+	defer ts.Close()
+	client := newTestClient(t, ts)
+
+	want := EncryptionKey{
+		EncryptionKeyID: 789,
+		Name:            "analytics-tde",
+		CloudProvider:   "aws",
+		Region:          "us-east-1",
+		KeyARN:          "arn:aws:kms:us-east-1:123456789012:key/abcd-1234",
+		UseTDE:          true,
+		UseEBS:          true,
+		WarehouseCount:  2,
+		WarehouseIDs:    []string{"WH-001", "WH-002"},
+		CreatedAt:       "2026-01-02T03:04:05Z",
+		UpdatedAt:       "2026-01-03T04:05:06Z",
+	}
+
+	mux.HandleFunc("/v1/cloud-settings/aws/encryption-keys/789", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		jsonResponse(w, http.StatusOK, APIResponse[EncryptionKey]{Success: true, RequestID: "req-get-key", Data: want})
+	})
+
+	got, err := client.GetEncryptionKey(context.Background(), "aws", 789)
+	if err != nil {
+		t.Fatalf("GetEncryptionKey: %v", err)
+	}
+	if got.EncryptionKeyID != want.EncryptionKeyID || got.Name != want.Name ||
+		got.CloudProvider != want.CloudProvider || got.Region != want.Region ||
+		got.KeyARN != want.KeyARN || got.UseTDE != want.UseTDE || got.UseEBS != want.UseEBS ||
+		got.WarehouseCount != want.WarehouseCount || got.CreatedAt != want.CreatedAt ||
+		got.UpdatedAt != want.UpdatedAt {
+		t.Fatalf("GetEncryptionKey decoded = %#v, want %#v", got, want)
+	}
+	if len(got.WarehouseIDs) != 2 || got.WarehouseIDs[0] != "WH-001" || got.WarehouseIDs[1] != "WH-002" {
+		t.Fatalf("WarehouseIDs = %#v", got.WarehouseIDs)
+	}
+}
+
 func TestEncryptionKeyLifecycle(t *testing.T) {
 	ts, mux := newTestServer(t)
 	defer ts.Close()
