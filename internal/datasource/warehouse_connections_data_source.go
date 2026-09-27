@@ -163,36 +163,36 @@ func (d *WarehouseConnectionsDataSource) Read(ctx context.Context, req datasourc
 			fmt.Sprintf("Connection endpoints were read, but warehouse detail lookup failed: %s", err.Error()),
 		)
 	} else {
-		config.EndpointServiceID = stringOrNull(wh.EndpointServiceID)
-		config.EndpointServiceName = stringOrNull(wh.EndpointServiceName)
+		config.EndpointServiceID = stringVal(wh.EndpointServiceID)
+		config.EndpointServiceName = stringVal(wh.EndpointServiceName)
 	}
 
 	config.PublicEndpoints = make([]ConnectionEndpointModel, 0, len(conns.PublicEndpoints))
 	for _, ep := range conns.PublicEndpoints {
 		config.PublicEndpoints = append(config.PublicEndpoints, ConnectionEndpointModel{
-			Protocol: stringOrNull(ep.Protocol),
-			Host:     stringOrNull(ep.Host),
+			Protocol: stringVal(ep.Protocol),
+			Host:     stringVal(ep.Host),
 			Port:     types.Int64Value(int64(ep.Port)),
-			URL:      stringOrNull(ep.URL),
+			URL:      stringVal(ep.URL),
 		})
 	}
 
 	config.PrivateEndpoints = make([]PrivateConnectionEndpointModel, 0, len(conns.PrivateEndpoints))
 	for _, ep := range conns.PrivateEndpoints {
 		config.PrivateEndpoints = append(config.PrivateEndpoints, PrivateConnectionEndpointModel{
-			Protocol:   stringOrNull(ep.Protocol),
-			Host:       stringOrNull(ep.Host),
+			Protocol:   stringVal(ep.Protocol),
+			Host:       stringVal(ep.Host),
 			Port:       types.Int64Value(int64(ep.Port)),
-			URL:        stringOrNull(ep.URL),
-			EndpointID: stringOrNull(ep.EndpointID),
+			URL:        stringVal(ep.URL),
+			EndpointID: stringVal(ep.EndpointID),
 		})
 	}
 
 	config.ComputeClusters = make([]ConnectionClusterModel, 0, len(conns.ComputeClusters))
 	for _, cl := range conns.ComputeClusters {
 		config.ComputeClusters = append(config.ComputeClusters, ConnectionClusterModel{
-			ClusterID:   stringOrNull(cl.ClusterID),
-			ClusterName: stringOrNull(cl.ClusterName),
+			ClusterID:   stringVal(cl.ClusterID),
+			ClusterName: stringVal(cl.ClusterName),
 			HTTPPort:    types.Int64Value(int64(cl.HTTPPort)),
 		})
 	}
@@ -204,18 +204,11 @@ func (d *WarehouseConnectionsDataSource) Read(ctx context.Context, req datasourc
 			jdbcPort = types.Int64Value(int64(*group.JdbcPort))
 		}
 		config.ObserverGroups = append(config.ObserverGroups, ObserverGroupModel{
-			ClusterID: stringOrNull(group.ClusterID),
-			Name:      stringOrNull(group.Name),
+			ClusterID: stringVal(group.ClusterID),
+			Name:      stringVal(group.Name),
 			JdbcPort:  jdbcPort,
 		})
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &config)...)
-}
-
-func stringOrNull(s string) types.String {
-	if s == "" {
-		return types.StringNull()
-	}
-	return types.StringValue(s)
 }
