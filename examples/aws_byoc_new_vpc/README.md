@@ -60,6 +60,11 @@ non-standard zones, to align with an external network plan, or to pin an
 existing deployment's CIDRs before upgrading. See the commented block in
 `terraform.tfvars.example`.
 
+By default, `warehouse_client_cidrs` follows `vpc_cidr`, allowing clients in
+the new VPC to reach warehouse TCP ports 8000-10000. Set it to `[]` to disable
+direct client access, or supply a list to replace this default. Client egress
+rules, network ACLs, and the warehouse access address must also permit access.
+
 To create more compute clusters, add entries to `additional_clusters` in
 `terraform.tfvars`:
 

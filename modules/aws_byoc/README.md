@@ -113,10 +113,14 @@ requires the `hashicorp/aws` provider `>= 6.24.0`; regional NAT is unavailable
 in AWS GovCloud (US) and China Regions, where a zonal NAT per AZ is needed
 instead.
 
-By default the warehouse security group only allows internal traffic and
-PrivateLink access. Set `warehouse_client_cidrs` to the CIDR blocks of any VPCs
-that must reach the warehouse directly on ports 8000-10000 (for example, peered
-client VPCs). Each entry must be a valid IPv4 CIDR; a `/0` block such as
+By default the warehouse security group allows direct client access on TCP
+ports 8000-10000 from the new VPC CIDR, in addition to internal traffic and
+PrivateLink access. Leaving `warehouse_client_cidrs` unset or setting it to
+`null` follows `vpc_cidr` automatically. Set `[]` to disable direct client
+access, or provide an explicit list to replace the default (include `vpc_cidr`
+if clients in the new VPC still need access). Clients in other VPCs also need
+network connectivity, such as VPC peering, and appropriate routes. Client
+egress rules and network ACLs must allow the traffic. Each entry must be a valid IPv4 CIDR; a `/0` block such as
 `0.0.0.0/0` is rejected so the warehouse ports are never opened to the entire
 internet. The data bucket is created with `force_destroy = false` so
 Terraform never deletes its objects: the module creates the bucket, but the

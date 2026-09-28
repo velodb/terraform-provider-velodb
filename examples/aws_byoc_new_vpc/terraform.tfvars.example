@@ -3,7 +3,8 @@ bucket_name            = "replace-with-a-globally-unique-bucket-name"
 name_prefix            = "production"
 vpc_cidr               = "10.57.0.0/16"
 zones                  = ["us-east-1a", "us-east-1b", "us-east-1c"]
-warehouse_client_cidrs = []
+# Defaults to [vpc_cidr]. Set [] to disable direct client access.
+# warehouse_client_cidrs = ["10.57.0.0/16"]
 
 # Optional: override the per-AZ subnet CIDRs. Zones left out fall back to the
 # derived /20 block. Use this for non-standard zones, to align with an external

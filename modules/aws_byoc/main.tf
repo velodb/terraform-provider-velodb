@@ -21,9 +21,10 @@ data "velodb_byoc_prerequisites" "aws" {
 }
 
 locals {
-  zone               = var.zones[0]
-  supported_zones    = toset([for zone in data.velodb_byoc_prerequisites.aws.zones : zone.zone])
-  private_subnet_ids = { for zone, subnet in aws_subnet.private : zone => subnet.id }
+  warehouse_client_cidrs = var.warehouse_client_cidrs == null ? [var.vpc_cidr] : var.warehouse_client_cidrs
+  zone                   = var.zones[0]
+  supported_zones        = toset([for zone in data.velodb_byoc_prerequisites.aws.zones : zone.zone])
+  private_subnet_ids     = { for zone, subnet in aws_subnet.private : zone => subnet.id }
 
   # Per-AZ /20 subnet CIDRs, keyed on the zone letter so each AZ always maps to
   # the same block regardless of its position in var.zones. Deriving the block
@@ -262,7 +263,7 @@ resource "aws_vpc_security_group_ingress_rule" "warehouse_self" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "warehouse_client" {
-  for_each = toset(var.warehouse_client_cidrs)
+  for_each = toset(local.warehouse_client_cidrs)
 
   security_group_id = aws_security_group.warehouse.id
   ip_protocol       = "tcp"

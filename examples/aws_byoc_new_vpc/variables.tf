@@ -38,9 +38,9 @@ variable "subnet_cidrs" {
 }
 
 variable "warehouse_client_cidrs" {
-  description = "CIDR blocks allowed to reach warehouse query ports 8000-10000."
+  description = "CIDR blocks allowed to reach warehouse query ports 8000-10000. Null defaults to the new VPC CIDR; set [] to disable direct client access."
   type        = list(string)
-  default     = []
+  default     = null
 }
 
 variable "additional_clusters" {
