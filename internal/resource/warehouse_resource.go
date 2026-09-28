@@ -250,23 +250,23 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				},
 			},
 			"core_version": schema.StringAttribute{
-				Description: "Current human-readable core version (e.g. 26.1.0). Read-only.",
+				Description: "Desired core version. Creation accepts major.minor (API selects the latest patch) or major.minor.patch. Changes upgrade in place using an exact three-part target. Omit to report the API version without managing upgrades.",
+				Optional:    true,
 				Computed:    true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
+				Validators:  []validator.String{stringvalidator.RegexMatches(regexp.MustCompile(`^[0-9]+\.[0-9]+(\.[0-9]+)?$`), "must use major.minor or major.minor.patch numeric format")},
 			},
 			"core_version_id": schema.Int64Attribute{
-				Description: "Target core version ID. Changing triggers an upgrade. Discover valid IDs via the velodb_warehouse_versions data source. The API does not return this value on Read, so the resource preserves whatever was last applied (or null if never set).",
+				Description: "Legacy target core version ID. Prefer core_version for string-based upgrades. Changing triggers an upgrade. Discover valid IDs via the velodb_warehouse_versions data source. The API does not return this value on Read, so the resource preserves whatever was last applied (or null if never set).",
 				Optional:    true,
 			},
 			"initial_core_version": schema.StringAttribute{
-				Description: "Initial core version to provision, in `major.minor` numeric format (e.g. `26.1`). The management API selects the newest matching build for that major.minor line. Create-only: the API does not return it and rejects changes after creation. To upgrade an existing warehouse, set core_version_id instead.",
-				Optional:    true,
+				DeprecationMessage: "Use core_version for creation and upgrades instead. Remove initial_core_version when setting core_version.",
+				Description:        "Deprecated initial version selector, accepting major.minor or major.minor.patch. Prefer core_version for creation and upgrades. Create-only; remove this legacy selector when migrating to core_version.",
+				Optional:           true,
 				Validators: []validator.String{
 					stringvalidator.RegexMatches(
-						regexp.MustCompile(`^[0-9]+\.[0-9]+$`),
-						"must use major.minor numeric format (e.g. 26.1)",
+						regexp.MustCompile(`^[0-9]+\.[0-9]+(\.[0-9]+)?$`),
+						"must use major.minor or major.minor.patch numeric format (e.g. 26.1 or 26.1.2)",
 					),
 				},
 			},
@@ -492,6 +492,12 @@ func (r *WarehouseResource) ValidateConfig(ctx context.Context, req resource.Val
 		)
 	}
 
+	var coreVersion types.String
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("core_version"), &coreVersion)...)
+	if !coreVersion.IsNull() && (!version.IsNull() || !coreVersionID.IsNull()) {
+		resp.Diagnostics.AddError("Conflicting core version selectors", "Use core_version alone, or the legacy initial_core_version/core_version_id configuration. Do not set core_version together with a legacy selector.")
+	}
+
 	// Validate public_access_policy first: it is independent of initial_cluster,
 	// which short-circuits validation below when unknown.
 	var accessPolicy types.List
@@ -541,6 +547,17 @@ func (r *WarehouseResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 		if resp.Diagnostics.HasError() {
 			return
 		}
+		var configuredCoreVersion types.String
+		resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("core_version"), &configuredCoreVersion)...)
+		if configuredCoreVersion.IsNull() && !state.CoreVersion.IsNull() && !state.CoreVersion.IsUnknown() && strings.Count(state.CoreVersion.ValueString(), ".") == 1 {
+			// Dropping a two-part selector refreshes this same field to the full API version.
+			resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("core_version"), types.StringUnknown())...)
+		}
+		if !configuredCoreVersion.IsNull() && !configuredCoreVersion.IsUnknown() {
+			if err := validateCoreVersionUpgrade(configuredCoreVersion.ValueString(), state.CoreVersion.ValueString()); err != nil {
+				resp.Diagnostics.AddAttributeError(path.Root("core_version"), "Invalid core version upgrade", err.Error())
+			}
+		}
 		// Create-only attributes that need a tailored validation error. Other
 		// infrastructure attributes are rejected by their plan modifiers.
 		createOnly := []struct {
@@ -562,11 +579,13 @@ func (r *WarehouseResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 				stateVal: state.Version,
 				summary:  "Warehouse initial_core_version cannot be changed after creation",
 				detail: "The VeloDB management API accepts initial_core_version only when creating a warehouse. " +
-					"Revert the initial_core_version change and set core_version_id to upgrade an existing warehouse " +
-					"(discover valid IDs via the velodb_warehouse_versions data source).",
+					"Remove initial_core_version and set core_version to an eligible three-part target to upgrade the existing warehouse.",
 			},
 		}
 		for _, a := range createOnly {
+			if a.p.Equal(path.Root("initial_core_version")) && plan.Version.IsNull() {
+				continue
+			}
 			rejectCreateOnlyChange(&resp.Diagnostics, a.p, a.planVal, a.stateVal, a.summary, a.detail)
 		}
 		return
@@ -643,6 +662,7 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 	plan.Tags.ElementsAs(ctx, &tags, false)
 	createReq.Tags = tags
 	setOptionalString(&createReq.Version, plan.Version)
+	setOptionalString(&createReq.Version, plan.CoreVersion)
 	setOptionalString(&createReq.VpcMode, plan.VpcMode)
 	setOptionalString(&createReq.SetupMode, plan.SetupMode)
 	// Seed the initial BYOC access policy; subsequent edits use the policy endpoint.
@@ -797,6 +817,17 @@ func (r *WarehouseResource) Update(ctx context.Context, req resource.UpdateReque
 		return
 	}
 
+	var configuredCoreVersion types.String
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("core_version"), &configuredCoreVersion)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	targetVersionID, err := r.coreVersionUpgradeID(ctx, configuredCoreVersion, &plan, &state)
+	if err != nil {
+		resp.Diagnostics.AddError("Invalid core version upgrade", err.Error())
+		return
+	}
+
 	// Rename via PATCH /warehouses/{id}
 	if !plan.Name.Equal(state.Name) {
 		updateReq := &client.UpdateWarehouseRequest{}
@@ -808,21 +839,9 @@ func (r *WarehouseResource) Update(ctx context.Context, req resource.UpdateReque
 		}
 	}
 
-	// Trigger version upgrade if core_version_id changed.
-	// Guard against zero IDs (which the velodb_warehouse_versions data source returns
-	// when the API has no available versions) — they would always 409 "targetVersionId not found".
-	if !plan.CoreVersionID.IsNull() && !plan.CoreVersionID.IsUnknown() &&
-		!plan.CoreVersionID.Equal(state.CoreVersionID) {
-		if plan.CoreVersionID.ValueInt64() <= 0 {
-			resp.Diagnostics.AddError(
-				"Invalid core_version_id",
-				"core_version_id must be a positive core version ID. "+
-					"This is typically caused by referencing default_id from velodb_warehouse_versions when the API returned no available versions. "+
-					"Either remove core_version_id from the configuration or pin a specific version_id.",
-			)
-			return
-		}
-		if err := r.client.UpgradeWarehouse(ctx, warehouseID, plan.CoreVersionID.ValueInt64()); err != nil {
+	// String and legacy ID selectors use the same in-place upgrade call.
+	if targetVersionID > 0 {
+		if err := r.client.UpgradeWarehouse(ctx, warehouseID, targetVersionID); err != nil {
 			resp.Diagnostics.AddError(userError("upgrading warehouse", err))
 			return
 		}
@@ -832,10 +851,14 @@ func (r *WarehouseResource) Update(ctx context.Context, req resource.UpdateReque
 			if err != nil {
 				return "", err
 			}
+			if wh.Status == "Running" && !configuredCoreVersion.IsNull() && !configuredCoreVersion.IsUnknown() && !coreVersionMatches(configuredCoreVersion.ValueString(), wh.CoreVersion) {
+				return "Upgrading", nil
+			}
 			return wh.Status, nil
 		}, []string{"Running"}, client.FailedStatuses, updateTimeout, 15*time.Second)
 		if err != nil {
-			resp.Diagnostics.AddWarning("Warehouse upgrade may still be in progress", err.Error())
+			resp.Diagnostics.AddError("Warehouse upgrade did not complete", err.Error())
+			return
 		}
 	}
 
@@ -979,7 +1002,7 @@ func (r *WarehouseResource) readWarehouseIntoState(ctx context.Context, warehous
 	state.Status = types.StringValue(wh.Status)
 	state.Zone = stringOrNull(wh.Zone)
 	state.DeploymentMode = stringOrNull(wh.DeploymentMode)
-	state.CoreVersion = stringOrNull(wh.CoreVersion)
+	state.CoreVersion = coreVersionForState(state.CoreVersion, wh.CoreVersion)
 	state.PayType = stringOrNull(wh.PayType)
 	state.EndpointServiceID = stringOrNull(wh.EndpointServiceID)
 	state.EndpointServiceName = stringOrNull(wh.EndpointServiceName)

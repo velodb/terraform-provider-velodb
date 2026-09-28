@@ -34,6 +34,7 @@ module "velodb_byoc" {
   deployment_credential_arn = var.deployment_credential_arn
   additional_clusters       = var.additional_clusters
   tags                      = var.tags
+  core_version              = var.core_version
   initial_core_version      = var.initial_core_version
   public_access_policy      = var.public_access_policy
 

@@ -41,10 +41,14 @@ deletes only that additional cluster.
 
 Set `tags` to apply extra key/value pairs to the VeloDB warehouse (it gets a
 `managed-by = terraform` tag by default). Warehouse tags are create-only and
-cannot be changed after the warehouse exists. Set `initial_core_version` (e.g.
-`"26.1"`, `major.minor`) to pin the initial core version; leave it unset to
-let the management API pick the default. It is also create-only — use
-`core_version_id` to upgrade an existing warehouse.
+cannot be changed after the warehouse exists. Set `core_version` to `"26.1"` (backend selects the latest patch) or `"26.1.1"`
+at creation. Change it to an exact three-part version such as `"26.1.2"` to
+upgrade the same warehouse in place. A two-part creation selector remains
+two-part in Terraform state; the provider reads the actual patch internally
+before an upgrade. The deprecated `initial_core_version` input remains supported for compatibility.
+Use `core_version` for new configurations. To migrate, remove `initial_core_version`
+and set `core_version` to the current full version or an eligible newer three-part version.
+
 
 Set `public_access_policy` to manage public access at creation and afterward: an
 object with `policy` (`DENY_ALL`, `ALLOW_ALL`, or `ALLOWLIST_ONLY`) and, for

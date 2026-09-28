@@ -25,7 +25,7 @@ resource "velodb_warehouse" "saas" {
 
 # AWS BYOC warehouse using registered custom infrastructure.
 # Pins the initial core version and configures the initial public access
-# policy at creation. Use core_version_id to upgrade later; edit
+# policy at creation. Use core_version with an exact three-part target to upgrade later; edit
 # public_access_policy to update access in place without replacing the warehouse.
 resource "velodb_warehouse" "byoc" {
   name              = "analytics-byoc"
@@ -37,8 +37,8 @@ resource "velodb_warehouse" "byoc" {
   network_config_id = velodb_byoc_network.aws.id
   admin_password    = var.admin_password
 
-  # Provision a specific core version (major.minor only, e.g. 26.1).
-  initial_core_version = "26.1"
+  # Creation accepts major.minor or major.minor.patch; upgrades use three parts.
+  core_version = "26.1"
 
   # Initial public access policy (BYOC only).
   public_access_policy {
