@@ -88,6 +88,7 @@ module "byoc" {
   bucket_name               = var.bucket_name
   name_prefix               = var.name_prefix
   admin_password            = var.admin_password
+  table_name_case_sensitive = false
   vpc_cidr                  = var.vpc_cidr
   zones                     = var.zones
   additional_clusters       = var.additional_clusters

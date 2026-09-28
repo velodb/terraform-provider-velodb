@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -62,6 +63,7 @@ type WarehouseResourceModel struct {
 	CoreVersionID           types.Int64    `tfsdk:"core_version_id"`
 	EndpointServiceID       types.String   `tfsdk:"endpoint_service_id"`
 	EndpointServiceName     types.String   `tfsdk:"endpoint_service_name"`
+	TableNameCaseSensitive  types.Bool     `tfsdk:"table_name_case_sensitive"`
 	AdminPassword           types.String   `tfsdk:"admin_password"`
 	AdminPasswordVersion    types.Int64    `tfsdk:"admin_password_version"`
 	Version                 types.String   `tfsdk:"initial_core_version"`
@@ -268,6 +270,13 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 						regexp.MustCompile(`^[0-9]+\.[0-9]+(\.[0-9]+)?$`),
 						"must use major.minor or major.minor.patch numeric format (e.g. 26.1 or 26.1.2)",
 					),
+				},
+			},
+			"table_name_case_sensitive": schema.BoolAttribute{
+				Description: "Whether table names are case-sensitive. Omit to use the case-sensitive server default. Create-only; changing this forces replacement. The API does not return this setting, so Terraform preserves configured values and imports leave it unset.",
+				Optional:    true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.RequiresReplace(),
 				},
 			},
 			"admin_password": schema.StringAttribute{
@@ -675,6 +684,7 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 	setOptionalString(&createReq.AdminPassword, plan.AdminPassword)
 	setOptionalInt64(&createReq.TdeEncryptionKeyId, plan.TdeEncryptionKeyId)
 	setOptionalInt64(&createReq.EbsEncryptionKeyId, plan.EbsEncryptionKeyId)
+	setLowerCaseMode(&createReq.LowerCaseMode, plan.TableNameCaseSensitive)
 	setOptionalBool(&createReq.EnableTls, plan.EnableTls)
 	setOptionalBool(&createReq.EnableHttps, plan.EnableHttps)
 	// Initial cluster
@@ -779,6 +789,7 @@ func (r *WarehouseResource) Read(ctx context.Context, req resource.ReadRequest, 
 	// Preserve admin_password and admin_password_version from prior state (can't read from API)
 	priorPassword := state.AdminPassword
 	priorPasswordVersion := state.AdminPasswordVersion
+	priorTableNameCaseSensitive := state.TableNameCaseSensitive
 	priorInitialCluster := state.InitialCluster
 	priorTimeouts := state.Timeouts
 
@@ -789,6 +800,8 @@ func (r *WarehouseResource) Read(ctx context.Context, req resource.ReadRequest, 
 
 	state.AdminPassword = priorPassword
 	state.AdminPasswordVersion = priorPasswordVersion
+	// The API does not return this create-only setting.
+	state.TableNameCaseSensitive = priorTableNameCaseSensitive
 	state.InitialCluster = priorInitialCluster
 	state.Timeouts = priorTimeouts
 
@@ -1111,4 +1124,15 @@ func setOptionalBool(target **bool, val types.Bool) {
 		i := val.ValueBool()
 		*target = &i
 	}
+}
+
+func setLowerCaseMode(target **int, caseSensitive types.Bool) {
+	if caseSensitive.IsNull() || caseSensitive.IsUnknown() {
+		return
+	}
+	mode := 1
+	if caseSensitive.ValueBool() {
+		mode = 0
+	}
+	*target = &mode
 }

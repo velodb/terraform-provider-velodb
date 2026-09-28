@@ -7,6 +7,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/velodb/terraform-provider-velodb/internal/client"
 )
@@ -28,6 +29,46 @@ func TestWarehouseEncryptionKeyIDsAreOptionalComputed(t *testing.T) {
 		}
 	}
 }
+
+func TestWarehouseTableNameCaseSensitivity(t *testing.T) {
+	var resp resource.SchemaResponse
+	(&WarehouseResource{}).Schema(context.Background(), resource.SchemaRequest{}, &resp)
+
+	attribute, ok := resp.Schema.Attributes["table_name_case_sensitive"].(schema.BoolAttribute)
+	if !ok {
+		t.Fatalf("table_name_case_sensitive is %T, want schema.BoolAttribute", resp.Schema.Attributes["table_name_case_sensitive"])
+	}
+	if !attribute.Optional || len(attribute.PlanModifiers) == 0 {
+		t.Fatal("table_name_case_sensitive must be optional and force replacement")
+	}
+
+	for _, tt := range []struct {
+		name string
+		in   types.Bool
+		want *int
+	}{
+		{name: "omitted", in: types.BoolNull()},
+		{name: "unknown", in: types.BoolUnknown()},
+		{name: "case sensitive", in: types.BoolValue(true), want: intPointer(0)},
+		{name: "case insensitive", in: types.BoolValue(false), want: intPointer(1)},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var got *int
+			setLowerCaseMode(&got, tt.in)
+			if tt.want == nil {
+				if got != nil {
+					t.Fatalf("setLowerCaseMode() = %d, want nil", *got)
+				}
+				return
+			}
+			if got == nil || *got != *tt.want {
+				t.Fatalf("setLowerCaseMode() = %v, want %d", got, *tt.want)
+			}
+		})
+	}
+}
+
+func intPointer(value int) *int { return &value }
 
 func TestWarehouseDeleteInProgress(t *testing.T) {
 	if !warehouseDeleteInProgress(&client.APIError{Code: "OperationConflict", Message: "warehouse is already in deleting status"}) {

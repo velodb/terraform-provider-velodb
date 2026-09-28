@@ -50,6 +50,8 @@ before an upgrade. The deprecated `initial_core_version` input remains supported
 Use `core_version` for new configurations. To migrate, remove `initial_core_version`
 and set `core_version` to the current full version or an eligible newer three-part version.
 
+Set `table_name_case_sensitive` to `false` for case-insensitive table names.
+It is create-only; leave it unset to use the case-sensitive server default.
 
 Set `public_access_policy` to manage public access at creation and afterward: an
 object with `policy` (`DENY_ALL`, `ALLOW_ALL`, or `ALLOWLIST_ONLY`) and, for
