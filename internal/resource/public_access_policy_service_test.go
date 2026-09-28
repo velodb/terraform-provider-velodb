@@ -20,6 +20,9 @@ func TestPublicAccessPolicyEntryPointsReadSameState(t *testing.T) {
 		rules      int
 	}{
 		{"allowlist", `{"publicAccessPolicy":"ALLOWLIST_ONLY","allowlist":[{"cidr":"203.0.113.0/24"}]}`, false, 1},
+		{"legacy whitelist", `{"publicAccessPolicy":"WHITELIST_ONLY","allowlist":[{"cidr":"203.0.113.0/24"}]}`, false, 1},
+		{"legacy rules response fallback", `{"publicAccessPolicy":"WHITELIST_ONLY","rules":[{"cidr":"203.0.113.0/24"}]}`, false, 1},
+		{"legacy empty whitelist", `{"publicAccessPolicy":"WHITELIST_ONLY","allowlist":[]}`, false, 0},
 		{"rules response fallback", `{"publicAccessPolicy":"ALLOWLIST_ONLY","rules":[{"cidr":"203.0.113.0/24"}]}`, false, 1},
 		{"cleared allowlist", `{"publicAccessPolicy":"ALLOWLIST_ONLY","allowlist":[]}`, false, 0},
 		{"deny all ignores stale rules", `{"publicAccessPolicy":"DENY_ALL","rules":[{"cidr":"203.0.113.0/24"}]}`, false, 0},
@@ -52,6 +55,12 @@ func TestPublicAccessPolicyEntryPointsReadSameState(t *testing.T) {
 			}
 			if !models[0].Policy.Equal(standalone.Policy) || !models[0].Rules.Equal(standalone.Rules) {
 				t.Fatal("entry points read different state")
+			}
+			if strings.Contains(tc.body, "WHITELIST_ONLY") && standalone.Policy.ValueString() != "ALLOWLIST_ONLY" {
+				t.Fatalf("legacy policy was not normalized: %v", standalone.Policy)
+			}
+			if strings.Contains(tc.body, "WHITELIST_ONLY") && tc.rules > 0 && !inline.AccessPolicy.Equal(original) {
+				t.Fatal("legacy response introduced policy or rule drift")
 			}
 			if tc.wantError {
 				if !inline.AccessPolicy.Equal(original) {

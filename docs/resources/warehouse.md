@@ -394,3 +394,7 @@ Optional computed encryption key IDs omitted from configuration retain their
 API-reported values; omission does not disable encryption. BYOC modules also
 reject changes to their recorded encryption creation flags and network inputs.
 Explicit destruction remains supported.
+
+API responses using the legacy `WHITELIST_ONLY` value are normalized to
+`ALLOWLIST_ONLY` on refresh, preserving allowlist rules. Continue using
+`ALLOWLIST_ONLY` in Terraform configuration; requests use the current enum name.

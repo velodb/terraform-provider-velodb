@@ -50,7 +50,11 @@ func TestWarehouseInlinePublicAccessPolicy(t *testing.T) {
 		if strings.HasSuffix(r.URL.Path, "/connections/public/access-policy") {
 			switch r.Method {
 			case http.MethodGet:
-				writeJSONResponse(t, w, map[string]any{"success": true, "data": map[string]any{"publicAccessPolicy": remote.PublicAccessPolicy, "allowlist": remote.Rules}})
+				policy := remote.PublicAccessPolicy
+				if policy == "ALLOWLIST_ONLY" {
+					policy = "WHITELIST_ONLY"
+				}
+				writeJSONResponse(t, w, map[string]any{"success": true, "data": map[string]any{"publicAccessPolicy": policy, "allowlist": remote.Rules}})
 			case http.MethodPatch:
 				if failPatch {
 					w.WriteHeader(400)

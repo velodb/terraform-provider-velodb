@@ -37,14 +37,20 @@ func (s publicAccessPolicyService) readIntoState(ctx context.Context, state *Pub
 	if response.PublicAccessPolicy == "" {
 		return fmt.Errorf("the API returned an empty public access policy")
 	}
+	// Older API versions use WHITELIST_ONLY for the same policy. Normalize
+	// before converting rules so refresh neither drops them nor reports drift.
+	policy := response.PublicAccessPolicy
+	if policy == "WHITELIST_ONLY" {
+		policy = "ALLOWLIST_ONLY"
+	}
 	apiRules := response.Allowlist
 	if len(apiRules) == 0 {
 		apiRules = response.Rules
 	}
-	rules := publicAccessRulesToSet(ctx, response.PublicAccessPolicy, apiRules, state.Rules, diags)
+	rules := publicAccessRulesToSet(ctx, policy, apiRules, state.Rules, diags)
 	if !diags.HasError() {
 		state.ID = state.WarehouseID
-		state.Policy = types.StringValue(response.PublicAccessPolicy)
+		state.Policy = types.StringValue(policy)
 		state.Rules = rules
 	}
 	return nil
