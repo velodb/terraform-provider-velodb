@@ -119,7 +119,7 @@ resource "velodb_warehouse" "production" {
 ```
 
 Creation accepts `major.minor` or exact `major.minor.patch`. To upgrade from
-`26.1.5` to `26.1.9`, set `core_version = "26.1.9"`. The provider resolves the exact
+`26.1.1` to `26.1.2`, set `core_version = "26.1.2"`. The provider resolves the exact
 string through the warehouse's available upgrade versions and calls the existing
 upgrade API; it does not replace the warehouse. Missing, ambiguous, or invalid
 upgrade targets produce an error. Downgrades are rejected. A two-part value is a

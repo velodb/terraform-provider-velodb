@@ -22,7 +22,7 @@ tags = {
   managed-by  = "terraform"
 }
 
-# Creation accepts "26.1" (latest patch) or "26.1.5". Set "26.1.9" to upgrade later.
+# Creation accepts "26.1" (latest patch) or "26.1.1". Set "26.1.2" to upgrade later.
 # core_version = "26.1"
 
 # Public network access policy. Changes update the existing warehouse in place.
