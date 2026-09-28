@@ -136,7 +136,8 @@ mutually exclusive — set one or the other, not both.
 ## Public Access Policy
 
 For `deployment_mode = "BYOC"`, you can set the initial public access policy at
-creation with a `public_access_policy` block. Supported policy values are `DENY_ALL`, `ALLOW_ALL`, or
+creation with a `public_access_policy` block. It reuses the same policy values as the
+`velodb_warehouse_public_access_policy` resource: `DENY_ALL`, `ALLOW_ALL`, or
 `ALLOWLIST_ONLY` with CIDR `rules`.
 
 ```terraform
@@ -169,8 +170,8 @@ Removing the block stops managing the policy without changing remote access.
 Set `policy = "DENY_ALL"` explicitly to disable public access.
 
 Do not manage the same warehouse's policy with both this block and a
-`velodb_warehouse_public_access_policy` resource. The standalone resource is deprecated and retained only for existing-state
-compatibility. Use the inline block for all new configurations.
+`velodb_warehouse_public_access_policy` resource. The standalone resource remains
+supported for compatibility and policies managed separately from a warehouse.
 When migrating from it, first remove its state ownership with `terraform state rm`
 (or a `removed` block with `destroy = false`) and remove its configuration, then
 add the matching inline block. Do not destroy the standalone resource as part of

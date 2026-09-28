@@ -179,7 +179,7 @@ The generated schema maps every resource and data source:
 |---|---|---|
 | `velodb_warehouse` | `velodb:index:Warehouse` | `Warehouse` |
 | `velodb_cluster` | `velodb:index:Cluster` | `Cluster` |
-| `velodb_warehouse_public_access_policy` (deprecated; use warehouse inline policy) | `velodb:index:WarehousePublicAccessPolicy` | `WarehousePublicAccessPolicy` |
+| `velodb_warehouse_public_access_policy` | `velodb:index:WarehousePublicAccessPolicy` | `WarehousePublicAccessPolicy` |
 | `velodb_private_link_endpoint_service` | `velodb:index:PrivateLinkEndpointService` | `PrivateLinkEndpointService` |
 | `velodb_warehouse_private_endpoint` | `velodb:index:WarehousePrivateEndpoint` | `WarehousePrivateEndpoint` |
 | `velodb_warehouses` (data source) | — | `VelodbFunctions.getWarehouses()` |

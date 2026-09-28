@@ -150,7 +150,7 @@ to modification, replacement, or deletion.
 | `velodb_byoc_credential` | Register AWS storage and deployment credentials for BYOC. |
 | `velodb_byoc_network` | Register AWS VPC network configuration for BYOC. |
 | `velodb_cluster` | Manage COMPUTE clusters inside a warehouse, including resize, pause, resume, and reboot. |
-| `velodb_warehouse_public_access_policy` | Deprecated compatibility resource. Use `velodb_warehouse.public_access_policy`. |
+| `velodb_warehouse_public_access_policy` | Manage public endpoint access policy and CIDR allowlists. |
 | `velodb_warehouse_private_endpoint` | Register and describe inbound PrivateLink endpoints for warehouse access. |
 | `velodb_private_link_endpoint_service` | Register external endpoint services that VeloDB Cloud can access through PrivateLink. |
 

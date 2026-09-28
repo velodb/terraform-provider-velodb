@@ -62,16 +62,14 @@ Pin the initial `major.minor` with `initial_core_version`; upgrade later by sett
 
 | Attribute | Creation | Update | Modes | Modules |
 |---|---|---|---|---|
-| `public_access_policy` | ✅ | ✅ In-place¹ | BYOC at creation² | ✅ `public_access_policy` |
+| `public_access_policy` | ✅ | 🚫 Create-only¹ | BYOC² | ✅ `public_access_policy` |
 | `enable_tls` | ✅ | 🚫 Create-only | Both | ❌ |
 | `enable_https` | ✅ | 🚫 Create-only | Both | ❌ |
 
-¹ Use the same inline block for creation, updates, and drift detection. The
-standalone `velodb_warehouse_public_access_policy` resource is deprecated.
-`public_access_policy.rules` is a set — write `rules = [{ cidr = "…" }]`.
+¹ Change it after creation with the separate `velodb_warehouse_public_access_policy`
+resource. `public_access_policy.rules` is a list — write `rules = [ { cidr = "…" } ]`.
 
 ² The management API rejects an initial `public_access_policy` for SaaS warehouses.
-The inline block can be added to an existing warehouse to manage its policy.
 
 ## BYOC infrastructure
 
