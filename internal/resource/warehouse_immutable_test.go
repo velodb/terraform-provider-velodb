@@ -49,6 +49,7 @@ func TestWarehouseImmutableModifiers(t *testing.T) {
 	}{
 		{"credential changed", false, types.Int64Value(1), types.Int64Value(2), types.Int64Value(2), true},
 		{"network replacement", false, types.Int64Value(1), types.Int64Unknown(), types.Int64Unknown(), true},
+		{"omitted credential", false, types.Int64Value(1), types.Int64Null(), types.Int64Unknown(), false},
 		{"import credential", false, types.Int64Null(), types.Int64Value(1), types.Int64Value(1), false},
 		{"enable encryption", true, types.Int64Null(), types.Int64Value(2), types.Int64Value(2), true},
 		{"replace encryption", true, types.Int64Value(1), types.Int64Unknown(), types.Int64Unknown(), true},
@@ -65,8 +66,31 @@ func TestWarehouseImmutableModifiers(t *testing.T) {
 			if resp.RequiresReplace {
 				t.Fatal("must not schedule replacement")
 			}
-			if tc.encryption && tc.config.IsNull() && !resp.PlanValue.Equal(tc.prior) {
+			if tc.config.IsNull() && !resp.PlanValue.Equal(tc.prior) {
 				t.Fatal("omitted computed key must retain state")
+			}
+		})
+	}
+}
+
+func TestWarehouseImmutableBool(t *testing.T) {
+	present := tftypes.NewValue(tftypes.Object{AttributeTypes: map[string]tftypes.Type{}}, map[string]tftypes.Value{})
+	for _, tc := range []struct {
+		name   string
+		next   types.Bool
+		reject bool
+	}{
+		{"unchanged", types.BoolValue(false), false},
+		{"changed", types.BoolValue(true), true},
+		{"removed", types.BoolNull(), true},
+		{"unknown", types.BoolUnknown(), true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := planmodifier.BoolRequest{Path: path.Root("table_name_case_sensitive"), State: tfsdk.State{Raw: present}, Plan: tfsdk.Plan{Raw: present}, StateValue: types.BoolValue(false), PlanValue: tc.next}
+			resp := planmodifier.BoolResponse{PlanValue: tc.next}
+			(warehouseImmutableBool{}).PlanModifyBool(context.Background(), req, &resp)
+			if resp.Diagnostics.HasError() != tc.reject || resp.RequiresReplace {
+				t.Fatalf("diagnostics=%v replacement=%v", resp.Diagnostics, resp.RequiresReplace)
 			}
 		})
 	}

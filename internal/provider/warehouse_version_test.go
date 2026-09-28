@@ -17,7 +17,7 @@ import (
 )
 
 func TestWarehouseCoreVersionLifecycle(t *testing.T) {
-	for _, selector := range []string{"4.1", "4.1.5", "legacy", "legacy_id"} {
+	for _, selector := range []string{"4.1", "4.1.5", "legacy_id"} {
 		t.Run(selector, func(t *testing.T) {
 			ts := mockAPIServer(t)
 			defer ts.Close()
@@ -110,7 +110,7 @@ resource "velodb_warehouse" "test" {
 			initial := fmt.Sprintf("core_version = %q", selector)
 			initialState := selector
 			if strings.HasPrefix(selector, "legacy") {
-				initial = `initial_core_version = "4.1.5"`
+				initial = `core_version = "4.1.5"`
 				initialState = "4.1.5"
 			}
 			upgraded := config(`core_version = "4.1.9"`)
@@ -118,6 +118,7 @@ resource "velodb_warehouse" "test" {
 				upgraded = config(`core_version_id = 9`)
 			}
 			resource.Test(t, resource.TestCase{ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(ts), Steps: []resource.TestStep{
+				{Config: config(`initial_core_version = "4.1.5"`), PlanOnly: true, ExpectError: regexp.MustCompile("Unsupported argument")},
 				{Config: config(initial), Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("velodb_warehouse.test", "core_version", initialState))},
 				{Config: config(initial), PlanOnly: true},

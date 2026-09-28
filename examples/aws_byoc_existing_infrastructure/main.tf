@@ -35,7 +35,6 @@ module "velodb_byoc" {
   additional_clusters       = var.additional_clusters
   tags                      = var.tags
   core_version              = var.core_version
-  initial_core_version      = var.initial_core_version
   table_name_case_sensitive = var.table_name_case_sensitive
   public_access_policy      = var.public_access_policy
 

@@ -45,9 +45,7 @@ cannot be changed after the warehouse exists. Set `core_version` to `"26.1"` (ba
 at creation. Change it to an exact three-part version such as `"26.1.2"` to
 upgrade the same warehouse in place. A two-part creation selector remains
 two-part in Terraform state; the provider reads the actual patch internally
-before an upgrade. The deprecated `initial_core_version` input remains supported for compatibility.
-Use `core_version` for new configurations. To migrate, remove `initial_core_version`
-and set `core_version` to the current full version or an eligible newer three-part version.
+before an upgrade.
 
 Set `table_name_case_sensitive` to `false` for case-insensitive table names.
 It is create-only; leave it unset to use the case-sensitive server default.
@@ -93,3 +91,8 @@ replacing infrastructure already used by the warehouse before planning again.
 
 These checks do not prevent an explicit `terraform destroy` or removal of the
 module from configuration. They are immutability checks, not deletion protection.
+
+Warehouse refresh and import recover `credential_id` and `network_config_id` when
+the backend returns `credentialId` and `networkConfigId`. Older backends retain
+known bindings in state. Changes to known bindings are rejected without replacing
+the warehouse.

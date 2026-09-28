@@ -17,7 +17,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -66,7 +65,6 @@ type WarehouseResourceModel struct {
 	TableNameCaseSensitive  types.Bool     `tfsdk:"table_name_case_sensitive"`
 	AdminPassword           types.String   `tfsdk:"admin_password"`
 	AdminPasswordVersion    types.Int64    `tfsdk:"admin_password_version"`
-	Version                 types.String   `tfsdk:"initial_core_version"`
 	Tags                    types.Map      `tfsdk:"tags"`
 	InitialCluster          types.List     `tfsdk:"initial_cluster"`
 	AccessPolicy            types.List     `tfsdk:"public_access_policy"`
@@ -190,8 +188,9 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				},
 			},
 			"credential_id": schema.Int64Attribute{
-				Description: "Registered credential configuration ID for advanced AWS BYOC.",
+				Description: "Registered credential configuration ID for advanced AWS BYOC. Read from the API when available. Cannot be changed after creation. Omit to retain the existing binding.",
 				Optional:    true,
+				Computed:    true,
 				PlanModifiers: []planmodifier.Int64{
 					warehouseImmutableInt64{},
 				},
@@ -200,8 +199,9 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				},
 			},
 			"network_config_id": schema.Int64Attribute{
-				Description: "Registered network configuration ID for advanced AWS BYOC.",
+				Description: "Registered network configuration ID for advanced AWS BYOC. Read from the API when available. Cannot be changed after creation. Omit to retain the existing binding.",
 				Optional:    true,
+				Computed:    true,
 				PlanModifiers: []planmodifier.Int64{
 					warehouseImmutableInt64{},
 				},
@@ -261,22 +261,11 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				Description: "Legacy target core version ID. Prefer core_version for string-based upgrades. Changing triggers an upgrade. Discover valid IDs via the velodb_warehouse_versions data source. The API does not return this value on Read, so the resource preserves whatever was last applied (or null if never set).",
 				Optional:    true,
 			},
-			"initial_core_version": schema.StringAttribute{
-				DeprecationMessage: "Use core_version for creation and upgrades instead. Remove initial_core_version when setting core_version.",
-				Description:        "Deprecated initial version selector, accepting major.minor or major.minor.patch. Prefer core_version for creation and upgrades. Create-only; remove this legacy selector when migrating to core_version.",
-				Optional:           true,
-				Validators: []validator.String{
-					stringvalidator.RegexMatches(
-						regexp.MustCompile(`^[0-9]+\.[0-9]+(\.[0-9]+)?$`),
-						"must use major.minor or major.minor.patch numeric format (e.g. 26.1 or 26.1.2)",
-					),
-				},
-			},
 			"table_name_case_sensitive": schema.BoolAttribute{
-				Description: "Whether table names are case-sensitive. Omit to use the case-sensitive server default. Create-only; changing this forces replacement. The API does not return this setting, so Terraform preserves configured values and imports leave it unset.",
+				Description: "Whether table names are case-sensitive. Omit to use the case-sensitive server default. Create-only; changes after creation are rejected. The API does not return this setting, so Terraform preserves configured values and imports leave it unset.",
 				Optional:    true,
 				PlanModifiers: []planmodifier.Bool{
-					boolplanmodifier.RequiresReplace(),
+					warehouseImmutableBool{},
 				},
 			},
 			"admin_password": schema.StringAttribute{
@@ -486,26 +475,12 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 }
 
 func (r *WarehouseResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	// initial_core_version (initial core version) and core_version_id (explicit
-	// upgrade target) are mutually exclusive: setting both provisions at
-	// initial_core_version and then immediately upgrades, a redundant double operation.
-	var version types.String
 	var coreVersionID types.Int64
-	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("initial_core_version"), &version)...)
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("core_version_id"), &coreVersionID)...)
-	if !version.IsNull() && !version.IsUnknown() && !coreVersionID.IsNull() && !coreVersionID.IsUnknown() {
-		resp.Diagnostics.AddError(
-			"initial_core_version and core_version_id cannot be set together",
-			"Set initial_core_version to pin the core version at creation, or core_version_id to upgrade an existing "+
-				"warehouse — not both. Setting both provisions at initial_core_version and then upgrades in the same apply.",
-		)
-	}
-
 	var coreVersion types.String
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("core_version"), &coreVersion)...)
-	if !coreVersion.IsNull() && !coreVersion.IsUnknown() &&
-		((!version.IsNull() && !version.IsUnknown()) || (!coreVersionID.IsNull() && !coreVersionID.IsUnknown())) {
-		resp.Diagnostics.AddError("Conflicting core version selectors", "Use core_version alone, or the legacy initial_core_version/core_version_id configuration. Do not set core_version together with a legacy selector.")
+	if !coreVersion.IsNull() && !coreVersion.IsUnknown() && !coreVersionID.IsNull() && !coreVersionID.IsUnknown() {
+		resp.Diagnostics.AddError("Conflicting core version selectors", "Do not combine core_version with core_version_id. Use core_version for string-based creation and upgrades.")
 	}
 
 	// Validate public_access_policy first: it is independent of initial_cluster,
@@ -583,19 +558,8 @@ func (r *WarehouseResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 				detail: "The VeloDB management API accepts warehouse tags only at creation time and cannot update them. " +
 					"Revert the tags change, or destroy and recreate the warehouse to apply new tags.",
 			},
-			{
-				p:        path.Root("initial_core_version"),
-				planVal:  plan.Version,
-				stateVal: state.Version,
-				summary:  "Warehouse initial_core_version cannot be changed after creation",
-				detail: "The VeloDB management API accepts initial_core_version only when creating a warehouse. " +
-					"Remove initial_core_version and set core_version to an eligible three-part target to upgrade the existing warehouse.",
-			},
 		}
 		for _, a := range createOnly {
-			if a.p.Equal(path.Root("initial_core_version")) && plan.Version.IsNull() {
-				continue
-			}
 			rejectCreateOnlyChange(&resp.Diagnostics, a.p, a.planVal, a.stateVal, a.summary, a.detail)
 		}
 		return
@@ -671,7 +635,6 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 	var tags map[string]string
 	plan.Tags.ElementsAs(ctx, &tags, false)
 	createReq.Tags = tags
-	setOptionalString(&createReq.Version, plan.Version)
 	setOptionalString(&createReq.Version, plan.CoreVersion)
 	setOptionalString(&createReq.VpcMode, plan.VpcMode)
 	setOptionalString(&createReq.SetupMode, plan.SetupMode)
@@ -1020,6 +983,9 @@ func (r *WarehouseResource) readWarehouseIntoState(ctx context.Context, warehous
 	state.PayType = stringOrNull(wh.PayType)
 	state.EndpointServiceID = stringOrNull(wh.EndpointServiceID)
 	state.EndpointServiceName = stringOrNull(wh.EndpointServiceName)
+	// Older backends omit these associations; retain known bindings in that case.
+	state.CredentialID = warehouseAssociationID(wh.CredentialID, state.CredentialID)
+	state.NetworkConfigID = warehouseAssociationID(wh.NetworkConfigID, state.NetworkConfigID)
 	state.TdeEncryptionKeyId = types.Int64PointerValue(wh.TdeEncryptionKeyId)
 	state.EbsEncryptionKeyId = types.Int64PointerValue(wh.EbsEncryptionKeyId)
 
@@ -1136,4 +1102,15 @@ func setLowerCaseMode(target **int, caseSensitive types.Bool) {
 		mode = 0
 	}
 	*target = &mode
+}
+
+// Missing association IDs are unavailable on older backends, not proof of removal.
+func warehouseAssociationID(actual *int64, prior types.Int64) types.Int64 {
+	if actual != nil {
+		return types.Int64PointerValue(actual)
+	}
+	if prior.IsUnknown() {
+		return types.Int64Null()
+	}
+	return prior
 }

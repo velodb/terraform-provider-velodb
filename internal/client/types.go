@@ -95,6 +95,8 @@ type WarehouseItem struct {
 	EndpointService            *WarehouseEndpointService `json:"endpointService,omitempty"`
 	PrivateEndpointService     *WarehouseEndpointService `json:"privateEndpointService,omitempty"`
 	PrivateLinkEndpointService *WarehouseEndpointService `json:"privateLinkEndpointService,omitempty"`
+	CredentialID               *int64                    `json:"credentialId,omitempty"`
+	NetworkConfigID            *int64                    `json:"networkConfigId,omitempty"`
 	SetupGuide                 *WarehouseSetupGuide      `json:"setupGuide,omitempty"`
 	TdeEncryptionKeyId         *int64                    `json:"tdeEncryptionKeyId,omitempty"`
 	EbsEncryptionKeyId         *int64                    `json:"ebsEncryptionKeyId,omitempty"`

@@ -12,11 +12,11 @@ import (
 	"github.com/velodb/terraform-provider-velodb/internal/client"
 )
 
-func TestWarehouseEncryptionKeyIDsAreOptionalComputed(t *testing.T) {
+func TestWarehouseAssociationIDsAreOptionalComputed(t *testing.T) {
 	var resp resource.SchemaResponse
 	(&WarehouseResource{}).Schema(context.Background(), resource.SchemaRequest{}, &resp)
 
-	for _, name := range []string{"tde_encryption_key_id", "ebs_encryption_key_id"} {
+	for _, name := range []string{"credential_id", "network_config_id", "tde_encryption_key_id", "ebs_encryption_key_id"} {
 		attribute, ok := resp.Schema.Attributes[name].(schema.Int64Attribute)
 		if !ok {
 			t.Fatalf("%s is %T, want schema.Int64Attribute", name, resp.Schema.Attributes[name])
@@ -39,7 +39,7 @@ func TestWarehouseTableNameCaseSensitivity(t *testing.T) {
 		t.Fatalf("table_name_case_sensitive is %T, want schema.BoolAttribute", resp.Schema.Attributes["table_name_case_sensitive"])
 	}
 	if !attribute.Optional || len(attribute.PlanModifiers) == 0 {
-		t.Fatal("table_name_case_sensitive must be optional and force replacement")
+		t.Fatal("table_name_case_sensitive must be optional and reject changes")
 	}
 
 	for _, tt := range []struct {

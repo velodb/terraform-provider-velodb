@@ -68,7 +68,7 @@ variable "tags" {
 }
 
 variable "core_version" {
-  description = "Desired warehouse version. Creation accepts major.minor or major.minor.patch; upgrades require an exact major.minor.patch. Leave null for the API default. Do not combine with initial_core_version."
+  description = "Desired warehouse version. Creation accepts major.minor or major.minor.patch; upgrades require an exact major.minor.patch. Leave null for the API default."
   type        = string
   default     = null
 
@@ -76,12 +76,6 @@ variable "core_version" {
     condition     = var.core_version == null || can(regex("^[0-9]+\\.[0-9]+(\\.[0-9]+)?$", var.core_version))
     error_message = "core_version must use major.minor or major.minor.patch numeric format."
   }
-}
-
-variable "initial_core_version" {
-  description = "Deprecated: use core_version instead. Retained for compatibility. Initial version, accepting major.minor or major.minor.patch. Prefer core_version for creation and upgrades. Leave null when using core_version."
-  type        = string
-  default     = null
 }
 
 variable "table_name_case_sensitive" {

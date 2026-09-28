@@ -391,7 +391,6 @@ resource "velodb_warehouse" "this" {
   network_config_id         = velodb_byoc_network.this.id
   admin_password            = var.admin_password
   core_version              = var.core_version
-  initial_core_version      = var.initial_core_version
   table_name_case_sensitive = var.table_name_case_sensitive
   tags                      = local.tags
 

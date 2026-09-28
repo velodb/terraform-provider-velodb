@@ -49,14 +49,34 @@ func (m warehouseImmutableInt64) PlanModifyInt64(_ context.Context, req planmodi
 	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
 		return
 	}
-	if m.encryption && req.ConfigValue.IsNull() {
-		// Optional+computed: omission means retain the API-reported key, not disable
-		// encryption. Module input guards separately reject encryption flag changes.
+	if req.ConfigValue.IsNull() {
+		// Optional+computed: omission retains the existing association.
+		// Module input guards separately reject encryption flag changes.
 		resp.PlanValue = req.StateValue
 		return
 	}
 	if !m.encryption && req.StateValue.IsNull() {
-		// Credential and network IDs are not returned by the API after import.
+		// Older backends may omit credential and network IDs after import.
+		return
+	}
+	rejectWarehouseInfrastructureChange(&resp.Diagnostics, req.Path, req.PlanValue, req.StateValue)
+}
+
+// PlanModifyBool rejects changes to create-only settings without replacing the warehouse.
+type warehouseImmutableBool struct{}
+
+func (warehouseImmutableBool) Description(context.Context) string {
+	return "Reject changes to settings already used by a warehouse."
+}
+func (m warehouseImmutableBool) MarkdownDescription(ctx context.Context) string {
+	return m.Description(ctx)
+}
+func (warehouseImmutableBool) PlanModifyBool(_ context.Context, req planmodifier.BoolRequest, resp *planmodifier.BoolResponse) {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+	// This setting cannot be recovered after import; permit initial binding.
+	if req.StateValue.IsNull() {
 		return
 	}
 	rejectWarehouseInfrastructureChange(&resp.Diagnostics, req.Path, req.PlanValue, req.StateValue)
