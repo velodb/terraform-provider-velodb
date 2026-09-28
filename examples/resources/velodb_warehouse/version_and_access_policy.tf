@@ -17,7 +17,7 @@ resource "velodb_warehouse" "byoc_deny_all" {
   network_config_id = velodb_byoc_network.aws.id
   admin_password    = var.admin_password
 
-  core_version = "4.1"
+  core_version = "26.1"
 
   public_access_policy {
     policy = "DENY_ALL"
@@ -41,7 +41,7 @@ resource "velodb_warehouse" "byoc_allowlist" {
   network_config_id = velodb_byoc_network.aws.id
   admin_password    = var.admin_password
 
-  core_version = "4.1"
+  core_version = "26.1"
 
   public_access_policy {
     policy = "ALLOWLIST_ONLY"

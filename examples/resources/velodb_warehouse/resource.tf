@@ -38,7 +38,7 @@ resource "velodb_warehouse" "byoc" {
   admin_password    = var.admin_password
 
   # Creation accepts major.minor or major.minor.patch; upgrades use three parts.
-  core_version = "4.1"
+  core_version = "26.1"
 
   # Initial public access policy (BYOC only).
   public_access_policy {

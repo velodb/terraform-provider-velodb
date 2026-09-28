@@ -114,12 +114,12 @@ Use `core_version` for both creation and in-place upgrades:
 ```terraform
 resource "velodb_warehouse" "production" {
   # ...
-  core_version = "4.1" # creation: backend selects the latest patch in 4.1
+  core_version = "26.1" # creation: backend selects the latest patch in 26.1
 }
 ```
 
 Creation accepts `major.minor` or exact `major.minor.patch`. To upgrade from
-`4.1.5` to `4.1.9`, set `core_version = "4.1.9"`. The provider resolves the exact
+`26.1.5` to `26.1.9`, set `core_version = "26.1.9"`. The provider resolves the exact
 string through the warehouse's available upgrade versions and calls the existing
 upgrade API; it does not replace the warehouse. Missing, ambiguous, or invalid
 upgrade targets produce an error. Downgrades are rejected. A two-part value is a
@@ -150,7 +150,7 @@ resource "velodb_warehouse" "production" {
   # ...
   deployment_mode = "BYOC"
 
-  core_version = "4.1"
+  core_version = "26.1"
 
   public_access_policy {
     policy = "ALLOWLIST_ONLY"
