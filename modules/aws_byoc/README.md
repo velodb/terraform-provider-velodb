@@ -47,12 +47,14 @@ are create-only, so they cannot be changed after the warehouse exists. Set
 version; leave it unset to let the management API pick the default. It is also
 create-only — use `core_version_id` to upgrade an existing warehouse.
 
-Set `public_access_policy` to apply an initial public access policy at creation: an
+Set `public_access_policy` to manage public access at creation and afterward: an
 object with `policy` (`DENY_ALL`, `ALLOW_ALL`, or `ALLOWLIST_ONLY`) and, for
-`ALLOWLIST_ONLY`, a list of `rules` (`cidr` plus optional `description`). It is
-create-only; manage the policy afterward with the
-`velodb_warehouse_public_access_policy` resource. Leave it unset to let the
-management API pick the default. For example:
+`ALLOWLIST_ONLY`, a list of `rules` (`cidr` plus optional `description`). Changes update the existing warehouse in
+place, and refresh detects remote
+policy/rule changes. Leave it unset to use the API default at creation. Setting
+it to null later stops management without changing the remote policy; use
+`DENY_ALL` to disable public access. Do not also manage the same policy with
+`velodb_warehouse_public_access_policy`. For example:
 
 ```hcl
 public_access_policy = {
@@ -93,9 +95,10 @@ falls within `vpc_cidr`; the module rejects overrides outside the VPC range.
 Because the derived mapping changed in this release, upgrading an existing
 deployment whose `zones` list skips a letter (for example
 `["us-east-1a", "us-east-1b", "us-east-1d"]`) reassigns the affected subnet CIDR
-and triggers a one-time subnet, network, and warehouse replacement on the next
-apply even if `zones` is unchanged. To upgrade in place without that
-replacement, pin the current CIDRs first, for example:
+would require subnet, network, and warehouse replacement even if `zones` is
+unchanged. The provider now rejects that warehouse binding change. Before
+establishing the immutable-input baseline during upgrade, pin the current
+CIDRs to preserve the existing infrastructure, for example:
 
 ```hcl
 subnet_cidrs = {
@@ -130,3 +133,24 @@ immutable after creation because changing it can replace AWS and VeloDB
 resources. If destroy stops with `BucketNotEmpty`, confirm the objects are no
 longer needed, empty the bucket manually, and run a newly generated destroy
 plan. The module does not infer whether bucket contents are shared.
+
+## Immutable warehouse infrastructure
+
+Once created, warehouse infrastructure inputs cannot be edited in place. The
+module rejects changes to `bucket_name`, `region`, network placement, and
+`create_tde_encryption_key`, `create_ebs_encryption_key`, `tde_kms_key_arn`, and
+`ebs_kms_key_arn`. The new-VPC module also freezes `vpc_cidr`, `zones`, and
+`subnet_cidrs`; the existing-infrastructure module freezes VPC, subnet, security
+group, endpoint, and IAM credential references. Restore the original values
+when a plan reports an immutable-input error. Provision a separate warehouse
+for a migration instead of replacing the existing warehouse through input edits.
+
+When upgrading a deployment created before these guards existed, first apply
+with all infrastructure inputs unchanged to record their baseline. Do not
+combine that upgrade with infrastructure edits. The provider also rejects
+changes to existing warehouse bindings, including unknown IDs produced by
+upstream replacement plans. An unknown binding must be resolved without
+replacing infrastructure already used by the warehouse before planning again.
+
+These checks do not prevent an explicit `terraform destroy` or removal of the
+module from configuration. They are immutability checks, not deletion protection.

@@ -17,7 +17,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -141,7 +140,7 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				Description: "Deployment mode: SaaS or BYOC.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					warehouseImmutableString{},
 				},
 				Validators: []validator.String{
 					stringvalidator.OneOf("SaaS", "BYOC"),
@@ -151,21 +150,21 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				Description: "Cloud provider. Only aws is supported.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					warehouseImmutableString{},
 				},
 			},
 			"region": schema.StringAttribute{
 				Description: "Cloud region (e.g., us-east-1).",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					warehouseImmutableString{},
 				},
 			},
 			"setup_mode": schema.StringAttribute{
 				Description: "BYOC setup mode: `guided` (CloudFormation template) or `advanced` (pre-existing AWS resources — IaC-friendly).",
 				Optional:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					warehouseImmutableString{},
 				},
 				Validators: []validator.String{
 					stringvalidator.OneOf("guided", "advanced"),
@@ -175,7 +174,7 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				Description: "VPC mode hint: existing or new.",
 				Optional:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					warehouseImmutableString{},
 				},
 				Validators: []validator.String{
 					stringvalidator.OneOf("existing", "new"),
@@ -185,14 +184,14 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				Description: "Existing VPC identifier for Template mode.",
 				Optional:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					warehouseImmutableString{},
 				},
 			},
 			"credential_id": schema.Int64Attribute{
 				Description: "Registered credential configuration ID for advanced AWS BYOC.",
 				Optional:    true,
 				PlanModifiers: []planmodifier.Int64{
-					int64planmodifier.RequiresReplace(),
+					warehouseImmutableInt64{},
 				},
 				Validators: []validator.Int64{
 					int64validator.AtLeast(1),
@@ -202,7 +201,7 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				Description: "Registered network configuration ID for advanced AWS BYOC.",
 				Optional:    true,
 				PlanModifiers: []planmodifier.Int64{
-					int64planmodifier.RequiresReplace(),
+					warehouseImmutableInt64{},
 				},
 				Validators: []validator.Int64{
 					int64validator.AtLeast(1),
@@ -212,42 +211,42 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				Description: "Object storage bucket name for Wizard mode.",
 				Optional:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					warehouseImmutableString{},
 				},
 			},
 			"data_credential_arn": schema.StringAttribute{
 				Description: "Data plane credential ARN.",
 				Optional:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					warehouseImmutableString{},
 				},
 			},
 			"deployment_credential_arn": schema.StringAttribute{
 				Description: "Deployment credential ARN.",
 				Optional:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					warehouseImmutableString{},
 				},
 			},
 			"subnet_id": schema.StringAttribute{
 				Description: "Existing subnet identifier.",
 				Optional:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					warehouseImmutableString{},
 				},
 			},
 			"security_group_id": schema.StringAttribute{
 				Description: "Existing security group identifier.",
 				Optional:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					warehouseImmutableString{},
 				},
 			},
 			"endpoint_id": schema.StringAttribute{
 				Description: "Existing private endpoint identifier.",
 				Optional:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					warehouseImmutableString{},
 				},
 			},
 			"core_version": schema.StringAttribute{
@@ -337,22 +336,22 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				},
 			},
 			"tde_encryption_key_id": schema.Int64Attribute{
-				Description: "Registered encryption key ID used for transparent data encryption (TDE) of warehouse data. Create the key with velodb_encryption_key (use_tde = true). Changing this forces replacement.",
+				Description: "Registered encryption key ID used for transparent data encryption (TDE) of warehouse data. Create the key with velodb_encryption_key (use_tde = true). Cannot be changed after creation. Omit to retain the existing API-reported key.",
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.Int64{
-					int64planmodifier.RequiresReplace(),
+					warehouseImmutableInt64{encryption: true},
 				},
 				Validators: []validator.Int64{
 					int64validator.AtLeast(1),
 				},
 			},
 			"ebs_encryption_key_id": schema.Int64Attribute{
-				Description: "Registered encryption key ID used to encrypt the warehouse's EBS volumes. Create the key with velodb_encryption_key (use_ebs = true). Changing this forces replacement.",
+				Description: "Registered encryption key ID used to encrypt the warehouse's EBS volumes. Create the key with velodb_encryption_key (use_ebs = true). Cannot be changed after creation. Omit to retain the existing API-reported key.",
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.Int64{
-					int64planmodifier.RequiresReplace(),
+					warehouseImmutableInt64{encryption: true},
 				},
 				Validators: []validator.Int64{
 					int64validator.AtLeast(1),
@@ -373,8 +372,9 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"zone": schema.StringAttribute{
-							Description: "Availability zone.",
-							Required:    true,
+							Description:   "Availability zone.",
+							Required:      true,
+							PlanModifiers: []planmodifier.String{warehouseImmutableString{}},
 						},
 						"compute_vcpu": schema.Int64Attribute{
 							Description: "Compute capacity in vCPUs.",
@@ -421,7 +421,7 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				},
 			},
 			"public_access_policy": schema.ListNestedBlock{
-				Description: "Initial public access policy applied at warehouse creation. BYOC only and create-only: the policy is set once during provisioning. Manage it afterward with the velodb_warehouse_public_access_policy resource.",
+				Description: "Public access policy managed in place, with drift detection. Initial provisioning supports BYOC only. Removing the block stops management without changing the remote policy. Do not also manage it with velodb_warehouse_public_access_policy.",
 				Validators: []validator.List{
 					listvalidator.SizeAtMost(1),
 				},
@@ -535,13 +535,6 @@ func (r *WarehouseResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 
 	// Update path: reject changes to create-only attributes.
 	if !req.State.Raw.IsNull() {
-		// When another attribute already forces replacement, the resource is
-		// destroyed and recreated, so create-only values legitimately apply to
-		// the new instance — skip the change guards.
-		if len(resp.RequiresReplace) > 0 {
-			return
-		}
-
 		var plan, state WarehouseResourceModel
 		resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 		resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -549,7 +542,7 @@ func (r *WarehouseResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 			return
 		}
 		// Create-only attributes that need a tailored validation error. Other
-		// create-only attributes are handled by RequiresReplace in the schema.
+		// infrastructure attributes are rejected by their plan modifiers.
 		createOnly := []struct {
 			p                 path.Path
 			planVal, stateVal attr.Value
@@ -571,15 +564,6 @@ func (r *WarehouseResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 				detail: "The VeloDB management API accepts initial_core_version only when creating a warehouse. " +
 					"Revert the initial_core_version change and set core_version_id to upgrade an existing warehouse " +
 					"(discover valid IDs via the velodb_warehouse_versions data source).",
-			},
-			{
-				p:        path.Root("public_access_policy"),
-				planVal:  plan.AccessPolicy,
-				stateVal: state.AccessPolicy,
-				summary:  "Warehouse public_access_policy cannot be changed after creation",
-				detail: "public_access_policy sets the initial public access policy only at creation time. " +
-					"Revert the change and manage the policy after creation with the " +
-					"velodb_warehouse_public_access_policy resource.",
 			},
 		}
 		for _, a := range createOnly {
@@ -661,7 +645,7 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 	setOptionalString(&createReq.Version, plan.Version)
 	setOptionalString(&createReq.VpcMode, plan.VpcMode)
 	setOptionalString(&createReq.SetupMode, plan.SetupMode)
-	// Initial access policy (BYOC only, create-only).
+	// Seed the initial BYOC access policy; subsequent edits use the policy endpoint.
 	createReq.AccessPolicy = warehouseAccessPolicyRequest(ctx, plan.AccessPolicy, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
@@ -865,6 +849,27 @@ func (r *WarehouseResource) Update(ctx context.Context, req resource.UpdateReque
 		}
 	}
 
+	// Policy changes use the existing warehouse's endpoint, never replacement.
+	// Removing the optional block relinquishes management without a remote write.
+	if !plan.AccessPolicy.Equal(state.AccessPolicy) {
+
+		if !plan.AccessPolicy.IsNull() && !plan.AccessPolicy.IsUnknown() && len(plan.AccessPolicy.Elements()) > 0 {
+			var policies []WarehouseAccessPolicyModel
+			resp.Diagnostics.Append(plan.AccessPolicy.ElementsAs(ctx, &policies, false)...)
+			if resp.Diagnostics.HasError() {
+				return
+			}
+			policy := PublicAccessPolicyModel{WarehouseID: state.ID, Policy: policies[0].Policy, Rules: policies[0].Rules}
+			policyService := publicAccessPolicyService{client: r.client}
+			if err := policyService.update(ctx, &policy, &resp.Diagnostics); err != nil {
+				resp.Diagnostics.AddError("Error updating public access policy", err.Error())
+			}
+			if resp.Diagnostics.HasError() {
+				return
+			}
+		}
+	}
+
 	// Read back state, preserving plan values for write-only/config-only fields
 	r.readWarehouseIntoState(ctx, warehouseID, &plan, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
@@ -1006,6 +1011,8 @@ func (r *WarehouseResource) readWarehouseIntoState(ctx context.Context, warehous
 			state.InitialClusterID = types.StringNull()
 		}
 	}
+
+	r.readManagedPublicAccessPolicy(ctx, state, diags)
 
 	if wh.SetupGuide != nil {
 		r.setByocSetup(ctx, state, wh.SetupGuide, diags)

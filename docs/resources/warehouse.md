@@ -133,7 +133,7 @@ newest matching build for that line. `initial_core_version` is create-only; use
 `core_version_id` to upgrade afterward. `initial_core_version` and `core_version_id` are
 mutually exclusive — set one or the other, not both.
 
-## Initial Access Policy
+## Public Access Policy
 
 For `deployment_mode = "BYOC"`, you can set the initial public access policy at
 creation with a `public_access_policy` block. It reuses the same policy values as the
@@ -160,21 +160,24 @@ resource "velodb_warehouse" "production" {
 }
 ```
 
-`public_access_policy` is BYOC-only and create-only: it configures the policy once
-during provisioning. SaaS warehouses reject `public_access_policy`.
+The block sets the initial policy for BYOC warehouses and manages subsequent
+changes in place using the policy update API. It can also be added to an existing
+warehouse. The creation API still rejects an initial policy for SaaS warehouses.
+Refresh reads the managed policy and rules from the API, so external changes
+appear in the next plan, including externally cleared allowlists.
 
-~> **Note:** `public_access_policy` is never read back from the API, so Terraform does
-not detect drift on it. If the policy is later changed out-of-band (via the
-console or another tool), `terraform plan` will not report a difference, and the
-state value remains what was applied at creation.
+Removing the block stops managing the policy without changing remote access.
+Set `policy = "DENY_ALL"` explicitly to disable public access.
 
-~> **Note:** Do not manage the same warehouse's public access policy with both
-`public_access_policy` here and a separate `velodb_warehouse_public_access_policy`
-resource — they write the same endpoint with no ordering guarantee, so the
-result is non-deterministic. Use `public_access_policy` only to seed the initial policy,
-then manage it exclusively with `velodb_warehouse_public_access_policy`
-afterward. You need not remove the `public_access_policy` block, since it is create-only
-and has no effect after provisioning.
+Do not manage the same warehouse's policy with both this block and a
+`velodb_warehouse_public_access_policy` resource. The standalone resource remains
+supported for compatibility and policies managed separately from a warehouse.
+When migrating from it, first remove its state ownership with `terraform state rm`
+(or a `removed` block with `destroy = false`) and remove its configuration, then
+add the matching inline block. Do not destroy the standalone resource as part of
+that migration: its delete action resets the remote policy to `DENY_ALL`.
+When upgrading older configurations that use both forms, choose one owner before
+applying; the inline block now actively reconciles the policy.
 
 ## Managing the Initial Cluster
 
@@ -262,7 +265,7 @@ To destroy the initial cluster later:
 
 ### Optional
 
-- `public_access_policy` (Block List, Max: 1) Initial public access policy applied at warehouse creation. BYOC-only and create-only. After creation, manage the policy with the `velodb_warehouse_public_access_policy` resource. (see [below for nested schema](#nestedblock--public_access_policy))
+- `public_access_policy` (Block List, Max: 1) Public access policy updated in place with drift detection. Initial provisioning supports BYOC only. Removing the block stops management without changing remote access. (see [below for nested schema](#nestedblock--public_access_policy))
 - `admin_password` (String, Sensitive) Administrator password. Set on creation and used for password rotation. The password is stored in state since it cannot be read back from the API.
 - `admin_password_version` (Number) Increment this value to trigger a password change. Must be used together with `admin_password`.
 - `core_version_id` (Number) Target core version ID. Changing this triggers a warehouse upgrade. Discover valid values via the `velodb_warehouse_versions` data source.
@@ -378,4 +381,20 @@ import {
 }
 ```
 
-~> **Note:** The `tde_encryption_key_id` and `ebs_encryption_key_id` attributes are populated from the API after import. The `admin_password`, `admin_password_version`, `initial_cluster`, `initial_core_version`, `public_access_policy`, `credential_id`, and `network_config_id` attributes cannot be read from the API. Set those create-only fields in your configuration to match the existing warehouse before the next plan; otherwise, because they force replacement, Terraform will plan to recreate the warehouse.
+~> **Note:** The `tde_encryption_key_id` and `ebs_encryption_key_id` attributes are populated from the API after import. The `admin_password`, `admin_password_version`, `initial_cluster`, `initial_core_version`, `credential_id`, and `network_config_id` attributes cannot be read from the API. Set those create-only fields in your configuration to match the existing warehouse before the next plan; the provider permits initialization of missing create-only bindings after import, but subsequent binding changes are rejected.
+
+## Immutable infrastructure
+
+Changes to deployment mode, cloud provider, region, setup mode, infrastructure
+bindings, initial cluster zone, or configured encryption key IDs are rejected
+after creation instead of scheduling warehouse replacement. Unknown binding
+values are also rejected because they may represent an upstream replacement.
+Restore the original configuration; use a separate warehouse for migration.
+Optional computed encryption key IDs omitted from configuration retain their
+API-reported values; omission does not disable encryption. BYOC modules also
+reject changes to their recorded encryption creation flags and network inputs.
+Explicit destruction remains supported.
+
+API responses using the legacy `WHITELIST_ONLY` value are normalized to
+`ALLOWLIST_ONLY` on refresh, preserving allowlist rules. Continue using
+`ALLOWLIST_ONLY` in Terraform configuration; requests use the current enum name.

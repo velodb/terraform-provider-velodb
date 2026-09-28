@@ -74,8 +74,8 @@ tags = {
 # Leave null to let the management API pick the default.
 initial_core_version = "26.1"
 
-# Initial public access policy applied at warehouse creation. Create-only.
-# Leave null to let the management API pick the default.
+# Public access policy applied at creation and updated in place afterward.
+# Null leaves it unmanaged without changing the existing remote policy.
 # `rules` apply only when policy is ALLOWLIST_ONLY.
 public_access_policy = {
   policy = "ALLOWLIST_ONLY"

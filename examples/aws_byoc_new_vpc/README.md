@@ -117,3 +117,24 @@ so Terraform never deletes its objects. If destroy reports `BucketNotEmpty`,
 confirm that its objects are no longer needed, empty the bucket yourself, then
 create and apply a new destroy plan. Terraform will not silently purge the
 objects.
+
+## Immutable warehouse infrastructure
+
+Once created, warehouse infrastructure inputs cannot be edited in place. The
+module rejects changes to `bucket_name`, `region`, network placement, and
+`create_tde_encryption_key`, `create_ebs_encryption_key`, `tde_kms_key_arn`, and
+`ebs_kms_key_arn`. The new-VPC module also freezes `vpc_cidr`, `zones`, and
+`subnet_cidrs`; the existing-infrastructure module freezes VPC, subnet, security
+group, endpoint, and IAM credential references. Restore the original values
+when a plan reports an immutable-input error. Provision a separate warehouse
+for a migration instead of replacing the existing warehouse through input edits.
+
+When upgrading a deployment created before these guards existed, first apply
+with all infrastructure inputs unchanged to record their baseline. Do not
+combine that upgrade with infrastructure edits. The provider also rejects
+changes to existing warehouse bindings, including unknown IDs produced by
+upstream replacement plans. An unknown binding must be resolved without
+replacing infrastructure already used by the warehouse before planning again.
+
+These checks do not prevent an explicit `terraform destroy` or removal of the
+module from configuration. They are immutability checks, not deletion protection.

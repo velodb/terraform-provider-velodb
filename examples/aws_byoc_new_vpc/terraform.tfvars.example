@@ -25,8 +25,8 @@ tags = {
 # Pin the initial core version (create-only). Leave unset for the API default.
 # initial_core_version = "26.1"
 
-# Initial public network access policy (create-only). Leave unset for the API
-# default; manage it later with the velodb_warehouse_public_access_policy resource.
+# Public network access policy. Changes update the existing warehouse in place.
+# Leave unset for the API default; null later stops management without a reset.
 # public_access_policy = {
 #   policy = "ALLOWLIST_ONLY"
 #   rules = [

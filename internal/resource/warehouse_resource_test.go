@@ -24,7 +24,7 @@ func TestWarehouseEncryptionKeyIDsAreOptionalComputed(t *testing.T) {
 			t.Fatalf("%s must be optional and computed to support configuration and API readback", name)
 		}
 		if len(attribute.PlanModifiers) == 0 {
-			t.Fatalf("%s must force replacement when the configured and API values differ", name)
+			t.Fatalf("%s must reject changes when the configured and API values differ", name)
 		}
 	}
 }

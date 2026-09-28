@@ -4,9 +4,8 @@
 #   26.1; three-part versions are rejected). The API selects the newest
 #   matching build. Create-only: use `core_version_id` to upgrade an existing
 #   warehouse.
-# - `public_access_policy` sets the initial public access policy. BYOC-only and
-#   create-only: manage it afterward with the
-#   `velodb_warehouse_public_access_policy` resource.
+# - `public_access_policy` sets the initial BYOC public access policy and
+#   updates it in place afterward. Remote policy changes are detected on refresh.
 
 # Deny all public access at creation (rules omitted).
 resource "velodb_warehouse" "byoc_deny_all" {

@@ -1448,3 +1448,88 @@ func writeJSONResponse(t *testing.T, w http.ResponseWriter, v any) {
 		t.Errorf("encode response: %v", err)
 	}
 }
+
+func TestWarehouseInfrastructureEditsRejected(t *testing.T) {
+	ts := mockAPIServer(t)
+	defer ts.Close()
+	base := testProviderConfig(ts) + `
+resource "velodb_warehouse" "test" {
+ name = "mock-warehouse"
+ deployment_mode = "SaaS"
+ cloud_provider = "aws"
+ region = "us-east-1"
+ admin_password = "TestPass@123"
+ initial_cluster {
+  zone = "us-east-1a"
+  compute_vcpu = 4
+  cache_gb = 100
+ }
+}
+`
+	steps := []resource.TestStep{{Config: base}}
+	for _, edit := range []struct{ old, next string }{
+		{`region = "us-east-1"`, `region = "us-west-2"`},
+		{`zone = "us-east-1a"`, `zone = "us-east-1b"`},
+		{`cloud_provider = "aws"`, "cloud_provider = \"aws\"\n tde_encryption_key_id = 42"},
+		{`cloud_provider = "aws"`, "cloud_provider = \"aws\"\n ebs_encryption_key_id = 42"},
+	} {
+		steps = append(steps, resource.TestStep{Config: strings.Replace(base, edit.old, edit.next, 1), PlanOnly: true, ExpectError: regexp.MustCompile("Warehouse infrastructure cannot be changed")})
+	}
+	steps = append(steps, resource.TestStep{Config: base, PlanOnly: true})
+	resource.Test(t, resource.TestCase{ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(ts), Steps: steps})
+}
+
+func TestWarehouseDependencyReplacementRejected(t *testing.T) {
+	ts := mockAPIServer(t)
+	defer ts.Close()
+	base := testProviderConfig(ts) + `
+resource "velodb_byoc_credential" "test" {
+  cloud_provider            = "aws"
+  name                      = "production-credential"
+  region                    = "us-east-1"
+  bucket_name               = "velodb-data"
+  data_credential_arn       = "arn:aws:iam::111122223333:instance-profile/velodb-data"
+  deployment_credential_arn = "arn:aws:iam::111122223333:role/velodb-deployment"
+}
+
+resource "velodb_byoc_network" "test" {
+  cloud_provider    = "aws"
+  name              = "production-network"
+  credential_id     = velodb_byoc_credential.test.id
+  security_group_id = "sg-123"
+  endpoint_id       = "vpce-123"
+  zone_mappings = [{
+    zone_id   = "us-east-1a"
+    subnet_id = "subnet-aaa"
+  }]
+}
+
+resource "velodb_warehouse" "test" {
+  name              = "advanced-byoc"
+  deployment_mode   = "BYOC"
+  cloud_provider    = "aws"
+  region            = "us-east-1"
+  setup_mode        = "advanced"
+  credential_id     = velodb_byoc_credential.test.id
+  network_config_id = velodb_byoc_network.test.id
+  admin_password    = "TestPass@123"
+  tags               = { environment = "test" }
+
+  initial_cluster {
+    zone         = "us-east-1a"
+    compute_vcpu = 8
+    cache_gb     = 400
+  }
+}
+`
+	steps := []resource.TestStep{{Config: base}}
+	for _, edit := range []struct{ old, next string }{
+		{`"velodb-data"`, `"another-bucket"`},
+		{`"subnet-aaa"`, `"subnet-bbb"`},
+		{`"sg-123"`, `"sg-456"`},
+	} {
+		steps = append(steps, resource.TestStep{Config: strings.Replace(base, edit.old, edit.next, 1), PlanOnly: true, ExpectError: regexp.MustCompile("Warehouse infrastructure cannot be changed")})
+	}
+	steps = append(steps, resource.TestStep{Config: base, PlanOnly: true})
+	resource.Test(t, resource.TestCase{ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(ts), Steps: steps})
+}

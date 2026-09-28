@@ -9,6 +9,11 @@ description: |-
 
 Use the *velodb_warehouse_public_access_policy* resource to control who can access a warehouse's public endpoints.
 
+Alternatively, manage this policy through the `public_access_policy` block of
+`velodb_warehouse`, which supports in-place updates and drift detection. Use only
+one form for each warehouse. See the [warehouse policy migration guidance](warehouse.md#public-access-policy)
+before switching an existing standalone resource to inline management.
+
 Three policy modes:
 
 | Policy | Effect |
@@ -94,3 +99,7 @@ Optional:
 ```shell
 terraform import velodb_warehouse_public_access_policy.example <warehouse_id>
 ```
+
+API responses using the legacy `WHITELIST_ONLY` value are normalized to
+`ALLOWLIST_ONLY` on refresh, preserving allowlist rules. Continue using
+`ALLOWLIST_ONLY` in Terraform configuration; requests use the current enum name.
