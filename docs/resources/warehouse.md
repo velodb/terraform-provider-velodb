@@ -278,10 +278,10 @@ To destroy the initial cluster later:
 - `core_version_id` (Number) Legacy target version ID for an in-place upgrade. Prefer `core_version`.
 - `initial_core_version` (String, Deprecated) Legacy creation-only version selector, accepting two or three numeric parts. Prefer `core_version`.
 - `setup_mode` (String) BYOC setup mode. Set to `advanced` for AWS custom-infrastructure creation. Guided/template setup is not supported. Changing this forces a new resource.
-- `credential_id` (Number) Registered credential configuration ID for advanced AWS BYOC. Changing this forces a new resource.
+- `credential_id` (Number) Registered credential configuration ID for advanced AWS BYOC. Read from the API when available. Changes are rejected; omission retains the existing binding.
 - `ebs_encryption_key_id` (Number) Registered encryption key ID used to encrypt the warehouse's EBS volumes. Create the key with `velodb_encryption_key` (`use_ebs = true`). Changing this forces a new resource.
 - `initial_cluster` (Block List, Max: 1) Initial cluster created together with the warehouse. This is a create-only configuration. After creation, manage the cluster lifecycle by importing it as a `velodb_cluster` resource. (see [below for nested schema](#nestedblock--initial_cluster))
-- `network_config_id` (Number) Registered network configuration ID for advanced AWS BYOC. Changing this forces a new resource.
+- `network_config_id` (Number) Registered network configuration ID for advanced AWS BYOC. Read from the API when available. Changes are rejected; omission retains the existing binding.
 - `tde_encryption_key_id` (Number) Registered encryption key ID used for transparent data encryption (TDE) of warehouse data. Create the key with `velodb_encryption_key` (`use_tde = true`). Changing this forces a new resource.
 - `tags` (Map of String) Warehouse tags as key/value pairs. Create-only: the management API accepts tags only at creation and does not return or update them, so changing tags after creation is rejected.
 - `timeouts` (Block, Optional) (see [below for nested schema](#nestedblock--timeouts))
@@ -387,7 +387,7 @@ import {
 }
 ```
 
-~> **Note:** The `tde_encryption_key_id` and `ebs_encryption_key_id` attributes are populated from the API after import. The `admin_password`, `admin_password_version`, `initial_cluster`, `initial_core_version`, `credential_id`, and `network_config_id` attributes cannot be read from the API. Set those create-only fields in your configuration to match the existing warehouse before the next plan; the provider permits initialization of missing create-only bindings after import, but subsequent binding changes are rejected.
+~> **Note:** The `tde_encryption_key_id` and `ebs_encryption_key_id` attributes are populated from the API after import. `credential_id` and `network_config_id` are also recovered when the backend returns `credentialId` and `networkConfigId`. Older backends that omit these fields preserve known state values; after import, supply the existing IDs if needed. Missing fields cannot be used to detect association removal. The `admin_password`, `admin_password_version`, `initial_cluster`, `initial_core_version` attributes cannot be read from the API. Set those create-only fields in your configuration to match the existing warehouse before the next plan; the provider permits initialization of missing create-only bindings after import, but subsequent binding changes are rejected.
 
 ## Immutable infrastructure
 

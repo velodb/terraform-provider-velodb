@@ -49,14 +49,14 @@ func (m warehouseImmutableInt64) PlanModifyInt64(_ context.Context, req planmodi
 	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
 		return
 	}
-	if m.encryption && req.ConfigValue.IsNull() {
-		// Optional+computed: omission means retain the API-reported key, not disable
-		// encryption. Module input guards separately reject encryption flag changes.
+	if req.ConfigValue.IsNull() {
+		// Optional+computed: omission retains the existing association.
+		// Module input guards separately reject encryption flag changes.
 		resp.PlanValue = req.StateValue
 		return
 	}
 	if !m.encryption && req.StateValue.IsNull() {
-		// Credential and network IDs are not returned by the API after import.
+		// Older backends may omit credential and network IDs after import.
 		return
 	}
 	rejectWarehouseInfrastructureChange(&resp.Diagnostics, req.Path, req.PlanValue, req.StateValue)

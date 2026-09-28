@@ -49,6 +49,7 @@ func TestWarehouseImmutableModifiers(t *testing.T) {
 	}{
 		{"credential changed", false, types.Int64Value(1), types.Int64Value(2), types.Int64Value(2), true},
 		{"network replacement", false, types.Int64Value(1), types.Int64Unknown(), types.Int64Unknown(), true},
+		{"omitted credential", false, types.Int64Value(1), types.Int64Null(), types.Int64Unknown(), false},
 		{"import credential", false, types.Int64Null(), types.Int64Value(1), types.Int64Value(1), false},
 		{"enable encryption", true, types.Int64Null(), types.Int64Value(2), types.Int64Value(2), true},
 		{"replace encryption", true, types.Int64Value(1), types.Int64Unknown(), types.Int64Unknown(), true},
@@ -65,7 +66,7 @@ func TestWarehouseImmutableModifiers(t *testing.T) {
 			if resp.RequiresReplace {
 				t.Fatal("must not schedule replacement")
 			}
-			if tc.encryption && tc.config.IsNull() && !resp.PlanValue.Equal(tc.prior) {
+			if tc.config.IsNull() && !resp.PlanValue.Equal(tc.prior) {
 				t.Fatal("omitted computed key must retain state")
 			}
 		})

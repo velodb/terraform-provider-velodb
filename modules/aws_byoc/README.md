@@ -158,3 +158,8 @@ replacing infrastructure already used by the warehouse before planning again.
 
 These checks do not prevent an explicit `terraform destroy` or removal of the
 module from configuration. They are immutability checks, not deletion protection.
+
+Warehouse refresh and import recover `credential_id` and `network_config_id` when
+the backend returns `credentialId` and `networkConfigId`. Older backends retain
+known bindings in state. Changes to known bindings are rejected without replacing
+the warehouse.

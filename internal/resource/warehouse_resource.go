@@ -188,8 +188,9 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				},
 			},
 			"credential_id": schema.Int64Attribute{
-				Description: "Registered credential configuration ID for advanced AWS BYOC.",
+				Description: "Registered credential configuration ID for advanced AWS BYOC. Read from the API when available. Cannot be changed after creation. Omit to retain the existing binding.",
 				Optional:    true,
+				Computed:    true,
 				PlanModifiers: []planmodifier.Int64{
 					warehouseImmutableInt64{},
 				},
@@ -198,8 +199,9 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				},
 			},
 			"network_config_id": schema.Int64Attribute{
-				Description: "Registered network configuration ID for advanced AWS BYOC.",
+				Description: "Registered network configuration ID for advanced AWS BYOC. Read from the API when available. Cannot be changed after creation. Omit to retain the existing binding.",
 				Optional:    true,
+				Computed:    true,
 				PlanModifiers: []planmodifier.Int64{
 					warehouseImmutableInt64{},
 				},
@@ -1006,6 +1008,9 @@ func (r *WarehouseResource) readWarehouseIntoState(ctx context.Context, warehous
 	state.PayType = stringOrNull(wh.PayType)
 	state.EndpointServiceID = stringOrNull(wh.EndpointServiceID)
 	state.EndpointServiceName = stringOrNull(wh.EndpointServiceName)
+	// Older backends omit these associations; retain known bindings in that case.
+	state.CredentialID = warehouseAssociationID(wh.CredentialID, state.CredentialID)
+	state.NetworkConfigID = warehouseAssociationID(wh.NetworkConfigID, state.NetworkConfigID)
 	state.TdeEncryptionKeyId = types.Int64PointerValue(wh.TdeEncryptionKeyId)
 	state.EbsEncryptionKeyId = types.Int64PointerValue(wh.EbsEncryptionKeyId)
 
@@ -1111,4 +1116,15 @@ func setOptionalBool(target **bool, val types.Bool) {
 		i := val.ValueBool()
 		*target = &i
 	}
+}
+
+// Missing association IDs are unavailable on older backends, not proof of removal.
+func warehouseAssociationID(actual *int64, prior types.Int64) types.Int64 {
+	if actual != nil {
+		return types.Int64PointerValue(actual)
+	}
+	if prior.IsUnknown() {
+		return types.Int64Null()
+	}
+	return prior
 }
