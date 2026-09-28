@@ -123,7 +123,8 @@ func warehouseAccessPolicyRequest(ctx context.Context, accessPolicy types.List, 
 	}
 
 	policy := PublicAccessPolicyModel{Policy: policies[0].Policy, Rules: policies[0].Rules}
-	return (publicAccessPolicyService{}).buildAPIRequest(ctx, &policy, diags)
+	policyService := publicAccessPolicyService{}
+	return policyService.buildAPIRequest(ctx, &policy, diags)
 }
 
 // allowlistRulesToAPI converts allowlist rule objects into API rules. Rules are

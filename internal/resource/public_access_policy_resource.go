@@ -138,7 +138,8 @@ func (r *PublicAccessPolicyResource) Create(ctx context.Context, req resource.Cr
 		return
 	}
 
-	if err := (publicAccessPolicyService{client: r.client}).update(ctx, &plan, &resp.Diagnostics); err != nil {
+	policyService := publicAccessPolicyService{client: r.client}
+	if err := policyService.update(ctx, &plan, &resp.Diagnostics); err != nil {
 		resp.Diagnostics.AddError("Error updating public access policy", err.Error())
 	}
 	if resp.Diagnostics.HasError() {
@@ -174,7 +175,8 @@ func (r *PublicAccessPolicyResource) Update(ctx context.Context, req resource.Up
 		return
 	}
 
-	if err := (publicAccessPolicyService{client: r.client}).update(ctx, &plan, &resp.Diagnostics); err != nil {
+	policyService := publicAccessPolicyService{client: r.client}
+	if err := policyService.update(ctx, &plan, &resp.Diagnostics); err != nil {
 		resp.Diagnostics.AddError("Error updating public access policy", err.Error())
 	}
 	if resp.Diagnostics.HasError() {
@@ -197,7 +199,8 @@ func (r *PublicAccessPolicyResource) Delete(ctx context.Context, req resource.De
 	// Reset to DENY_ALL on delete
 	state.Policy = types.StringValue("DENY_ALL")
 	state.Rules = types.SetNull(types.ObjectType{AttrTypes: allowlistRuleAttrTypes()})
-	if err := (publicAccessPolicyService{client: r.client}).update(ctx, &state, &resp.Diagnostics); err != nil {
+	policyService := publicAccessPolicyService{client: r.client}
+	if err := policyService.update(ctx, &state, &resp.Diagnostics); err != nil {
 		resp.Diagnostics.AddWarning("Error resetting public access policy on destroy", err.Error())
 	}
 }
@@ -208,7 +211,8 @@ func (r *PublicAccessPolicyResource) ImportState(ctx context.Context, req resour
 }
 
 func (r *PublicAccessPolicyResource) readIntoState(ctx context.Context, state *PublicAccessPolicyModel, diags *diag.Diagnostics) {
-	err := (publicAccessPolicyService{client: r.client}).readIntoState(ctx, state, diags)
+	policyService := publicAccessPolicyService{client: r.client}
+	err := policyService.readIntoState(ctx, state, diags)
 	if err != nil {
 		if apiErr, ok := err.(*client.APIError); ok && apiErr.IsNotFound() {
 			state.ID = types.StringNull()

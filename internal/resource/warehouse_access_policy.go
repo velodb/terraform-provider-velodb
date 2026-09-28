@@ -19,7 +19,8 @@ func (r *WarehouseResource) readManagedPublicAccessPolicy(ctx context.Context, s
 		return
 	}
 	policy := PublicAccessPolicyModel{WarehouseID: state.ID, Policy: prior[0].Policy, Rules: prior[0].Rules}
-	err := (publicAccessPolicyService{client: r.client}).readIntoState(ctx, &policy, diags)
+	policyService := publicAccessPolicyService{client: r.client}
+	err := policyService.readIntoState(ctx, &policy, diags)
 	if err != nil {
 		diags.AddError("Error reading public access policy", err.Error())
 		return

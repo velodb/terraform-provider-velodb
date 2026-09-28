@@ -860,7 +860,8 @@ func (r *WarehouseResource) Update(ctx context.Context, req resource.UpdateReque
 				return
 			}
 			policy := PublicAccessPolicyModel{WarehouseID: state.ID, Policy: policies[0].Policy, Rules: policies[0].Rules}
-			if err := (publicAccessPolicyService{client: r.client}).update(ctx, &policy, &resp.Diagnostics); err != nil {
+			policyService := publicAccessPolicyService{client: r.client}
+			if err := policyService.update(ctx, &policy, &resp.Diagnostics); err != nil {
 				resp.Diagnostics.AddError("Error updating public access policy", err.Error())
 			}
 			if resp.Diagnostics.HasError() {
