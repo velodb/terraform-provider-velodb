@@ -421,7 +421,7 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				},
 			},
 			"public_access_policy": schema.ListNestedBlock{
-				Description: "Initial public access policy applied at warehouse creation. BYOC only and create-only: the policy is set once during provisioning. Manage it afterward with the velodb_warehouse_public_access_policy resource.",
+				Description: "Public access policy managed in place, with drift detection. Initial provisioning supports BYOC only. Removing the block stops management without changing the remote policy. Do not also manage it with velodb_warehouse_public_access_policy.",
 				Validators: []validator.List{
 					listvalidator.SizeAtMost(1),
 				},
@@ -565,15 +565,6 @@ func (r *WarehouseResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 					"Revert the initial_core_version change and set core_version_id to upgrade an existing warehouse " +
 					"(discover valid IDs via the velodb_warehouse_versions data source).",
 			},
-			{
-				p:        path.Root("public_access_policy"),
-				planVal:  plan.AccessPolicy,
-				stateVal: state.AccessPolicy,
-				summary:  "Warehouse public_access_policy cannot be changed after creation",
-				detail: "public_access_policy sets the initial public access policy only at creation time. " +
-					"Revert the change and manage the policy after creation with the " +
-					"velodb_warehouse_public_access_policy resource.",
-			},
 		}
 		for _, a := range createOnly {
 			rejectCreateOnlyChange(&resp.Diagnostics, a.p, a.planVal, a.stateVal, a.summary, a.detail)
@@ -654,7 +645,7 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 	setOptionalString(&createReq.Version, plan.Version)
 	setOptionalString(&createReq.VpcMode, plan.VpcMode)
 	setOptionalString(&createReq.SetupMode, plan.SetupMode)
-	// Initial access policy (BYOC only, create-only).
+	// Seed the initial BYOC access policy; subsequent edits use the policy endpoint.
 	createReq.AccessPolicy = warehouseAccessPolicyRequest(ctx, plan.AccessPolicy, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
@@ -858,6 +849,21 @@ func (r *WarehouseResource) Update(ctx context.Context, req resource.UpdateReque
 		}
 	}
 
+	// Policy changes use the existing warehouse's endpoint, never replacement.
+	// Removing the optional block relinquishes management without a remote write.
+	if !plan.AccessPolicy.Equal(state.AccessPolicy) {
+		policyReq := warehouseAccessPolicyRequest(ctx, plan.AccessPolicy, &resp.Diagnostics)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		if policyReq != nil {
+			if err := r.client.UpdateWarehousePublicAccessPolicy(ctx, warehouseID, policyReq); err != nil {
+				resp.Diagnostics.AddError("Error updating public access policy", err.Error())
+				return
+			}
+		}
+	}
+
 	// Read back state, preserving plan values for write-only/config-only fields
 	r.readWarehouseIntoState(ctx, warehouseID, &plan, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
@@ -999,6 +1005,8 @@ func (r *WarehouseResource) readWarehouseIntoState(ctx context.Context, warehous
 			state.InitialClusterID = types.StringNull()
 		}
 	}
+
+	r.readManagedPublicAccessPolicy(ctx, state, diags)
 
 	if wh.SetupGuide != nil {
 		r.setByocSetup(ctx, state, wh.SetupGuide, diags)

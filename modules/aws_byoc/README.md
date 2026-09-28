@@ -47,12 +47,14 @@ are create-only, so they cannot be changed after the warehouse exists. Set
 version; leave it unset to let the management API pick the default. It is also
 create-only — use `core_version_id` to upgrade an existing warehouse.
 
-Set `public_access_policy` to apply an initial public access policy at creation: an
+Set `public_access_policy` to manage public access at creation and afterward: an
 object with `policy` (`DENY_ALL`, `ALLOW_ALL`, or `ALLOWLIST_ONLY`) and, for
-`ALLOWLIST_ONLY`, a list of `rules` (`cidr` plus optional `description`). It is
-create-only; manage the policy afterward with the
-`velodb_warehouse_public_access_policy` resource. Leave it unset to let the
-management API pick the default. For example:
+`ALLOWLIST_ONLY`, a list of `rules` (`cidr` plus optional `description`). Changes update the existing warehouse in
+place, and refresh detects remote
+policy/rule changes. Leave it unset to use the API default at creation. Setting
+it to null later stops management without changing the remote policy; use
+`DENY_ALL` to disable public access. Do not also manage the same policy with
+`velodb_warehouse_public_access_policy`. For example:
 
 ```hcl
 public_access_policy = {

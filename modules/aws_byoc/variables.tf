@@ -173,7 +173,7 @@ variable "initial_core_version" {
 }
 
 variable "public_access_policy" {
-  description = "Initial public access policy applied at warehouse creation. Create-only; leave null to let the management API pick the default. Manage it afterward with the velodb_warehouse_public_access_policy resource. rules apply only when policy is ALLOWLIST_ONLY."
+  description = "Public access policy applied at creation and updated in place afterward. Null leaves the policy unmanaged without changing it. rules apply only when policy is ALLOWLIST_ONLY."
   type = object({
     policy = string
     rules = optional(list(object({

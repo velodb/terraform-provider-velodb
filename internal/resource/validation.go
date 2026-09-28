@@ -108,7 +108,7 @@ func cacheGbAfterCPUResize(oldVcpu, oldCacheGb, newVcpu int64) int64 {
 	return scaled
 }
 
-// warehouseAccessPolicyRequest converts the create-only public_access_policy block into
+// warehouseAccessPolicyRequest converts the managed public_access_policy block into
 // an API request. Returns nil when the block is absent. Allowlist rules are only
 // forwarded when the policy is ALLOWLIST_ONLY.
 func warehouseAccessPolicyRequest(ctx context.Context, accessPolicy types.List, diags *diag.Diagnostics) *client.WarehousePublicAccessPolicyRequest {
