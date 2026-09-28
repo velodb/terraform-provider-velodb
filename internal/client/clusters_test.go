@@ -21,7 +21,10 @@ func TestCreateCluster(t *testing.T) {
 		}
 
 		var req CreateClusterRequest
-		json.NewDecoder(r.Body).Decode(&req)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Errorf("decode request: %v", err)
+			return
+		}
 
 		if req.Name != "compute-etl" {
 			t.Errorf("expected name 'compute-etl', got %q", req.Name)
@@ -42,7 +45,7 @@ func TestCreateCluster(t *testing.T) {
 			t.Error("expected autoPause.enabled=false")
 		}
 
-		jsonResponse(w, 200, APIResponse[CreateClusterResult]{
+		jsonResponse(t, w, 200, APIResponse[CreateClusterResult]{
 			Success:   true,
 			RequestID: "req-020",
 			Data: CreateClusterResult{
@@ -83,7 +86,7 @@ func TestGetCluster(t *testing.T) {
 		if !requireMethod(t, w, r, http.MethodGet) {
 			return
 		}
-		jsonResponse(w, 200, APIResponse[ClusterItem]{
+		jsonResponse(t, w, 200, APIResponse[ClusterItem]{
 			Success:   true,
 			RequestID: "req-021",
 			Data:      mockCluster("CL-001", "WH-001", "compute-etl"),
@@ -114,7 +117,7 @@ func TestGetClusterNotFound(t *testing.T) {
 	client := newTestClient(t, ts)
 
 	mux.HandleFunc("/v1/warehouses/WH-001/clusters/CL-MISSING", func(w http.ResponseWriter, r *http.Request) {
-		jsonResponse(w, 404, map[string]any{
+		jsonResponse(t, w, 404, map[string]any{
 			"code":      "ClusterNotFound",
 			"message":   "The cluster [CL-MISSING] not found",
 			"success":   false,
@@ -153,7 +156,7 @@ func TestListClusters(t *testing.T) {
 			t.Errorf("expected status=Running, got %q", q.Get("status"))
 		}
 
-		jsonResponse(w, 200, PageResponse[ClusterItem]{
+		jsonResponse(t, w, 200, PageResponse[ClusterItem]{
 			Success:   true,
 			RequestID: "req-023",
 			Data: []ClusterItem{
@@ -193,7 +196,10 @@ func TestUpdateCluster(t *testing.T) {
 			return
 		}
 		var req UpdateClusterRequest
-		json.NewDecoder(r.Body).Decode(&req)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Errorf("decode request: %v", err)
+			return
+		}
 
 		if req.Name == nil || *req.Name != "compute-renamed" {
 			t.Error("expected name 'compute-renamed'")
@@ -208,7 +214,7 @@ func TestUpdateCluster(t *testing.T) {
 			t.Error("expected autoPause.enabled=true")
 		}
 
-		jsonResponse(w, 200, APIResponse[struct{}]{
+		jsonResponse(t, w, 200, APIResponse[struct{}]{
 			Success:   true,
 			RequestID: "req-024",
 		})
@@ -241,7 +247,7 @@ func TestDeleteCluster(t *testing.T) {
 		if !requireMethod(t, w, r, http.MethodDelete) {
 			return
 		}
-		jsonResponse(w, 200, APIResponse[struct{}]{
+		jsonResponse(t, w, 200, APIResponse[struct{}]{
 			Success:   true,
 			RequestID: "req-025",
 		})
@@ -264,7 +270,7 @@ func TestClusterActions(t *testing.T) {
 				if !requireMethod(t, w, r, http.MethodPost) {
 					return
 				}
-				jsonResponse(w, 200, APIResponse[struct{}]{
+				jsonResponse(t, w, 200, APIResponse[struct{}]{
 					Success:   true,
 					RequestID: "req-026",
 				})
@@ -284,7 +290,7 @@ func TestConflictError(t *testing.T) {
 	client := newTestClient(t, ts)
 
 	mux.HandleFunc("/v1/warehouses/WH-001/clusters", func(w http.ResponseWriter, r *http.Request) {
-		jsonResponse(w, 409, map[string]any{
+		jsonResponse(t, w, 409, map[string]any{
 			"code":      "IdempotencyConflict",
 			"message":   "The request conflicts with an existing idempotent request",
 			"success":   false,
@@ -316,7 +322,7 @@ func TestRateLimitError(t *testing.T) {
 	client := newTestClient(t, ts)
 
 	mux.HandleFunc("/v1/warehouses/WH-001/clusters/CL-001", func(w http.ResponseWriter, r *http.Request) {
-		jsonResponse(w, 429, map[string]any{
+		jsonResponse(t, w, 429, map[string]any{
 			"code":      "RateLimitExceeded",
 			"message":   "Request rate limit exceeded",
 			"success":   false,

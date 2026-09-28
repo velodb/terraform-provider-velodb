@@ -15,7 +15,7 @@ func TestGetOrganizationProfile(t *testing.T) {
 		if !requireMethod(t, w, r, http.MethodGet) || !requireAPIKey(t, w, r) {
 			return
 		}
-		jsonResponse(w, http.StatusOK, APIResponse[OrganizationInfo]{
+		jsonResponse(t, w, http.StatusOK, APIResponse[OrganizationInfo]{
 			Success:   true,
 			RequestID: "req-organization",
 			Data: OrganizationInfo{
@@ -50,7 +50,7 @@ func TestListCloudProviderRegions(t *testing.T) {
 		if got := r.URL.Query().Get("deploymentMode"); got != "BYOC" {
 			t.Errorf("expected deploymentMode=BYOC, got %q", got)
 		}
-		jsonResponse(w, http.StatusOK, APIResponse[[]CloudProviderRegion]{
+		jsonResponse(t, w, http.StatusOK, APIResponse[[]CloudProviderRegion]{
 			Success:   true,
 			RequestID: "req-regions",
 			Data: []CloudProviderRegion{{

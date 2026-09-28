@@ -34,7 +34,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 	// -- BYOC discovery endpoints --
 	mux.HandleFunc("/v1/organization", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		writeJSONResponse(t, w, map[string]any{
 			"success": true, "requestId": "mock-organization",
 			"data": map[string]any{
 				"organizationId": "o-mock", "organizationName": "Mock Organization",
@@ -48,7 +48,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 		if got := r.URL.Query().Get("deploymentMode"); got != "BYOC" {
 			t.Errorf("expected deploymentMode=BYOC, got %q", got)
 		}
-		json.NewEncoder(w).Encode(map[string]any{
+		writeJSONResponse(t, w, map[string]any{
 			"success": true, "requestId": "mock-byoc-regions",
 			"data": []map[string]any{{
 				"region": "us-east-1", "displayName": "US East (N. Virginia)",
@@ -75,7 +75,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 			t.Errorf("unexpected credential request: %#v", body)
 		}
 		byocCredentialDeleted = false
-		json.NewEncoder(w).Encode(map[string]any{
+		writeJSONResponse(t, w, map[string]any{
 			"success": true, "requestId": "mock-create-credential",
 			"data": map[string]any{"credentialId": 123},
 		})
@@ -85,12 +85,12 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		if byocCredentialDeleted && r.Method == http.MethodGet {
 			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]any{"success": false, "code": "CredentialNotFound", "message": "not found"})
+			writeJSONResponse(t, w, map[string]any{"success": false, "code": "CredentialNotFound", "message": "not found"})
 			return
 		}
 		switch r.Method {
 		case http.MethodGet:
-			json.NewEncoder(w).Encode(map[string]any{
+			writeJSONResponse(t, w, map[string]any{
 				"success": true, "requestId": "mock-get-credential",
 				"data": map[string]any{
 					"credentialId": 123, "name": "production-credential", "cloudProvider": "aws", "region": "us-east-1",
@@ -105,7 +105,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 				t.Error("credential configuration deleted before its warehouse and network dependencies")
 			}
 			byocCredentialDeleted = true
-			json.NewEncoder(w).Encode(map[string]any{"success": true, "requestId": "mock-delete-credential", "data": map[string]any{}})
+			writeJSONResponse(t, w, map[string]any{"success": true, "requestId": "mock-delete-credential", "data": map[string]any{}})
 		default:
 			w.WriteHeader(http.StatusMethodNotAllowed)
 		}
@@ -135,7 +135,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 			byocNetworkZoneMappings = append(byocNetworkZoneMappings, map[string]any{"zoneId": mapping.ZoneID, "subnetId": mapping.SubnetID})
 		}
 		byocNetworkDeleted = false
-		json.NewEncoder(w).Encode(map[string]any{
+		writeJSONResponse(t, w, map[string]any{
 			"success": true, "requestId": "mock-create-network",
 			"data": map[string]any{"networkConfigId": 456},
 		})
@@ -145,12 +145,12 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		if byocNetworkDeleted && r.Method == http.MethodGet {
 			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]any{"success": false, "code": "NetworkConfigNotFound", "message": "not found"})
+			writeJSONResponse(t, w, map[string]any{"success": false, "code": "NetworkConfigNotFound", "message": "not found"})
 			return
 		}
 		switch r.Method {
 		case http.MethodGet:
-			json.NewEncoder(w).Encode(map[string]any{
+			writeJSONResponse(t, w, map[string]any{
 				"success": true, "requestId": "mock-get-network",
 				"data": map[string]any{
 					"networkConfigId": 456, "name": "production-network", "cloudProvider": "aws", "region": "us-east-1",
@@ -164,7 +164,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 				t.Error("network configuration deleted before its warehouse dependency")
 			}
 			byocNetworkDeleted = true
-			json.NewEncoder(w).Encode(map[string]any{"success": true, "requestId": "mock-delete-network", "data": map[string]any{}})
+			writeJSONResponse(t, w, map[string]any{"success": true, "requestId": "mock-delete-network", "data": map[string]any{}})
 		default:
 			w.WriteHeader(http.StatusMethodNotAllowed)
 		}
@@ -191,7 +191,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 					"createdAt": now.Format(time.RFC3339),
 				})
 			}
-			json.NewEncoder(w).Encode(map[string]any{
+			writeJSONResponse(t, w, map[string]any{
 				"success": true, "requestId": "mock-list-wh", "page": 1, "size": 20,
 				"total": len(data), "data": data,
 			})
@@ -206,14 +206,14 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 				}
 				byocWarehouseCreated = true
 				byocWarehouseDeleted = false
-				json.NewEncoder(w).Encode(map[string]any{
+				writeJSONResponse(t, w, map[string]any{
 					"success": true, "requestId": "mock-create-byoc-wh",
 					"data": map[string]any{"warehouseId": "WH-BYOC-CREATE-001"},
 				})
 				return
 			}
 			whDeleted = false
-			json.NewEncoder(w).Encode(map[string]any{
+			writeJSONResponse(t, w, map[string]any{
 				"success": true, "requestId": "mock-create-wh",
 				"data": map[string]any{"warehouseId": "WH-MOCK-001"},
 			})
@@ -226,12 +226,12 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		if byocWarehouseDeleted && r.Method == http.MethodGet {
 			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]any{"success": false, "code": "WarehouseNotFound", "message": "not found"})
+			writeJSONResponse(t, w, map[string]any{"success": false, "code": "WarehouseNotFound", "message": "not found"})
 			return
 		}
 		switch r.Method {
 		case http.MethodGet:
-			json.NewEncoder(w).Encode(map[string]any{
+			writeJSONResponse(t, w, map[string]any{
 				"success": true, "requestId": "mock-get-created-byoc-wh",
 				"data": map[string]any{
 					"warehouseId": "WH-BYOC-CREATE-001", "name": "advanced-byoc", "status": "Running",
@@ -242,7 +242,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 			})
 		case http.MethodDelete:
 			byocWarehouseDeleted = true
-			json.NewEncoder(w).Encode(map[string]any{"success": true, "requestId": "mock-delete-created-byoc-wh", "data": map[string]any{}})
+			writeJSONResponse(t, w, map[string]any{"success": true, "requestId": "mock-delete-created-byoc-wh", "data": map[string]any{}})
 		default:
 			w.WriteHeader(http.StatusMethodNotAllowed)
 		}
@@ -250,7 +250,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 
 	mux.HandleFunc("/v1/warehouses/WH-BYOC-CREATE-001/clusters", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		writeJSONResponse(t, w, map[string]any{
 			"success": true, "requestId": "mock-list-created-byoc-cl", "page": 1, "size": 20, "total": 1,
 			"data": []map[string]any{{
 				"clusterId": "CL-BYOC-CREATE-001", "warehouseId": "WH-BYOC-CREATE-001",
@@ -263,7 +263,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 	mux.HandleFunc("/v1/warehouses/WH-BYOC-LIST", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(map[string]any{
+		writeJSONResponse(t, w, map[string]any{
 			"code": "WarehouseNotFound", "message": "not found", "success": false, "requestId": "mock-byoc-list-not-found",
 		})
 	})
@@ -272,14 +272,14 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		if whDeleted && r.Method == http.MethodGet {
 			w.WriteHeader(404)
-			json.NewEncoder(w).Encode(map[string]any{
+			writeJSONResponse(t, w, map[string]any{
 				"code": "WarehouseNotFound", "message": "not found", "success": false, "requestId": "mock",
 			})
 			return
 		}
 		switch r.Method {
 		case http.MethodGet:
-			json.NewEncoder(w).Encode(map[string]any{
+			writeJSONResponse(t, w, map[string]any{
 				"success": true, "requestId": "mock-get-wh",
 				"data": map[string]any{
 					"warehouseId": "WH-MOCK-001", "name": "mock-warehouse", "status": "Running",
@@ -290,16 +290,16 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 				},
 			})
 		case http.MethodPatch:
-			json.NewEncoder(w).Encode(map[string]any{"success": true, "requestId": "mock-update-wh", "data": map[string]any{}})
+			writeJSONResponse(t, w, map[string]any{"success": true, "requestId": "mock-update-wh", "data": map[string]any{}})
 		case http.MethodDelete:
 			whDeleted = true
-			json.NewEncoder(w).Encode(map[string]any{"success": true, "requestId": "mock-delete-wh", "data": map[string]any{}})
+			writeJSONResponse(t, w, map[string]any{"success": true, "requestId": "mock-delete-wh", "data": map[string]any{}})
 		}
 	})
 
 	mux.HandleFunc("/v1/warehouses/WH-MOCK-001/settings", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"success": true, "requestId": "mock-settings", "data": map[string]any{}})
+		writeJSONResponse(t, w, map[string]any{"success": true, "requestId": "mock-settings", "data": map[string]any{}})
 	})
 
 	mux.HandleFunc("/v1/warehouses/WH-BYOC-001", func(w http.ResponseWriter, r *http.Request) {
@@ -308,7 +308,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]any{
+		writeJSONResponse(t, w, map[string]any{
 			"success": true, "requestId": "mock-get-byoc-wh",
 			"data": map[string]any{
 				"warehouseId": "WH-BYOC-001", "name": "mock-byoc", "status": "Running",
@@ -331,7 +331,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]any{
+		writeJSONResponse(t, w, map[string]any{
 			"success": true, "requestId": "mock-list-byoc-cl", "page": 1, "size": 20,
 			"total": 1,
 			"data": []map[string]any{{
@@ -348,7 +348,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]any{
+		writeJSONResponse(t, w, map[string]any{
 			"success": true, "requestId": "mock-list-byoc-list-cl", "page": 1, "size": 20,
 			"total": 1,
 			"data": []map[string]any{{
@@ -361,7 +361,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 
 	mux.HandleFunc("/v1/warehouses/WH-MOCK-001/connections", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		writeJSONResponse(t, w, map[string]any{
 			"success":   true,
 			"requestId": "mock-conns",
 			"data": map[string]any{
@@ -383,7 +383,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		if whDeleted && r.Method == http.MethodGet {
 			w.WriteHeader(404)
-			json.NewEncoder(w).Encode(map[string]any{
+			writeJSONResponse(t, w, map[string]any{
 				"code": "WarehouseNotFound", "message": "not found", "success": false, "requestId": "mock",
 			})
 			return
@@ -391,7 +391,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 
 		switch r.Method {
 		case http.MethodGet:
-			json.NewEncoder(w).Encode(map[string]any{
+			writeJSONResponse(t, w, map[string]any{
 				"success": true, "requestId": "mock-get-public-policy",
 				"data": map[string]any{
 					"publicAccessPolicy": publicPolicy,
@@ -405,7 +405,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 			}
 			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
-				json.NewEncoder(w).Encode(map[string]any{"success": false, "message": err.Error()})
+				writeJSONResponse(t, w, map[string]any{"success": false, "message": err.Error()})
 				return
 			}
 			publicPolicy = body.PublicAccessPolicy
@@ -413,7 +413,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 			if publicPolicy == "ALLOWLIST_ONLY" {
 				publicPolicyRules = body.Rules
 			}
-			json.NewEncoder(w).Encode(map[string]any{"success": true, "requestId": "mock-update-public-policy", "data": map[string]any{}})
+			writeJSONResponse(t, w, map[string]any{"success": true, "requestId": "mock-update-public-policy", "data": map[string]any{}})
 		default:
 			w.WriteHeader(http.StatusMethodNotAllowed)
 		}
@@ -468,7 +468,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 			filtered = append(filtered, svc)
 		}
 
-		json.NewEncoder(w).Encode(map[string]any{
+		writeJSONResponse(t, w, map[string]any{
 			"success": true, "requestId": "mock-list-endpoint-services",
 			"data": filtered,
 		})
@@ -503,13 +503,13 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 			if !clDeleted {
 				data = append(data, clusterData())
 			}
-			json.NewEncoder(w).Encode(map[string]any{
+			writeJSONResponse(t, w, map[string]any{
 				"success": true, "requestId": "mock-list-cl", "page": 1, "size": 20,
 				"total": len(data), "data": data,
 			})
 		case http.MethodPost:
 			clDeleted = false
-			json.NewEncoder(w).Encode(map[string]any{
+			writeJSONResponse(t, w, map[string]any{
 				"success": true, "requestId": "mock-create-cl",
 				"data": map[string]any{"clusterId": "CL-MOCK-001"},
 			})
@@ -520,28 +520,28 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		if clDeleted && r.Method == http.MethodGet {
 			w.WriteHeader(404)
-			json.NewEncoder(w).Encode(map[string]any{
+			writeJSONResponse(t, w, map[string]any{
 				"code": "ClusterNotFound", "message": "not found", "success": false, "requestId": "mock",
 			})
 			return
 		}
 		switch r.Method {
 		case http.MethodGet:
-			json.NewEncoder(w).Encode(map[string]any{
+			writeJSONResponse(t, w, map[string]any{
 				"success": true, "requestId": "mock-get-cl", "data": clusterData(),
 			})
 		case http.MethodPatch:
-			json.NewEncoder(w).Encode(map[string]any{"success": true, "requestId": "mock-update-cl", "data": map[string]any{}})
+			writeJSONResponse(t, w, map[string]any{"success": true, "requestId": "mock-update-cl", "data": map[string]any{}})
 		case http.MethodDelete:
 			clDeleted = true
-			json.NewEncoder(w).Encode(map[string]any{"success": true, "requestId": "mock-delete-cl", "data": map[string]any{}})
+			writeJSONResponse(t, w, map[string]any{"success": true, "requestId": "mock-delete-cl", "data": map[string]any{}})
 		}
 	})
 
 	for _, action := range []string{"pause", "resume", "reboot"} {
 		mux.HandleFunc("/v1/warehouses/WH-MOCK-001/clusters/CL-MOCK-001/"+action, func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]any{"success": true, "requestId": "mock-action-cl", "data": map[string]any{}})
+			writeJSONResponse(t, w, map[string]any{"success": true, "requestId": "mock-action-cl", "data": map[string]any{}})
 		})
 	}
 
@@ -1440,4 +1440,11 @@ resource "velodb_warehouse_public_access_policy" "test" {
 			},
 		},
 	})
+}
+
+func writeJSONResponse(t *testing.T, w http.ResponseWriter, v any) {
+	t.Helper()
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		t.Errorf("encode response: %v", err)
+	}
 }

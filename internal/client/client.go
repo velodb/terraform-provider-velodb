@@ -68,10 +68,6 @@ func (c *FormationClient) patch(ctx context.Context, path string, body any) (*ht
 	return c.doJSON(ctx, http.MethodPatch, path, body)
 }
 
-func (c *FormationClient) put(ctx context.Context, path string, body any) (*http.Response, error) {
-	return c.doJSON(ctx, http.MethodPut, path, body)
-}
-
 func (c *FormationClient) delete(ctx context.Context, path string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, c.BaseURL+path, nil)
 	if err != nil {

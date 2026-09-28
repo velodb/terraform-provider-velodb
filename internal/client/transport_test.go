@@ -34,7 +34,7 @@ func TestTransportInjectsAPIKey(t *testing.T) {
 		if key != "test-api-key" {
 			t.Errorf("expected X-API-Key 'test-api-key', got %q", key)
 		}
-		jsonResponse(w, 200, PageResponse[WarehouseItem]{
+		jsonResponse(t, w, 200, PageResponse[WarehouseItem]{
 			Success:   true,
 			RequestID: "req-t1",
 			Data:      []WarehouseItem{},
@@ -58,10 +58,12 @@ func TestTransportGeneratesRequestIdForWrites(t *testing.T) {
 	var capturedRequestID string
 	mux.HandleFunc("/v1/warehouses/WH-001", func(w http.ResponseWriter, r *http.Request) {
 		capturedRequestID = r.Header.Get("RequestId")
-		jsonResponse(w, 200, APIResponse[struct{}]{Success: true, RequestID: "req-t2"})
+		jsonResponse(t, w, 200, APIResponse[struct{}]{Success: true, RequestID: "req-t2"})
 	})
 
-	client.DeleteWarehouse(context.Background(), "WH-001")
+	if err := client.DeleteWarehouse(context.Background(), "WH-001"); err != nil {
+		t.Fatalf("DeleteWarehouse: %v", err)
+	}
 	if capturedRequestID == "" {
 		t.Error("expected RequestId header to be auto-generated for DELETE")
 	}
@@ -75,14 +77,16 @@ func TestTransportNoRequestIdForReads(t *testing.T) {
 	var capturedRequestID string
 	mux.HandleFunc("/v1/warehouses/WH-001", func(w http.ResponseWriter, r *http.Request) {
 		capturedRequestID = r.Header.Get("RequestId")
-		jsonResponse(w, 200, APIResponse[WarehouseItem]{
+		jsonResponse(t, w, 200, APIResponse[WarehouseItem]{
 			Success:   true,
 			RequestID: "req-t3",
 			Data:      mockWarehouse("WH-001", "test"),
 		})
 	})
 
-	client.GetWarehouse(context.Background(), "WH-001")
+	if _, err := client.GetWarehouse(context.Background(), "WH-001"); err != nil {
+		t.Fatalf("GetWarehouse: %v", err)
+	}
 	if capturedRequestID != "" {
 		t.Errorf("expected no RequestId for GET, got %q", capturedRequestID)
 	}
@@ -110,14 +114,14 @@ func TestTransportRetryOn503(t *testing.T) {
 	mux.HandleFunc("/v1/warehouses/WH-001", func(w http.ResponseWriter, r *http.Request) {
 		attempt++
 		if attempt == 1 {
-			jsonResponse(w, 503, map[string]any{
+			jsonResponse(t, w, 503, map[string]any{
 				"code":    "ServiceUnavailable",
 				"message": "Service is temporarily unavailable",
 				"success": false,
 			})
 			return
 		}
-		jsonResponse(w, 200, APIResponse[WarehouseItem]{
+		jsonResponse(t, w, 200, APIResponse[WarehouseItem]{
 			Success:   true,
 			RequestID: "req-t4",
 			Data:      mockWarehouse("WH-001", "test"),

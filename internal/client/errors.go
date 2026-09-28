@@ -63,7 +63,8 @@ func (e *APIError) IsRateLimited() bool {
 // parseResponse reads an HTTP response and decodes the JSON body into result.
 // It returns an APIError for non-2xx responses.
 func parseResponse[T any](resp *http.Response, result *T) error {
-	defer resp.Body.Close()
+	// Closing a consumed response must not replace the API or decoding error.
+	defer func() { _ = resp.Body.Close() }()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("reading response body: %w", err)
