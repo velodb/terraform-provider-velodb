@@ -144,3 +144,37 @@ resource "velodb_warehouse" "test" {
 		t.Fatal("no in-place policy updates occurred")
 	}
 }
+
+func TestStandalonePublicAccessPolicyDetectsClearedRules(t *testing.T) {
+	ts := mockAPIServer(t)
+	defer ts.Close()
+	config := testProviderConfig(ts) + `
+resource "velodb_warehouse_public_access_policy" "test" {
+ warehouse_id = "WH-MOCK-001"
+ policy = "ALLOWLIST_ONLY"
+ rules = [{cidr="203.0.113.0/24"}]
+}
+`
+	check := resource.TestCheckResourceAttr("velodb_warehouse_public_access_policy.test", "rules.#", "1")
+	resource.Test(t, resource.TestCase{ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(ts), Steps: []resource.TestStep{
+		{Config: config, Check: check},
+		{PreConfig: func() {
+			req, err := http.NewRequest(http.MethodPatch, ts.URL+"/v1/warehouses/WH-MOCK-001/connections/public/access-policy", strings.NewReader(`{"publicAccessPolicy":"ALLOWLIST_ONLY","rules":[]}`))
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp, err := ts.Client().Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := resp.Body.Close(); err != nil {
+				t.Fatal(err)
+			}
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("status=%d", resp.StatusCode)
+			}
+		}, Config: config, PlanOnly: true, ExpectNonEmptyPlan: true},
+		{Config: config, Check: check},
+		{Config: config, PlanOnly: true},
+	}})
+}

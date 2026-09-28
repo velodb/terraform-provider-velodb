@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -132,13 +131,6 @@ func (r *PublicAccessPolicyResource) Configure(_ context.Context, req resource.C
 	r.client = c
 }
 
-func (r *PublicAccessPolicyResource) buildAPIRequest(ctx context.Context, plan *PublicAccessPolicyModel, diags *diag.Diagnostics) *client.WarehousePublicAccessPolicyRequest {
-	return &client.WarehousePublicAccessPolicyRequest{
-		PublicAccessPolicy: plan.Policy.ValueString(),
-		Rules:              allowlistRulesToAPI(ctx, plan.Policy.ValueString(), plan.Rules, diags),
-	}
-}
-
 func (r *PublicAccessPolicyResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan PublicAccessPolicyModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -146,23 +138,18 @@ func (r *PublicAccessPolicyResource) Create(ctx context.Context, req resource.Cr
 		return
 	}
 
-	apiReq := r.buildAPIRequest(ctx, &plan, &resp.Diagnostics)
-	if resp.Diagnostics.HasError() {
-		return
+	if err := (publicAccessPolicyService{client: r.client}).update(ctx, &plan, &resp.Diagnostics); err != nil {
+		resp.Diagnostics.AddError("Error updating public access policy", err.Error())
 	}
-
-	if err := r.client.UpdateWarehousePublicAccessPolicy(ctx, plan.WarehouseID.ValueString(), apiReq); err != nil {
-		resp.Diagnostics.AddError("Error setting public access policy", err.Error())
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	plan.ID = plan.WarehouseID
-	priorRules := plan.Rules
 	r.readIntoState(ctx, &plan, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	preserveConfiguredPublicAccessRules(&plan, priorRules)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -173,12 +160,10 @@ func (r *PublicAccessPolicyResource) Read(ctx context.Context, req resource.Read
 		return
 	}
 
-	priorRules := state.Rules
 	r.readIntoState(ctx, &state, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	preserveConfiguredPublicAccessRules(&state, priorRules)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
@@ -189,22 +174,17 @@ func (r *PublicAccessPolicyResource) Update(ctx context.Context, req resource.Up
 		return
 	}
 
-	apiReq := r.buildAPIRequest(ctx, &plan, &resp.Diagnostics)
+	if err := (publicAccessPolicyService{client: r.client}).update(ctx, &plan, &resp.Diagnostics); err != nil {
+		resp.Diagnostics.AddError("Error updating public access policy", err.Error())
+	}
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if err := r.client.UpdateWarehousePublicAccessPolicy(ctx, plan.WarehouseID.ValueString(), apiReq); err != nil {
-		resp.Diagnostics.AddError("Error updating public access policy", err.Error())
-		return
-	}
-
-	priorRules := plan.Rules
 	r.readIntoState(ctx, &plan, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	preserveConfiguredPublicAccessRules(&plan, priorRules)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -215,8 +195,9 @@ func (r *PublicAccessPolicyResource) Delete(ctx context.Context, req resource.De
 		return
 	}
 	// Reset to DENY_ALL on delete
-	apiReq := &client.WarehousePublicAccessPolicyRequest{PublicAccessPolicy: "DENY_ALL"}
-	if err := r.client.UpdateWarehousePublicAccessPolicy(ctx, state.WarehouseID.ValueString(), apiReq); err != nil {
+	state.Policy = types.StringValue("DENY_ALL")
+	state.Rules = types.SetNull(types.ObjectType{AttrTypes: allowlistRuleAttrTypes()})
+	if err := (publicAccessPolicyService{client: r.client}).update(ctx, &state, &resp.Diagnostics); err != nil {
 		resp.Diagnostics.AddWarning("Error resetting public access policy on destroy", err.Error())
 	}
 }
@@ -226,15 +207,8 @@ func (r *PublicAccessPolicyResource) ImportState(ctx context.Context, req resour
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), req.ID)...)
 }
 
-func allowlistRuleAttrTypes() map[string]attr.Type {
-	return map[string]attr.Type{
-		"cidr":        types.StringType,
-		"description": types.StringType,
-	}
-}
-
 func (r *PublicAccessPolicyResource) readIntoState(ctx context.Context, state *PublicAccessPolicyModel, diags *diag.Diagnostics) {
-	policy, err := r.client.GetWarehousePublicAccessPolicy(ctx, state.WarehouseID.ValueString())
+	err := (publicAccessPolicyService{client: r.client}).readIntoState(ctx, state, diags)
 	if err != nil {
 		if apiErr, ok := err.(*client.APIError); ok && apiErr.IsNotFound() {
 			state.ID = types.StringNull()
@@ -244,47 +218,4 @@ func (r *PublicAccessPolicyResource) readIntoState(ctx context.Context, state *P
 		return
 	}
 
-	state.ID = state.WarehouseID
-	if policy.PublicAccessPolicy != "" {
-		state.Policy = types.StringValue(policy.PublicAccessPolicy)
-	}
-
-	rules := policy.Allowlist
-	if len(rules) == 0 {
-		rules = policy.Rules
-	}
-	state.Rules = publicAccessRulesToSet(state.Policy.ValueString(), rules, diags)
-}
-
-func publicAccessRulesToSet(policy string, apiRules []client.WarehouseAllowlistRule, diags *diag.Diagnostics) types.Set {
-	ruleType := types.ObjectType{AttrTypes: allowlistRuleAttrTypes()}
-	if policy != "ALLOWLIST_ONLY" {
-		return types.SetNull(ruleType)
-	}
-
-	var rules []attr.Value
-	for _, rl := range apiRules {
-		obj, d := types.ObjectValue(allowlistRuleAttrTypes(), map[string]attr.Value{
-			"cidr":        types.StringValue(rl.CIDR),
-			"description": types.StringValue(rl.Description),
-		})
-		diags.Append(d...)
-		rules = append(rules, obj)
-	}
-	list, d := types.SetValue(ruleType, rules)
-	diags.Append(d...)
-	return list
-}
-
-func preserveConfiguredPublicAccessRules(state *PublicAccessPolicyModel, priorRules types.Set) {
-	if state.Policy.IsNull() || state.Policy.IsUnknown() || state.Policy.ValueString() != "ALLOWLIST_ONLY" {
-		return
-	}
-	if priorRules.IsNull() || priorRules.IsUnknown() || len(priorRules.Elements()) == 0 {
-		return
-	}
-	if !state.Rules.IsNull() && !state.Rules.IsUnknown() && len(state.Rules.Elements()) > 0 {
-		return
-	}
-	state.Rules = priorRules
 }

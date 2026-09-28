@@ -852,13 +852,18 @@ func (r *WarehouseResource) Update(ctx context.Context, req resource.UpdateReque
 	// Policy changes use the existing warehouse's endpoint, never replacement.
 	// Removing the optional block relinquishes management without a remote write.
 	if !plan.AccessPolicy.Equal(state.AccessPolicy) {
-		policyReq := warehouseAccessPolicyRequest(ctx, plan.AccessPolicy, &resp.Diagnostics)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-		if policyReq != nil {
-			if err := r.client.UpdateWarehousePublicAccessPolicy(ctx, warehouseID, policyReq); err != nil {
+
+		if !plan.AccessPolicy.IsNull() && !plan.AccessPolicy.IsUnknown() && len(plan.AccessPolicy.Elements()) > 0 {
+			var policies []WarehouseAccessPolicyModel
+			resp.Diagnostics.Append(plan.AccessPolicy.ElementsAs(ctx, &policies, false)...)
+			if resp.Diagnostics.HasError() {
+				return
+			}
+			policy := PublicAccessPolicyModel{WarehouseID: state.ID, Policy: policies[0].Policy, Rules: policies[0].Rules}
+			if err := (publicAccessPolicyService{client: r.client}).update(ctx, &policy, &resp.Diagnostics); err != nil {
 				resp.Diagnostics.AddError("Error updating public access policy", err.Error())
+			}
+			if resp.Diagnostics.HasError() {
 				return
 			}
 		}

@@ -388,20 +388,6 @@ func initialClusterListForTest(ratio types.Int64) types.List {
 	return types.ListValueMust(types.ObjectType{AttrTypes: attrTypes}, []attr.Value{obj})
 }
 
-func TestPreserveConfiguredPublicAccessRules(t *testing.T) {
-	rules := types.SetValueMust(types.StringType, []attr.Value{types.StringValue("203.0.113.10/32")})
-	state := &PublicAccessPolicyModel{
-		Policy: types.StringValue("ALLOWLIST_ONLY"),
-		Rules:  types.SetValueMust(types.StringType, nil),
-	}
-
-	preserveConfiguredPublicAccessRules(state, rules)
-
-	if state.Rules.IsNull() || len(state.Rules.Elements()) != 1 {
-		t.Fatalf("expected configured rules to be preserved, got %#v", state.Rules)
-	}
-}
-
 func TestPublicAccessRulesToSet(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -427,7 +413,11 @@ func TestPublicAccessRulesToSet(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var diags diag.Diagnostics
-			got := publicAccessRulesToSet(tt.policy, tt.apiRules, &diags)
+			prior := types.SetNull(types.ObjectType{AttrTypes: allowlistRuleAttrTypes()})
+			if tt.policy == "ALLOWLIST_ONLY" {
+				prior = types.SetValueMust(types.ObjectType{AttrTypes: allowlistRuleAttrTypes()}, nil)
+			}
+			got := publicAccessRulesToSet(context.Background(), tt.policy, tt.apiRules, prior, &diags)
 			if diags.HasError() {
 				t.Fatalf("unexpected diagnostics: %v", diags)
 			}
