@@ -503,7 +503,8 @@ func (r *WarehouseResource) ValidateConfig(ctx context.Context, req resource.Val
 
 	var coreVersion types.String
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("core_version"), &coreVersion)...)
-	if !coreVersion.IsNull() && (!version.IsNull() || !coreVersionID.IsNull()) {
+	if !coreVersion.IsNull() && !coreVersion.IsUnknown() &&
+		((!version.IsNull() && !version.IsUnknown()) || (!coreVersionID.IsNull() && !coreVersionID.IsUnknown())) {
 		resp.Diagnostics.AddError("Conflicting core version selectors", "Use core_version alone, or the legacy initial_core_version/core_version_id configuration. Do not set core_version together with a legacy selector.")
 	}
 
