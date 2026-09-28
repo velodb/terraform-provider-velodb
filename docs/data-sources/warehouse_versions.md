@@ -1,8 +1,11 @@
 # Data Source `velodb_warehouse_versions`
 
-Lists valid upgrade target versions for a warehouse. Each entry has a numeric `version_id` that can be passed as `core_version_id` on the `velodb_warehouse` resource to trigger an upgrade.
+Lists eligible upgrade target versions for a warehouse. Prefer setting the exact
+version string on `velodb_warehouse.core_version`; the provider resolves its ID
+automatically. Numeric IDs remain available for legacy configurations.
 
-The new Management API requires upgrades to reference a `targetVersionId` (int64) instead of a version string, so this data source is the source of truth for which versions are upgrade-eligible.
+The provider uses the same version-list API to resolve string upgrade targets
+to the numeric IDs required by the current upgrade endpoint.
 
 ## Example
 

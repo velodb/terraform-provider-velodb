@@ -63,3 +63,8 @@ output "aws_resources_managed" {
   description = "Always false: this module reads but does not manage existing AWS resources."
   value       = false
 }
+
+output "current_core_version" {
+  description = "Full core version currently reported by the warehouse API."
+  value       = velodb_warehouse.this.current_core_version
+}

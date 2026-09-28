@@ -22,8 +22,8 @@ tags = {
   managed-by  = "terraform"
 }
 
-# Pin the initial core version (create-only). Leave unset for the API default.
-# initial_core_version = "26.1"
+# Creation accepts "4.1" (latest patch) or "4.1.5". Set "4.1.9" to upgrade later.
+# core_version = "4.1"
 
 # Public network access policy. Changes update the existing warehouse in place.
 # Leave unset for the API default; null later stops management without a reset.

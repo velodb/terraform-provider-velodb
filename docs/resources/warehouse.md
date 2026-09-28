@@ -109,29 +109,33 @@ it is not required for password rotation.
 
 ## Version Upgrade
 
-The warehouse upgrade API now requires a numeric `targetVersionId` instead of a version string. Use the `velodb_warehouse_versions` data source to discover valid IDs and pass one as `core_version_id`:
+Use `core_version` for both creation and in-place upgrades:
 
 ```terraform
-data "velodb_warehouse_versions" "available" {
-  warehouse_id = velodb_warehouse.example.id
-}
-
-resource "velodb_warehouse" "example" {
+resource "velodb_warehouse" "production" {
   # ...
-  core_version_id = data.velodb_warehouse_versions.available.default_id
-  # or pin to a specific version_id from data.velodb_warehouse_versions.available.versions
+  core_version = "4.1" # creation: backend selects the latest patch in 4.1
 }
 ```
 
-The provider calls the upgrade API and waits for completion when
-`core_version_id` changes. The `core_version` string attribute is read-only.
+Creation accepts `major.minor` or exact `major.minor.patch`. To upgrade from
+`4.1.5` to `4.1.9`, set `core_version = "4.1.9"`. The provider resolves the exact
+string through the warehouse's available upgrade versions and calls the existing
+upgrade API; it does not replace the warehouse. Missing, ambiguous, or invalid
+upgrade targets produce an error. Downgrades are rejected. A two-part value is a
+creation selector, not an instruction to continuously upgrade to newer patches;
+changing to another release line after creation requires a three-part target.
 
-To pin the core version at creation instead, set `initial_core_version` to a
-`major.minor` value (e.g. `26.1`). Only two-part versions are
-accepted; three-part versions are rejected. The management API selects the
-newest matching build for that line. `initial_core_version` is create-only; use
-`core_version_id` to upgrade afterward. `initial_core_version` and `core_version_id` are
-mutually exclusive — set one or the other, not both.
+`current_core_version` reports the full version returned by the API. When a
+configured two-part selector matches it, `core_version` retains that selector so
+an unchanged configuration has a stable plan. When `core_version` is omitted it
+continues to report the API version, without managing upgrades.
+
+The legacy `initial_core_version` and `core_version_id` inputs remain supported.
+The former accepts two- or three-part versions for creation only; the latter
+continues to accept an upgrade ID. Do not combine `core_version` with either
+legacy input. To migrate, remove the legacy input and set `core_version` to the
+current full version (no upgrade), or to an eligible newer three-part version.
 
 ## Public Access Policy
 
@@ -145,7 +149,7 @@ resource "velodb_warehouse" "production" {
   # ...
   deployment_mode = "BYOC"
 
-  initial_core_version = "26.1"
+  core_version = "4.1"
 
   public_access_policy {
     policy = "ALLOWLIST_ONLY"
@@ -268,8 +272,9 @@ To destroy the initial cluster later:
 - `public_access_policy` (Block List, Max: 1) Public access policy updated in place with drift detection. Initial provisioning supports BYOC only. Removing the block stops management without changing remote access. (see [below for nested schema](#nestedblock--public_access_policy))
 - `admin_password` (String, Sensitive) Administrator password. Set on creation and used for password rotation. The password is stored in state since it cannot be read back from the API.
 - `admin_password_version` (Number) Increment this value to trigger a password change. Must be used together with `admin_password`.
-- `core_version_id` (Number) Target core version ID. Changing this triggers a warehouse upgrade. Discover valid values via the `velodb_warehouse_versions` data source.
-- `initial_core_version` (String) Initial core version to provision, in `major.minor` numeric format (e.g. `26.1`). Two-part only; three-part versions are rejected. The management API selects the newest matching build for that line. Create-only; use `core_version_id` to upgrade an existing warehouse.
+- `core_version` (String) Desired version. Creation accepts two or three numeric parts; upgrades require an exact three-part target. Omit to leave upgrades unmanaged.
+- `core_version_id` (Number) Legacy target version ID for an in-place upgrade. Prefer `core_version`.
+- `initial_core_version` (String) Legacy creation-only version selector, accepting two or three numeric parts. Prefer `core_version`.
 - `setup_mode` (String) BYOC setup mode. Set to `advanced` for AWS custom-infrastructure creation. Guided/template setup is not supported. Changing this forces a new resource.
 - `credential_id` (Number) Registered credential configuration ID for advanced AWS BYOC. Changing this forces a new resource.
 - `ebs_encryption_key_id` (Number) Registered encryption key ID used to encrypt the warehouse's EBS volumes. Create the key with `velodb_encryption_key` (`use_ebs = true`). Changing this forces a new resource.
@@ -283,7 +288,7 @@ To destroy the initial cluster later:
 ### Read-Only
 
 - `byoc_setup` (Block List) BYOC setup guidance returned for BYOC warehouses. (see [below for nested schema](#nestedatt--byoc_setup))
-- `core_version` (String) Current human-readable core version reported by the API (e.g. `26.1.0`). Read-only. Set `core_version_id` to trigger upgrades.
+- `current_core_version` (String) Full running version reported by the API, including the patch selected for a two-part creation selector.
 - `created_at` (String) Warehouse creation time in ISO 8601 / RFC 3339 format.
 - `expire_time` (String) Warehouse expiration time when available.
 - `id` (String) Warehouse identifier (e.g., `ALBJ07YE`).

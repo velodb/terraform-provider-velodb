@@ -51,12 +51,15 @@ runs on Azure, but this Terraform provider has only been tested with `aws`.
 
 | Attribute | Creation | Update | Modes | Modules |
 |---|---|---|---|---|
-| `initial_core_version` | ✅ | 🚫 Create-only | Both | ✅ `initial_core_version` |
-| `core_version_id` | — | ✅ In-place (upgrade) | Both | ❌ |
-| `core_version` | — (read-only) | — | Both | — |
+| `core_version` | ✅ Two or three parts | ✅ Three-part in-place upgrade | Both | ✅ `core_version` |
+| `current_core_version` | — (read-only) | — (read-only) | Both | ✅ Output |
+| `initial_core_version` | ✅ Legacy selector | 🚫 Create-only | Both | ✅ Compatibility |
+| `core_version_id` | Legacy post-create upgrade | ✅ Legacy ID upgrade | Both | ❌ |
 
-Pin the initial `major.minor` with `initial_core_version`; upgrade later by setting
-`core_version_id`. The two are mutually exclusive.
+Use `core_version = "4.1"` or `"4.1.5"` at creation. A two-part value lets the
+backend choose the latest patch. Upgrade by setting an exact target such as
+`"4.1.9"`; the provider resolves its eligible ID internally. Do not combine
+`core_version` with either legacy input.
 
 ## Network & access
 

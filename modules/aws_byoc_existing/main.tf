@@ -166,6 +166,7 @@ resource "velodb_warehouse" "this" {
   credential_id        = velodb_byoc_credential.this.id
   network_config_id    = velodb_byoc_network.this.id
   admin_password       = var.admin_password
+  core_version         = var.core_version
   initial_core_version = var.initial_core_version
   tags                 = local.tags
 

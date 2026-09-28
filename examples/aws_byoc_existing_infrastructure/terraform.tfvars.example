@@ -70,9 +70,9 @@ tags = {
   team        = "data-platform"
 }
 
-# Initial core version in major.minor numeric format (e.g. 26.1). Create-only.
+# Desired core version: two or three parts at creation, three parts for upgrades.
 # Leave null to let the management API pick the default.
-initial_core_version = "26.1"
+core_version = "4.1"
 
 # Public access policy applied at creation and updated in place afterward.
 # Null leaves it unmanaged without changing the existing remote policy.
