@@ -61,17 +61,41 @@ variable "zones" {
   default = ["us-east-1a", "us-east-1b", "us-east-1c"]
 }
 
+variable "create_tde_encryption_key" {
+  type    = bool
+  default = false
+}
+
+variable "tde_kms_key_arn" {
+  type    = string
+  default = null
+}
+
+variable "create_ebs_encryption_key" {
+  type    = bool
+  default = false
+}
+
+variable "ebs_kms_key_arn" {
+  type    = string
+  default = null
+}
+
 module "byoc" {
   source = "../../modules/aws_byoc"
 
-  region               = var.region
-  bucket_name          = var.bucket_name
-  name_prefix          = var.name_prefix
-  admin_password       = var.admin_password
-  vpc_cidr             = var.vpc_cidr
-  zones                = var.zones
-  additional_clusters  = var.additional_clusters
-  tags                 = { purpose = "velodb-provider-live-test" }
+  region                    = var.region
+  bucket_name               = var.bucket_name
+  name_prefix               = var.name_prefix
+  admin_password            = var.admin_password
+  vpc_cidr                  = var.vpc_cidr
+  zones                     = var.zones
+  additional_clusters       = var.additional_clusters
+  create_tde_encryption_key = var.create_tde_encryption_key
+  tde_kms_key_arn           = var.tde_kms_key_arn
+  create_ebs_encryption_key = var.create_ebs_encryption_key
+  ebs_kms_key_arn           = var.ebs_kms_key_arn
+  tags                      = { purpose = "velodb-provider-live-test" }
 }
 
 output "bucket_name" {
@@ -88,6 +112,10 @@ output "test_status" {
     endpoint_id            = module.byoc.endpoint_id
     credential_id          = module.byoc.credential_id
     network_config_id      = module.byoc.network_config_id
+    tde_encryption_key_id  = module.byoc.tde_encryption_key_id
+    ebs_encryption_key_id  = module.byoc.ebs_encryption_key_id
+    tde_kms_key_arn        = module.byoc.tde_kms_key_arn
+    ebs_kms_key_arn        = module.byoc.ebs_kms_key_arn
     warehouse_id           = module.byoc.warehouse_id
     warehouse_status       = module.byoc.warehouse_status
     initial_cluster_id     = module.byoc.initial_cluster_id

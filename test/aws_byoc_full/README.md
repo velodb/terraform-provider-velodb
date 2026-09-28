@@ -2,7 +2,9 @@
 
 This root configuration calls the reusable `modules/aws_byoc` module. It is
 independent of `byoc-terraform` and exercises the same short workflow intended
-for users.
+for users. Set `create_tde_encryption_key` and `create_ebs_encryption_key` in
+`live.auto.tfvars` to exercise module-managed KMS keys, or provide existing KMS
+key ARNs instead.
 
 The module creates a new VPC, one public subnet, three private subnets, a NAT
 gateway and Elastic IP, routing, IAM, S3, security groups, PrivateLink, VeloDB
@@ -30,10 +32,12 @@ The copied `live.auto.tfvars` is ignored by Git.
 terraform -chdir=test/aws_byoc_full plan -out=tfplan
 terraform -chdir=test/aws_byoc_full apply tfplan
 terraform -chdir=test/aws_byoc_full plan
+terraform -chdir=test/aws_byoc_full output -json test_status
 ```
 
 The first plan creates the complete deployment. The final plan must report
-`No changes`.
+`No changes`; the status output must contain the same TDE and EBS encryption
+key IDs returned by the warehouse API.
 
 ## Destroy and verify
 

@@ -95,6 +95,8 @@ type WarehouseItem struct {
 	PrivateEndpointService     *WarehouseEndpointService `json:"privateEndpointService,omitempty"`
 	PrivateLinkEndpointService *WarehouseEndpointService `json:"privateLinkEndpointService,omitempty"`
 	SetupGuide                 *WarehouseSetupGuide      `json:"setupGuide,omitempty"`
+	TdeEncryptionKeyId         *int64                    `json:"tdeEncryptionKeyId,omitempty"`
+	EbsEncryptionKeyId         *int64                    `json:"ebsEncryptionKeyId,omitempty"`
 	CreatedAt                  *time.Time                `json:"createdAt,omitempty"`
 	ExpireTime                 *time.Time                `json:"expireTime,omitempty"`
 	Tags                       map[string]string         `json:"tags,omitempty"`

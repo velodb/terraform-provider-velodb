@@ -3,3 +3,12 @@ bucket_name = "replace-with-globally-unique-disposable-bucket"
 name_prefix = "replace-with-unique-prefix"
 vpc_cidr    = "10.57.0.0/16"
 zones       = ["us-east-1a", "us-east-1b", "us-east-1c"]
+
+# Create module-managed KMS keys for the encrypted warehouse test.
+create_tde_encryption_key = true
+create_ebs_encryption_key = true
+
+# To test existing customer-managed keys instead, set create_* to false and
+# provide the corresponding ARN. The key policy must grant VeloDB access.
+# tde_kms_key_arn = "arn:aws:kms:us-east-1:123456789012:key/example"
+# ebs_kms_key_arn = "arn:aws:kms:us-east-1:123456789012:key/example"

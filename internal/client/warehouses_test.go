@@ -309,9 +309,8 @@ func TestGetWarehouse(t *testing.T) {
 // TestGetWarehousePopulatesImportFields guards the terraform import path: after
 // ImportState sets id, the framework calls Read -> GetWarehouse -> readWarehouseIntoState,
 // which repopulates state from this response. Every field that Read maps must decode
-// here, otherwise an imported warehouse shows a permanent diff. Create-only fields
-// (admin_password, initial_cluster, credential_id, network_config_id, encryption keys)
-// are intentionally not read back and so are not part of this contract.
+// here, otherwise an imported warehouse shows a permanent diff. Encryption key IDs
+// are part of this contract because Formation returns them for refresh and import.
 func TestGetWarehousePopulatesImportFields(t *testing.T) {
 	ts, mux := newTestServer(t)
 	defer ts.Close()
@@ -319,6 +318,8 @@ func TestGetWarehousePopulatesImportFields(t *testing.T) {
 
 	created := mockTime
 	expire := created.Add(24 * time.Hour)
+	tdeEncryptionKeyID := int64(789)
+	ebsEncryptionKeyID := int64(790)
 
 	mux.HandleFunc("/v1/warehouses/WH-IMPORT", func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(t, w, r, http.MethodGet) {
@@ -339,6 +340,8 @@ func TestGetWarehousePopulatesImportFields(t *testing.T) {
 				PayType:             "PostPaid",
 				EndpointServiceID:   "vpce-svc-import",
 				EndpointServiceName: "com.amazonaws.vpce.us-east-1.vpce-svc-import",
+				TdeEncryptionKeyId:  &tdeEncryptionKeyID,
+				EbsEncryptionKeyId:  &ebsEncryptionKeyID,
 				CreatedAt:           &created,
 				ExpireTime:          &expire,
 			},
@@ -361,6 +364,10 @@ func TestGetWarehousePopulatesImportFields(t *testing.T) {
 	}
 	if wh.ExpireTime == nil || !wh.ExpireTime.Equal(expire) {
 		t.Fatalf("ExpireTime = %v, want %v", wh.ExpireTime, expire)
+	}
+	if wh.TdeEncryptionKeyId == nil || *wh.TdeEncryptionKeyId != tdeEncryptionKeyID ||
+		wh.EbsEncryptionKeyId == nil || *wh.EbsEncryptionKeyId != ebsEncryptionKeyID {
+		t.Fatalf("encryption key IDs = (%v, %v), want (%d, %d)", wh.TdeEncryptionKeyId, wh.EbsEncryptionKeyId, tdeEncryptionKeyID, ebsEncryptionKeyID)
 	}
 }
 
