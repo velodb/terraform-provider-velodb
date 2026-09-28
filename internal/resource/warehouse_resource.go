@@ -64,7 +64,6 @@ type WarehouseResourceModel struct {
 	EndpointServiceName     types.String   `tfsdk:"endpoint_service_name"`
 	AdminPassword           types.String   `tfsdk:"admin_password"`
 	AdminPasswordVersion    types.Int64    `tfsdk:"admin_password_version"`
-	Version                 types.String   `tfsdk:"initial_core_version"`
 	Tags                    types.Map      `tfsdk:"tags"`
 	InitialCluster          types.List     `tfsdk:"initial_cluster"`
 	AccessPolicy            types.List     `tfsdk:"public_access_policy"`
@@ -260,17 +259,6 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 			"core_version_id": schema.Int64Attribute{
 				Description: "Legacy target core version ID. Prefer core_version for string-based upgrades. Changing triggers an upgrade. Discover valid IDs via the velodb_warehouse_versions data source. The API does not return this value on Read, so the resource preserves whatever was last applied (or null if never set).",
 				Optional:    true,
-			},
-			"initial_core_version": schema.StringAttribute{
-				DeprecationMessage: "Use core_version for creation and upgrades instead. Remove initial_core_version when setting core_version.",
-				Description:        "Deprecated initial version selector, accepting major.minor or major.minor.patch. Prefer core_version for creation and upgrades. Create-only; remove this legacy selector when migrating to core_version.",
-				Optional:           true,
-				Validators: []validator.String{
-					stringvalidator.RegexMatches(
-						regexp.MustCompile(`^[0-9]+\.[0-9]+(\.[0-9]+)?$`),
-						"must use major.minor or major.minor.patch numeric format (e.g. 26.1 or 26.1.2)",
-					),
-				},
 			},
 			"admin_password": schema.StringAttribute{
 				Description: "Administrator password. Write-only in the API and preserved as sensitive Terraform state so password rotation can be detected.",
@@ -479,25 +467,12 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 }
 
 func (r *WarehouseResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	// initial_core_version (initial core version) and core_version_id (explicit
-	// upgrade target) are mutually exclusive: setting both provisions at
-	// initial_core_version and then immediately upgrades, a redundant double operation.
-	var version types.String
 	var coreVersionID types.Int64
-	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("initial_core_version"), &version)...)
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("core_version_id"), &coreVersionID)...)
-	if !version.IsNull() && !version.IsUnknown() && !coreVersionID.IsNull() && !coreVersionID.IsUnknown() {
-		resp.Diagnostics.AddError(
-			"initial_core_version and core_version_id cannot be set together",
-			"Set initial_core_version to pin the core version at creation, or core_version_id to upgrade an existing "+
-				"warehouse — not both. Setting both provisions at initial_core_version and then upgrades in the same apply.",
-		)
-	}
-
 	var coreVersion types.String
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("core_version"), &coreVersion)...)
-	if !coreVersion.IsNull() && (!version.IsNull() || !coreVersionID.IsNull()) {
-		resp.Diagnostics.AddError("Conflicting core version selectors", "Use core_version alone, or the legacy initial_core_version/core_version_id configuration. Do not set core_version together with a legacy selector.")
+	if !coreVersion.IsNull() && !coreVersionID.IsNull() {
+		resp.Diagnostics.AddError("Conflicting core version selectors", "Do not combine core_version with core_version_id. Use core_version for string-based creation and upgrades.")
 	}
 
 	// Validate public_access_policy first: it is independent of initial_cluster,
@@ -575,19 +550,8 @@ func (r *WarehouseResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 				detail: "The VeloDB management API accepts warehouse tags only at creation time and cannot update them. " +
 					"Revert the tags change, or destroy and recreate the warehouse to apply new tags.",
 			},
-			{
-				p:        path.Root("initial_core_version"),
-				planVal:  plan.Version,
-				stateVal: state.Version,
-				summary:  "Warehouse initial_core_version cannot be changed after creation",
-				detail: "The VeloDB management API accepts initial_core_version only when creating a warehouse. " +
-					"Remove initial_core_version and set core_version to an eligible three-part target to upgrade the existing warehouse.",
-			},
 		}
 		for _, a := range createOnly {
-			if a.p.Equal(path.Root("initial_core_version")) && plan.Version.IsNull() {
-				continue
-			}
 			rejectCreateOnlyChange(&resp.Diagnostics, a.p, a.planVal, a.stateVal, a.summary, a.detail)
 		}
 		return
@@ -663,7 +627,6 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 	var tags map[string]string
 	plan.Tags.ElementsAs(ctx, &tags, false)
 	createReq.Tags = tags
-	setOptionalString(&createReq.Version, plan.Version)
 	setOptionalString(&createReq.Version, plan.CoreVersion)
 	setOptionalString(&createReq.VpcMode, plan.VpcMode)
 	setOptionalString(&createReq.SetupMode, plan.SetupMode)

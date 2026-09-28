@@ -35,7 +35,6 @@ module "velodb_byoc" {
   additional_clusters       = var.additional_clusters
   tags                      = var.tags
   core_version              = var.core_version
-  initial_core_version      = var.initial_core_version
   public_access_policy      = var.public_access_policy
 
   create_tde_encryption_key = var.create_tde_encryption_key

@@ -158,17 +158,16 @@ resource "velodb_byoc_network" "this" {
 }
 
 resource "velodb_warehouse" "this" {
-  name                 = "${var.name_prefix}-warehouse"
-  deployment_mode      = "BYOC"
-  cloud_provider       = "aws"
-  region               = var.region
-  setup_mode           = "advanced"
-  credential_id        = velodb_byoc_credential.this.id
-  network_config_id    = velodb_byoc_network.this.id
-  admin_password       = var.admin_password
-  core_version         = var.core_version
-  initial_core_version = var.initial_core_version
-  tags                 = local.tags
+  name              = "${var.name_prefix}-warehouse"
+  deployment_mode   = "BYOC"
+  cloud_provider    = "aws"
+  region            = var.region
+  setup_mode        = "advanced"
+  credential_id     = velodb_byoc_credential.this.id
+  network_config_id = velodb_byoc_network.this.id
+  admin_password    = var.admin_password
+  core_version      = var.core_version
+  tags              = local.tags
 
   tde_encryption_key_id = local.tde_encryption_enabled ? one(velodb_encryption_key.tde[*].id) : null
   ebs_encryption_key_id = local.ebs_encryption_enabled ? one(velodb_encryption_key.ebs[*].id) : null
