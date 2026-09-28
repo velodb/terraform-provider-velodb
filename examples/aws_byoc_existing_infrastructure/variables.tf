@@ -79,7 +79,7 @@ variable "core_version" {
 }
 
 variable "initial_core_version" {
-  description = "Legacy initial version, accepting major.minor or major.minor.patch. Prefer core_version for creation and upgrades. Leave null when using core_version."
+  description = "Deprecated: use core_version instead. Retained for compatibility. Initial version, accepting major.minor or major.minor.patch. Prefer core_version for creation and upgrades. Leave null when using core_version."
   type        = string
   default     = null
 }

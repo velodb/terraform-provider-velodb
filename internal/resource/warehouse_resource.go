@@ -260,12 +260,13 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				Optional:    true,
 			},
 			"initial_core_version": schema.StringAttribute{
-				Description: "Legacy initial version selector, accepting major.minor or major.minor.patch. Prefer core_version for creation and upgrades. Create-only; remove this legacy selector when migrating to core_version.",
-				Optional:    true,
+				DeprecationMessage: "Use core_version for creation and upgrades instead. Remove initial_core_version when setting core_version.",
+				Description:        "Deprecated initial version selector, accepting major.minor or major.minor.patch. Prefer core_version for creation and upgrades. Create-only; remove this legacy selector when migrating to core_version.",
+				Optional:           true,
 				Validators: []validator.String{
 					stringvalidator.RegexMatches(
 						regexp.MustCompile(`^[0-9]+\.[0-9]+(\.[0-9]+)?$`),
-						"must use major.minor or major.minor.patch numeric format (e.g. 4.1 or 4.1.9)",
+						"must use major.minor or major.minor.patch numeric format (e.g. 26.1 or 26.1.2)",
 					),
 				},
 			},

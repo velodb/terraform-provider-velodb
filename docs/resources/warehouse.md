@@ -132,7 +132,8 @@ three-part configuration stays exact. When omitted, it reports the full API
 version without managing upgrades. Before upgrading from a two-part selector,
 the provider fetches the actual running patch internally for validation.
 
-The legacy `initial_core_version` and `core_version_id` inputs remain supported.
+The deprecated `initial_core_version` input remains supported for compatibility;
+use `core_version` for new configurations. The legacy `core_version_id` input also remains supported.
 The former accepts two- or three-part versions for creation only; the latter
 continues to accept an upgrade ID. Do not combine `core_version` with either
 legacy input. To migrate, remove the legacy input and set `core_version` to the
@@ -275,7 +276,7 @@ To destroy the initial cluster later:
 - `admin_password_version` (Number) Increment this value to trigger a password change. Must be used together with `admin_password`.
 - `core_version` (String) Desired version. Creation accepts two or three numeric parts; upgrades require an exact three-part target. Omit to leave upgrades unmanaged.
 - `core_version_id` (Number) Legacy target version ID for an in-place upgrade. Prefer `core_version`.
-- `initial_core_version` (String) Legacy creation-only version selector, accepting two or three numeric parts. Prefer `core_version`.
+- `initial_core_version` (String, Deprecated) Legacy creation-only version selector, accepting two or three numeric parts. Prefer `core_version`.
 - `setup_mode` (String) BYOC setup mode. Set to `advanced` for AWS custom-infrastructure creation. Guided/template setup is not supported. Changing this forces a new resource.
 - `credential_id` (Number) Registered credential configuration ID for advanced AWS BYOC. Changing this forces a new resource.
 - `ebs_encryption_key_id` (Number) Registered encryption key ID used to encrypt the warehouse's EBS volumes. Create the key with `velodb_encryption_key` (`use_ebs = true`). Changing this forces a new resource.
