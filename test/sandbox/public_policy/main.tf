@@ -1,3 +1,5 @@
+# Legacy compatibility fixture for the deprecated standalone policy resource.
+# New deployments must use velodb_warehouse.public_access_policy instead.
 terraform {
   required_providers {
     velodb = {

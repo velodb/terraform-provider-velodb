@@ -55,7 +55,7 @@ provider "velodb" {
 - `velodb_byoc_credential`
 - `velodb_byoc_network`
 - `velodb_cluster`
-- `velodb_warehouse_public_access_policy`
+- `velodb_warehouse_public_access_policy` — deprecated; use `velodb_warehouse.public_access_policy`.
 - `velodb_warehouse_private_endpoint`
 - `velodb_private_link_endpoint_service`
 

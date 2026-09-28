@@ -51,7 +51,8 @@ func (r *PublicAccessPolicyResource) Metadata(_ context.Context, req resource.Me
 
 func (r *PublicAccessPolicyResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		Description: "Manages the public network access policy for a VeloDB warehouse. Supports DENY_ALL, ALLOW_ALL, or ALLOWLIST_ONLY with CIDR rules.",
+		Description:        "Deprecated compatibility resource for existing public access policy state. Manage public access through the public_access_policy block of velodb_warehouse instead.",
+		DeprecationMessage: "Use the public_access_policy block of velodb_warehouse for creation and in-place updates. Before migrating, remove this resource from Terraform state without destroying it, then remove its configuration and add the matching inline block. Destroying this legacy resource resets remote access to DENY_ALL. Do not manage the same policy through both forms.",
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Description: "Resource identifier (same as warehouse_id).",
