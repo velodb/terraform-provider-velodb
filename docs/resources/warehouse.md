@@ -378,4 +378,16 @@ import {
 }
 ```
 
-~> **Note:** The `tde_encryption_key_id` and `ebs_encryption_key_id` attributes are populated from the API after import. The `admin_password`, `admin_password_version`, `initial_cluster`, `initial_core_version`, `public_access_policy`, `credential_id`, and `network_config_id` attributes cannot be read from the API. Set those create-only fields in your configuration to match the existing warehouse before the next plan; otherwise, because they force replacement, Terraform will plan to recreate the warehouse.
+~> **Note:** The `tde_encryption_key_id` and `ebs_encryption_key_id` attributes are populated from the API after import. The `admin_password`, `admin_password_version`, `initial_cluster`, `initial_core_version`, `public_access_policy`, `credential_id`, and `network_config_id` attributes cannot be read from the API. Set those create-only fields in your configuration to match the existing warehouse before the next plan; the provider permits initialization of missing create-only bindings after import, but subsequent binding changes are rejected.
+
+## Immutable infrastructure
+
+Changes to deployment mode, cloud provider, region, setup mode, infrastructure
+bindings, initial cluster zone, or configured encryption key IDs are rejected
+after creation instead of scheduling warehouse replacement. Unknown binding
+values are also rejected because they may represent an upstream replacement.
+Restore the original configuration; use a separate warehouse for migration.
+Optional computed encryption key IDs omitted from configuration retain their
+API-reported values; omission does not disable encryption. BYOC modules also
+reject changes to their recorded encryption creation flags and network inputs.
+Explicit destruction remains supported.

@@ -17,7 +17,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -141,7 +140,7 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				Description: "Deployment mode: SaaS or BYOC.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					warehouseImmutableString{},
 				},
 				Validators: []validator.String{
 					stringvalidator.OneOf("SaaS", "BYOC"),
@@ -151,21 +150,21 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				Description: "Cloud provider. Only aws is supported.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					warehouseImmutableString{},
 				},
 			},
 			"region": schema.StringAttribute{
 				Description: "Cloud region (e.g., us-east-1).",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					warehouseImmutableString{},
 				},
 			},
 			"setup_mode": schema.StringAttribute{
 				Description: "BYOC setup mode: `guided` (CloudFormation template) or `advanced` (pre-existing AWS resources — IaC-friendly).",
 				Optional:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					warehouseImmutableString{},
 				},
 				Validators: []validator.String{
 					stringvalidator.OneOf("guided", "advanced"),
@@ -175,7 +174,7 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				Description: "VPC mode hint: existing or new.",
 				Optional:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					warehouseImmutableString{},
 				},
 				Validators: []validator.String{
 					stringvalidator.OneOf("existing", "new"),
@@ -185,14 +184,14 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				Description: "Existing VPC identifier for Template mode.",
 				Optional:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					warehouseImmutableString{},
 				},
 			},
 			"credential_id": schema.Int64Attribute{
 				Description: "Registered credential configuration ID for advanced AWS BYOC.",
 				Optional:    true,
 				PlanModifiers: []planmodifier.Int64{
-					int64planmodifier.RequiresReplace(),
+					warehouseImmutableInt64{},
 				},
 				Validators: []validator.Int64{
 					int64validator.AtLeast(1),
@@ -202,7 +201,7 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				Description: "Registered network configuration ID for advanced AWS BYOC.",
 				Optional:    true,
 				PlanModifiers: []planmodifier.Int64{
-					int64planmodifier.RequiresReplace(),
+					warehouseImmutableInt64{},
 				},
 				Validators: []validator.Int64{
 					int64validator.AtLeast(1),
@@ -212,42 +211,42 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				Description: "Object storage bucket name for Wizard mode.",
 				Optional:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					warehouseImmutableString{},
 				},
 			},
 			"data_credential_arn": schema.StringAttribute{
 				Description: "Data plane credential ARN.",
 				Optional:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					warehouseImmutableString{},
 				},
 			},
 			"deployment_credential_arn": schema.StringAttribute{
 				Description: "Deployment credential ARN.",
 				Optional:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					warehouseImmutableString{},
 				},
 			},
 			"subnet_id": schema.StringAttribute{
 				Description: "Existing subnet identifier.",
 				Optional:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					warehouseImmutableString{},
 				},
 			},
 			"security_group_id": schema.StringAttribute{
 				Description: "Existing security group identifier.",
 				Optional:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					warehouseImmutableString{},
 				},
 			},
 			"endpoint_id": schema.StringAttribute{
 				Description: "Existing private endpoint identifier.",
 				Optional:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					warehouseImmutableString{},
 				},
 			},
 			"core_version": schema.StringAttribute{
@@ -337,22 +336,22 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				},
 			},
 			"tde_encryption_key_id": schema.Int64Attribute{
-				Description: "Registered encryption key ID used for transparent data encryption (TDE) of warehouse data. Create the key with velodb_encryption_key (use_tde = true). Changing this forces replacement.",
+				Description: "Registered encryption key ID used for transparent data encryption (TDE) of warehouse data. Create the key with velodb_encryption_key (use_tde = true). Cannot be changed after creation. Omit to retain the existing API-reported key.",
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.Int64{
-					int64planmodifier.RequiresReplace(),
+					warehouseImmutableInt64{encryption: true},
 				},
 				Validators: []validator.Int64{
 					int64validator.AtLeast(1),
 				},
 			},
 			"ebs_encryption_key_id": schema.Int64Attribute{
-				Description: "Registered encryption key ID used to encrypt the warehouse's EBS volumes. Create the key with velodb_encryption_key (use_ebs = true). Changing this forces replacement.",
+				Description: "Registered encryption key ID used to encrypt the warehouse's EBS volumes. Create the key with velodb_encryption_key (use_ebs = true). Cannot be changed after creation. Omit to retain the existing API-reported key.",
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.Int64{
-					int64planmodifier.RequiresReplace(),
+					warehouseImmutableInt64{encryption: true},
 				},
 				Validators: []validator.Int64{
 					int64validator.AtLeast(1),
@@ -373,8 +372,9 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"zone": schema.StringAttribute{
-							Description: "Availability zone.",
-							Required:    true,
+							Description:   "Availability zone.",
+							Required:      true,
+							PlanModifiers: []planmodifier.String{warehouseImmutableString{}},
 						},
 						"compute_vcpu": schema.Int64Attribute{
 							Description: "Compute capacity in vCPUs.",
@@ -535,13 +535,6 @@ func (r *WarehouseResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 
 	// Update path: reject changes to create-only attributes.
 	if !req.State.Raw.IsNull() {
-		// When another attribute already forces replacement, the resource is
-		// destroyed and recreated, so create-only values legitimately apply to
-		// the new instance — skip the change guards.
-		if len(resp.RequiresReplace) > 0 {
-			return
-		}
-
 		var plan, state WarehouseResourceModel
 		resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 		resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
@@ -549,7 +542,7 @@ func (r *WarehouseResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 			return
 		}
 		// Create-only attributes that need a tailored validation error. Other
-		// create-only attributes are handled by RequiresReplace in the schema.
+		// infrastructure attributes are rejected by their plan modifiers.
 		createOnly := []struct {
 			p                 path.Path
 			planVal, stateVal attr.Value
