@@ -132,12 +132,8 @@ three-part configuration stays exact. When omitted, it reports the full API
 version without managing upgrades. Before upgrading from a two-part selector,
 the provider fetches the actual running patch internally for validation.
 
-The deprecated `initial_core_version` input remains supported for compatibility;
-use `core_version` for new configurations. The legacy `core_version_id` input also remains supported.
-The former accepts two- or three-part versions for creation only; the latter
-continues to accept an upgrade ID. Do not combine `core_version` with either
-legacy input. To migrate, remove the legacy input and set `core_version` to the
-current full version (no upgrade), or to an eligible newer three-part version.
+The legacy `core_version_id` input continues to accept numeric upgrade IDs.
+Do not combine it with `core_version`.
 
 ## Public Access Policy
 
@@ -276,7 +272,6 @@ To destroy the initial cluster later:
 - `admin_password_version` (Number) Increment this value to trigger a password change. Must be used together with `admin_password`.
 - `core_version` (String) Desired version. Creation accepts two or three numeric parts; upgrades require an exact three-part target. Omit to leave upgrades unmanaged.
 - `core_version_id` (Number) Legacy target version ID for an in-place upgrade. Prefer `core_version`.
-- `initial_core_version` (String, Deprecated) Legacy creation-only version selector, accepting two or three numeric parts. Prefer `core_version`.
 - `setup_mode` (String) BYOC setup mode. Set to `advanced` for AWS custom-infrastructure creation. Guided/template setup is not supported. Changing this forces a new resource.
 - `credential_id` (Number) Registered credential configuration ID for advanced AWS BYOC. Read from the API when available. Changes are rejected; omission retains the existing binding.
 - `ebs_encryption_key_id` (Number) Registered encryption key ID used to encrypt the warehouse's EBS volumes. Create the key with `velodb_encryption_key` (`use_ebs = true`). Changing this forces a new resource.
@@ -387,7 +382,7 @@ import {
 }
 ```
 
-~> **Note:** The `tde_encryption_key_id` and `ebs_encryption_key_id` attributes are populated from the API after import. `credential_id` and `network_config_id` are also recovered when the backend returns `credentialId` and `networkConfigId`. Older backends that omit these fields preserve known state values; after import, supply the existing IDs if needed. Missing fields cannot be used to detect association removal. The `admin_password`, `admin_password_version`, `initial_cluster`, `initial_core_version` attributes cannot be read from the API. Set those create-only fields in your configuration to match the existing warehouse before the next plan; the provider permits initialization of missing create-only bindings after import, but subsequent binding changes are rejected.
+~> **Note:** The `tde_encryption_key_id` and `ebs_encryption_key_id` attributes are populated from the API after import. `credential_id` and `network_config_id` are also recovered when the backend returns `credentialId` and `networkConfigId`. Older backends that omit these fields preserve known state values; after import, supply the existing IDs if needed. Missing fields cannot be used to detect association removal. The `admin_password`, `admin_password_version`, and `initial_cluster` attributes cannot be read from the API. Set those create-only fields in your configuration to match the existing warehouse before the next plan; the provider permits initialization of missing create-only bindings after import, but subsequent binding changes are rejected.
 
 ## Immutable infrastructure
 

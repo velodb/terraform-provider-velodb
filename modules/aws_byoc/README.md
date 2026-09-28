@@ -46,9 +46,7 @@ are create-only, so they cannot be changed after the warehouse exists. Set `core
 at creation. Change it to an exact three-part version such as `"26.1.2"` to
 upgrade the same warehouse in place. A two-part creation selector remains
 two-part in Terraform state; the provider reads the actual patch internally
-before an upgrade. The deprecated `initial_core_version` input remains supported for compatibility.
-Use `core_version` for new configurations. To migrate, remove `initial_core_version`
-and set `core_version` to the current full version or an eligible newer three-part version.
+before an upgrade.
 
 
 Set `public_access_policy` to manage public access at creation and afterward: an
