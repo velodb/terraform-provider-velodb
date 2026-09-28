@@ -22,18 +22,19 @@ provider "velodb" {}
 module "velodb_byoc" {
   source = "../../modules/aws_byoc"
 
-  region                 = var.region
-  bucket_name            = var.bucket_name
-  name_prefix            = var.name_prefix
-  admin_password         = var.admin_password
-  vpc_cidr               = var.vpc_cidr
-  zones                  = var.zones
-  subnet_cidrs           = var.subnet_cidrs
-  warehouse_client_cidrs = var.warehouse_client_cidrs
-  additional_clusters    = var.additional_clusters
-  tags                   = var.tags
-  core_version           = var.core_version
-  public_access_policy   = var.public_access_policy
+  region                    = var.region
+  bucket_name               = var.bucket_name
+  name_prefix               = var.name_prefix
+  admin_password            = var.admin_password
+  vpc_cidr                  = var.vpc_cidr
+  zones                     = var.zones
+  subnet_cidrs              = var.subnet_cidrs
+  warehouse_client_cidrs    = var.warehouse_client_cidrs
+  additional_clusters       = var.additional_clusters
+  tags                      = var.tags
+  core_version              = var.core_version
+  table_name_case_sensitive = var.table_name_case_sensitive
+  public_access_policy      = var.public_access_policy
 
   create_tde_encryption_key = var.create_tde_encryption_key
   tde_kms_key_arn           = var.tde_kms_key_arn

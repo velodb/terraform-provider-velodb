@@ -61,3 +61,23 @@ func (m warehouseImmutableInt64) PlanModifyInt64(_ context.Context, req planmodi
 	}
 	rejectWarehouseInfrastructureChange(&resp.Diagnostics, req.Path, req.PlanValue, req.StateValue)
 }
+
+// PlanModifyBool rejects changes to create-only settings without replacing the warehouse.
+type warehouseImmutableBool struct{}
+
+func (warehouseImmutableBool) Description(context.Context) string {
+	return "Reject changes to settings already used by a warehouse."
+}
+func (m warehouseImmutableBool) MarkdownDescription(ctx context.Context) string {
+	return m.Description(ctx)
+}
+func (warehouseImmutableBool) PlanModifyBool(_ context.Context, req planmodifier.BoolRequest, resp *planmodifier.BoolResponse) {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+	// This setting cannot be recovered after import; permit initial binding.
+	if req.StateValue.IsNull() {
+		return
+	}
+	rejectWarehouseInfrastructureChange(&resp.Diagnostics, req.Path, req.PlanValue, req.StateValue)
+}

@@ -272,6 +272,7 @@ To destroy the initial cluster later:
 - `admin_password_version` (Number) Increment this value to trigger a password change. Must be used together with `admin_password`.
 - `core_version` (String) Desired version. Creation accepts two or three numeric parts; upgrades require an exact three-part target. Omit to leave upgrades unmanaged.
 - `core_version_id` (Number) Legacy target version ID for an in-place upgrade. Prefer `core_version`.
+- `table_name_case_sensitive` (Boolean) Whether table names are case-sensitive. Omit to use the case-sensitive server default. Create-only; changes after creation are rejected. The API does not return this setting, so Terraform preserves configured values and imports leave it unset.
 - `setup_mode` (String) BYOC setup mode. Set to `advanced` for AWS custom-infrastructure creation. Guided/template setup is not supported. Changing this forces a new resource.
 - `credential_id` (Number) Registered credential configuration ID for advanced AWS BYOC. Read from the API when available. Changes are rejected; omission retains the existing binding.
 - `ebs_encryption_key_id` (Number) Registered encryption key ID used to encrypt the warehouse's EBS volumes. Create the key with `velodb_encryption_key` (`use_ebs = true`). Changing this forces a new resource.

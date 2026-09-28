@@ -185,6 +185,9 @@ func TestCreateWarehouseBYOC(t *testing.T) {
 		if req.NetworkConfigID == nil || *req.NetworkConfigID != 456 {
 			t.Error("expected networkConfigId 456")
 		}
+		if req.LowerCaseMode == nil || *req.LowerCaseMode != 1 {
+			t.Error("expected lowerCaseMode 1")
+		}
 		if req.InitialCluster == nil || req.InitialCluster.Zone != "us-east-1a" {
 			t.Error("expected initialCluster.zone 'us-east-1a'")
 		}
@@ -208,6 +211,7 @@ func TestCreateWarehouseBYOC(t *testing.T) {
 	zone := "us-east-1a"
 	credentialID := int64(123)
 	networkConfigID := int64(456)
+	lowerCaseMode := 1
 	result, err := client.CreateWarehouse(context.Background(), &CreateWarehouseRequest{
 		Name:            "My_Warehouse",
 		DeploymentMode:  "BYOC",
@@ -216,6 +220,7 @@ func TestCreateWarehouseBYOC(t *testing.T) {
 		SetupMode:       &setupMode,
 		CredentialID:    &credentialID,
 		NetworkConfigID: &networkConfigID,
+		LowerCaseMode:   &lowerCaseMode,
 		AdminPassword:   &pw,
 		InitialCluster: &InitialClusterRequest{
 			Zone:        zone,

@@ -37,6 +37,9 @@ resource "velodb_warehouse" "byoc" {
   network_config_id = velodb_byoc_network.aws.id
   admin_password    = var.admin_password
 
+  # Table-name case sensitivity is immutable after creation.
+  table_name_case_sensitive = false
+
   # Creation accepts major.minor or major.minor.patch; upgrades use three parts.
   core_version = "26.1"
 

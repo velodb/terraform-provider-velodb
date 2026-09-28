@@ -78,6 +78,12 @@ variable "core_version" {
   }
 }
 
+variable "table_name_case_sensitive" {
+  description = "Whether warehouse table names are case-sensitive. Create-only; leave null to use the case-sensitive server default."
+  type        = bool
+  default     = null
+}
+
 variable "public_access_policy" {
   description = "Public access policy applied at creation and updated in place afterward. Null leaves the policy unmanaged without changing it. rules apply only when policy is ALLOWLIST_ONLY."
   type = object({

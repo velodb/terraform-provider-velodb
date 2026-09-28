@@ -686,6 +686,7 @@ resource "velodb_warehouse" "byoc" {
 					resource.TestCheckResourceAttr("velodb_warehouse.byoc", "region", "us-east-1"),
 					resource.TestCheckResourceAttr("velodb_warehouse.byoc", "initial_cluster_id", "CL-BYOC-001"),
 					resource.TestCheckResourceAttr("velodb_warehouse.byoc", "byoc_setup.0.shell_command", "curl https://setup.example.com | bash"),
+					resource.TestCheckNoResourceAttr("velodb_warehouse.byoc", "table_name_case_sensitive"),
 				),
 			},
 		},
@@ -762,6 +763,7 @@ resource "velodb_warehouse" "test" {
   credential_id     = velodb_byoc_credential.test.id
   network_config_id = velodb_byoc_network.test.id
   admin_password    = "TestPass@123"
+  table_name_case_sensitive = false
   tags               = { environment = "test" }
 
   initial_cluster {
@@ -779,6 +781,7 @@ resource "velodb_warehouse" "test" {
 				resource.TestCheckResourceAttr("velodb_warehouse.test", "setup_mode", "advanced"),
 				resource.TestCheckResourceAttr("velodb_warehouse.test", "credential_id", "123"),
 				resource.TestCheckResourceAttr("velodb_warehouse.test", "network_config_id", "456"),
+				resource.TestCheckResourceAttr("velodb_warehouse.test", "table_name_case_sensitive", "false"),
 				resource.TestCheckResourceAttr("velodb_warehouse.test", "initial_cluster_id", "CL-BYOC-CREATE-001"),
 			),
 		}},

@@ -62,6 +62,7 @@ type WarehouseResourceModel struct {
 	CoreVersionID           types.Int64    `tfsdk:"core_version_id"`
 	EndpointServiceID       types.String   `tfsdk:"endpoint_service_id"`
 	EndpointServiceName     types.String   `tfsdk:"endpoint_service_name"`
+	TableNameCaseSensitive  types.Bool     `tfsdk:"table_name_case_sensitive"`
 	AdminPassword           types.String   `tfsdk:"admin_password"`
 	AdminPasswordVersion    types.Int64    `tfsdk:"admin_password_version"`
 	Tags                    types.Map      `tfsdk:"tags"`
@@ -259,6 +260,13 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 			"core_version_id": schema.Int64Attribute{
 				Description: "Legacy target core version ID. Prefer core_version for string-based upgrades. Changing triggers an upgrade. Discover valid IDs via the velodb_warehouse_versions data source. The API does not return this value on Read, so the resource preserves whatever was last applied (or null if never set).",
 				Optional:    true,
+			},
+			"table_name_case_sensitive": schema.BoolAttribute{
+				Description: "Whether table names are case-sensitive. Omit to use the case-sensitive server default. Create-only; changes after creation are rejected. The API does not return this setting, so Terraform preserves configured values and imports leave it unset.",
+				Optional:    true,
+				PlanModifiers: []planmodifier.Bool{
+					warehouseImmutableBool{},
+				},
 			},
 			"admin_password": schema.StringAttribute{
 				Description: "Administrator password. Write-only in the API and preserved as sensitive Terraform state so password rotation can be detected.",
@@ -471,7 +479,7 @@ func (r *WarehouseResource) ValidateConfig(ctx context.Context, req resource.Val
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("core_version_id"), &coreVersionID)...)
 	var coreVersion types.String
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("core_version"), &coreVersion)...)
-	if !coreVersion.IsNull() && !coreVersionID.IsNull() {
+	if !coreVersion.IsNull() && !coreVersion.IsUnknown() && !coreVersionID.IsNull() && !coreVersionID.IsUnknown() {
 		resp.Diagnostics.AddError("Conflicting core version selectors", "Do not combine core_version with core_version_id. Use core_version for string-based creation and upgrades.")
 	}
 
@@ -640,6 +648,7 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 	setOptionalString(&createReq.AdminPassword, plan.AdminPassword)
 	setOptionalInt64(&createReq.TdeEncryptionKeyId, plan.TdeEncryptionKeyId)
 	setOptionalInt64(&createReq.EbsEncryptionKeyId, plan.EbsEncryptionKeyId)
+	setLowerCaseMode(&createReq.LowerCaseMode, plan.TableNameCaseSensitive)
 	setOptionalBool(&createReq.EnableTls, plan.EnableTls)
 	setOptionalBool(&createReq.EnableHttps, plan.EnableHttps)
 	// Initial cluster
@@ -744,6 +753,7 @@ func (r *WarehouseResource) Read(ctx context.Context, req resource.ReadRequest, 
 	// Preserve admin_password and admin_password_version from prior state (can't read from API)
 	priorPassword := state.AdminPassword
 	priorPasswordVersion := state.AdminPasswordVersion
+	priorTableNameCaseSensitive := state.TableNameCaseSensitive
 	priorInitialCluster := state.InitialCluster
 	priorTimeouts := state.Timeouts
 
@@ -754,6 +764,8 @@ func (r *WarehouseResource) Read(ctx context.Context, req resource.ReadRequest, 
 
 	state.AdminPassword = priorPassword
 	state.AdminPasswordVersion = priorPasswordVersion
+	// The API does not return this create-only setting.
+	state.TableNameCaseSensitive = priorTableNameCaseSensitive
 	state.InitialCluster = priorInitialCluster
 	state.Timeouts = priorTimeouts
 
@@ -1079,6 +1091,17 @@ func setOptionalBool(target **bool, val types.Bool) {
 		i := val.ValueBool()
 		*target = &i
 	}
+}
+
+func setLowerCaseMode(target **int, caseSensitive types.Bool) {
+	if caseSensitive.IsNull() || caseSensitive.IsUnknown() {
+		return
+	}
+	mode := 1
+	if caseSensitive.ValueBool() {
+		mode = 0
+	}
+	*target = &mode
 }
 
 // Missing association IDs are unavailable on older backends, not proof of removal.

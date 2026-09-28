@@ -48,6 +48,8 @@ upgrade the same warehouse in place. A two-part creation selector remains
 two-part in Terraform state; the provider reads the actual patch internally
 before an upgrade.
 
+Set `table_name_case_sensitive` to `false` for case-insensitive table names.
+It is create-only; leave it unset to use the case-sensitive server default.
 
 Set `public_access_policy` to manage public access at creation and afterward: an
 object with `policy` (`DENY_ALL`, `ALLOW_ALL`, or `ALLOWLIST_ONLY`) and, for
