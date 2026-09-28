@@ -1,9 +1,15 @@
 package resource
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/velodb/terraform-provider-velodb/internal/client"
-	"testing"
 )
 
 func TestCoreVersionSelection(t *testing.T) {
@@ -52,6 +58,42 @@ func TestResolveCoreVersionID(t *testing.T) {
 			got, err := resolveCoreVersionID("4.1.9", tc.versions)
 			if got != tc.want || (err != nil) != tc.reject {
 				t.Fatalf("id=%d err=%v", got, err)
+			}
+		})
+	}
+}
+
+func TestCoreVersionUpgradeReadsActualPatch(t *testing.T) {
+	for _, tc := range []struct {
+		name, target string
+		wantID       int64
+		wantError    bool
+		wantLists    int
+	}{
+		{"same actual version", "4.1.9", 0, false, 0},
+		{"reject hidden downgrade", "4.1.5", 0, true, 0},
+		{"upgrade exact patch", "4.1.11", 11, false, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reads, lists := 0, 0
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body := `{"success":true,"data":{"warehouseId":"WH","coreVersion":"4.1.9"}}`
+				if strings.HasSuffix(r.URL.Path, "/versions") {
+					lists++
+					body = `{"success":true,"data":[{"version":"4.1.11","versionId":11}]}`
+				} else {
+					reads++
+				}
+				if _, err := w.Write([]byte(body)); err != nil {
+					t.Errorf("write: %v", err)
+				}
+			}))
+			defer ts.Close()
+			r := WarehouseResource{client: client.NewFormationClient(strings.TrimPrefix(ts.URL, "http://"), "test", 0, time.Second)}
+			state := WarehouseResourceModel{ID: types.StringValue("WH"), CoreVersion: types.StringValue("4.1")}
+			id, err := r.coreVersionUpgradeID(context.Background(), types.StringValue(tc.target), &WarehouseResourceModel{}, &state)
+			if id != tc.wantID || (err != nil) != tc.wantError || reads != 1 || lists != tc.wantLists {
+				t.Fatalf("id=%d err=%v reads=%d lists=%d", id, err, reads, lists)
 			}
 		})
 	}

@@ -76,13 +76,22 @@ func resolveCoreVersionID(target string, versions []client.WarehouseVersion) (in
 
 func (r *WarehouseResource) coreVersionUpgradeID(ctx context.Context, configured types.String, plan, state *WarehouseResourceModel) (int64, error) {
 	if !configured.IsNull() && !configured.IsUnknown() {
-		current := state.CurrentCoreVersion.ValueString()
-		if current == "" {
-			current = state.CoreVersion.ValueString()
-		}
+		current := state.CoreVersion.ValueString()
 		target := configured.ValueString()
 		if coreVersionMatches(target, current) {
 			return 0, nil
+		}
+		// State may retain a two-part creation selector. Fetch its actual patch
+		// before validating a change, without exposing another Terraform field.
+		if strings.Count(current, ".") == 1 {
+			warehouse, err := r.client.GetWarehouse(ctx, state.ID.ValueString())
+			if err != nil {
+				return 0, err
+			}
+			current = warehouse.CoreVersion
+			if coreVersionMatches(target, current) {
+				return 0, nil
+			}
 		}
 		if err := validateCoreVersionUpgrade(target, current); err != nil {
 			return 0, err

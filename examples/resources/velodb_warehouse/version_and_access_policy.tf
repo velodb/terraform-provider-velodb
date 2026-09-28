@@ -2,7 +2,7 @@
 #
 # - `core_version` accepts two or three parts at creation. Two parts let the
 #   backend select the latest patch. Change to a three-part target to upgrade
-#   the same warehouse in place; current_core_version reports the running version.
+#   the same warehouse in place, using the same core_version field.
 # - `public_access_policy` sets the initial BYOC public access policy and
 #   updates it in place afterward. Remote policy changes are detected on refresh.
 

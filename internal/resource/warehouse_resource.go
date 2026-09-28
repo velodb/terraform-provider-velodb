@@ -59,7 +59,6 @@ type WarehouseResourceModel struct {
 	SecurityGroupID         types.String   `tfsdk:"security_group_id"`
 	EndpointID              types.String   `tfsdk:"endpoint_id"`
 	CoreVersion             types.String   `tfsdk:"core_version"`
-	CurrentCoreVersion      types.String   `tfsdk:"current_core_version"`
 	CoreVersionID           types.Int64    `tfsdk:"core_version_id"`
 	EndpointServiceID       types.String   `tfsdk:"endpoint_service_id"`
 	EndpointServiceName     types.String   `tfsdk:"endpoint_service_name"`
@@ -255,10 +254,6 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				Optional:    true,
 				Computed:    true,
 				Validators:  []validator.String{stringvalidator.RegexMatches(regexp.MustCompile(`^[0-9]+\.[0-9]+(\.[0-9]+)?$`), "must use major.minor or major.minor.patch numeric format")},
-			},
-			"current_core_version": schema.StringAttribute{
-				Description: "Full version currently reported by the warehouse API, including the resolved patch when core_version specifies only major.minor.",
-				Computed:    true,
 			},
 			"core_version_id": schema.Int64Attribute{
 				Description: "Legacy target core version ID. Prefer core_version for string-based upgrades. Changing triggers an upgrade. Discover valid IDs via the velodb_warehouse_versions data source. The API does not return this value on Read, so the resource preserves whatever was last applied (or null if never set).",
@@ -553,16 +548,12 @@ func (r *WarehouseResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 		}
 		var configuredCoreVersion types.String
 		resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("core_version"), &configuredCoreVersion)...)
-		if configuredCoreVersion.IsNull() && plan.CoreVersionID.Equal(state.CoreVersionID) && !state.CurrentCoreVersion.IsNull() && !state.CurrentCoreVersion.IsUnknown() {
-			// Relinquishing a two-part selector exposes the full running version again.
-			resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("core_version"), state.CurrentCoreVersion)...)
+		if configuredCoreVersion.IsNull() && !state.CoreVersion.IsNull() && !state.CoreVersion.IsUnknown() && strings.Count(state.CoreVersion.ValueString(), ".") == 1 {
+			// Dropping a two-part selector refreshes this same field to the full API version.
+			resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("core_version"), types.StringUnknown())...)
 		}
 		if !configuredCoreVersion.IsNull() && !configuredCoreVersion.IsUnknown() {
-			current := state.CurrentCoreVersion.ValueString()
-			if current == "" {
-				current = state.CoreVersion.ValueString()
-			}
-			if err := validateCoreVersionUpgrade(configuredCoreVersion.ValueString(), current); err != nil {
+			if err := validateCoreVersionUpgrade(configuredCoreVersion.ValueString(), state.CoreVersion.ValueString()); err != nil {
 				resp.Diagnostics.AddAttributeError(path.Root("core_version"), "Invalid core version upgrade", err.Error())
 			}
 		}
@@ -1011,7 +1002,6 @@ func (r *WarehouseResource) readWarehouseIntoState(ctx context.Context, warehous
 	state.Zone = stringOrNull(wh.Zone)
 	state.DeploymentMode = stringOrNull(wh.DeploymentMode)
 	state.CoreVersion = coreVersionForState(state.CoreVersion, wh.CoreVersion)
-	state.CurrentCoreVersion = stringOrNull(wh.CoreVersion)
 	state.PayType = stringOrNull(wh.PayType)
 	state.EndpointServiceID = stringOrNull(wh.EndpointServiceID)
 	state.EndpointServiceName = stringOrNull(wh.EndpointServiceName)

@@ -119,16 +119,14 @@ resource "velodb_warehouse" "test" {
 			}
 			resource.Test(t, resource.TestCase{ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(ts), Steps: []resource.TestStep{
 				{Config: config(initial), Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("velodb_warehouse.test", "core_version", initialState),
-					resource.TestCheckResourceAttr("velodb_warehouse.test", "current_core_version", "4.1.5"))},
+					resource.TestCheckResourceAttr("velodb_warehouse.test", "core_version", initialState))},
 				{Config: config(initial), PlanOnly: true},
 				{Config: config(""), Check: resource.TestCheckResourceAttr("velodb_warehouse.test", "core_version", "4.1.5")},
 				{Config: config(""), PlanOnly: true},
 				{Config: config(initial)},
 				{Config: upgraded, Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("velodb_warehouse.test", "id", "WH-MOCK-001"),
-					resource.TestCheckResourceAttr("velodb_warehouse.test", "core_version", "4.1.9"),
-					resource.TestCheckResourceAttr("velodb_warehouse.test", "current_core_version", "4.1.9"))},
+					resource.TestCheckResourceAttr("velodb_warehouse.test", "core_version", "4.1.9"))},
 				{Config: upgraded, PlanOnly: true},
 				{Config: config(`core_version = "4.1.5"`), PlanOnly: true, ExpectError: regexp.MustCompile("downgrade")},
 				{Config: config(`core_version = "4.2"`), PlanOnly: true, ExpectError: regexp.MustCompile("exact major.minor.patch")},

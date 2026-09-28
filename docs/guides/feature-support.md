@@ -52,7 +52,6 @@ runs on Azure, but this Terraform provider has only been tested with `aws`.
 | Attribute | Creation | Update | Modes | Modules |
 |---|---|---|---|---|
 | `core_version` | ✅ Two or three parts | ✅ Three-part in-place upgrade | Both | ✅ `core_version` |
-| `current_core_version` | — (read-only) | — (read-only) | Both | ✅ Output |
 | `initial_core_version` | ✅ Legacy selector | 🚫 Create-only | Both | ✅ Compatibility |
 | `core_version_id` | Legacy post-create upgrade | ✅ Legacy ID upgrade | Both | ❌ |
 

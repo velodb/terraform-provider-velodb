@@ -66,8 +66,3 @@ output "additional_cluster_ids" {
   description = "Additional cluster IDs keyed by their stable Terraform identifiers."
   value       = { for key, cluster in velodb_cluster.additional : key => cluster.id }
 }
-
-output "current_core_version" {
-  description = "Full core version currently reported by the warehouse API."
-  value       = velodb_warehouse.this.current_core_version
-}

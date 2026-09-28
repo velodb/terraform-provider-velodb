@@ -126,10 +126,11 @@ upgrade targets produce an error. Downgrades are rejected. A two-part value is a
 creation selector, not an instruction to continuously upgrade to newer patches;
 changing to another release line after creation requires a three-part target.
 
-`current_core_version` reports the full version returned by the API. When a
-configured two-part selector matches it, `core_version` retains that selector so
-an unchanged configuration has a stable plan. When `core_version` is omitted it
-continues to report the API version, without managing upgrades.
+`core_version` is the only version field needed for the new workflow. A matching
+two-part configuration stays two-part in state to keep plans stable; an exact
+three-part configuration stays exact. When omitted, it reports the full API
+version without managing upgrades. Before upgrading from a two-part selector,
+the provider fetches the actual running patch internally for validation.
 
 The legacy `initial_core_version` and `core_version_id` inputs remain supported.
 The former accepts two- or three-part versions for creation only; the latter
@@ -288,7 +289,6 @@ To destroy the initial cluster later:
 ### Read-Only
 
 - `byoc_setup` (Block List) BYOC setup guidance returned for BYOC warehouses. (see [below for nested schema](#nestedatt--byoc_setup))
-- `current_core_version` (String) Full running version reported by the API, including the patch selected for a two-part creation selector.
 - `created_at` (String) Warehouse creation time in ISO 8601 / RFC 3339 format.
 - `expire_time` (String) Warehouse expiration time when available.
 - `id` (String) Warehouse identifier (e.g., `ALBJ07YE`).
