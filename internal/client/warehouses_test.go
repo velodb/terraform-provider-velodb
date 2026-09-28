@@ -52,7 +52,7 @@ func TestCreateWarehouse(t *testing.T) {
 			t.Errorf("expected ratio 8, got %v", req.InitialCluster.Ratio)
 		}
 
-		jsonResponse(w, 200, APIResponse[CreateWarehouseResult]{
+		jsonResponse(t, w, 200, APIResponse[CreateWarehouseResult]{
 			Success:   true,
 			RequestID: "req-001",
 			Data: CreateWarehouseResult{
@@ -111,7 +111,7 @@ func TestCreateWarehouseWithVersionAndAccessPolicy(t *testing.T) {
 			t.Errorf("expected one allowlist rule for 203.0.113.0/24, got %+v", req.AccessPolicy.Rules)
 		}
 
-		jsonResponse(w, 200, APIResponse[CreateWarehouseResult]{
+		jsonResponse(t, w, 200, APIResponse[CreateWarehouseResult]{
 			Success:   true,
 			RequestID: "req-003",
 			Data:      CreateWarehouseResult{WarehouseID: "WH-VER-001"},
@@ -194,7 +194,7 @@ func TestCreateWarehouseBYOC(t *testing.T) {
 			}
 		}
 
-		jsonResponse(w, 200, APIResponse[CreateWarehouseResult]{
+		jsonResponse(t, w, 200, APIResponse[CreateWarehouseResult]{
 			Success:   true,
 			RequestID: "req-002",
 			Data: CreateWarehouseResult{
@@ -237,7 +237,7 @@ func TestCreateWarehouseAcceptedIsNotComplete(t *testing.T) {
 	client := newTestClient(t, ts)
 
 	mux.HandleFunc("/v1/warehouses", func(w http.ResponseWriter, r *http.Request) {
-		jsonResponse(w, http.StatusAccepted, map[string]any{
+		jsonResponse(t, w, http.StatusAccepted, map[string]any{
 			"success":   true,
 			"requestId": "req-response",
 			"data": map[string]any{
@@ -281,7 +281,7 @@ func TestGetWarehouse(t *testing.T) {
 		if !requireAPIKey(t, w, r) {
 			return
 		}
-		jsonResponse(w, 200, APIResponse[WarehouseItem]{
+		jsonResponse(t, w, 200, APIResponse[WarehouseItem]{
 			Success:   true,
 			RequestID: "req-003",
 			Data:      mockWarehouse("WH-001", "test-warehouse"),
@@ -325,7 +325,7 @@ func TestGetWarehousePopulatesImportFields(t *testing.T) {
 		if !requireMethod(t, w, r, http.MethodGet) {
 			return
 		}
-		jsonResponse(w, 200, APIResponse[WarehouseItem]{
+		jsonResponse(t, w, 200, APIResponse[WarehouseItem]{
 			Success:   true,
 			RequestID: "req-import",
 			Data: WarehouseItem{
@@ -380,7 +380,7 @@ func TestGetWarehouseEndpointServiceFromNestedInfo(t *testing.T) {
 		if !requireMethod(t, w, r, http.MethodGet) {
 			return
 		}
-		jsonResponse(w, 200, map[string]any{
+		jsonResponse(t, w, 200, map[string]any{
 			"success":   true,
 			"requestId": "req-nested-service",
 			"data": map[string]any{
@@ -415,7 +415,7 @@ func TestGetWarehouseNotFound(t *testing.T) {
 	client := newTestClient(t, ts)
 
 	mux.HandleFunc("/v1/warehouses/WH-MISSING", func(w http.ResponseWriter, r *http.Request) {
-		jsonResponse(w, 404, map[string]any{
+		jsonResponse(t, w, 404, map[string]any{
 			"code":      "WarehouseNotFound",
 			"message":   "The warehouse [WH-MISSING] not found",
 			"success":   false,
@@ -442,7 +442,7 @@ func TestGetWarehouseFallsBackToListWhenDetailNotFound(t *testing.T) {
 	client := newTestClient(t, ts)
 
 	mux.HandleFunc("/v1/warehouses/WH-BYOC-001", func(w http.ResponseWriter, r *http.Request) {
-		jsonResponse(w, 404, map[string]any{
+		jsonResponse(t, w, 404, map[string]any{
 			"code":      "WarehouseNotFound",
 			"message":   "The warehouse [WH-BYOC-001] not found",
 			"success":   false,
@@ -461,7 +461,7 @@ func TestGetWarehouseFallsBackToListWhenDetailNotFound(t *testing.T) {
 		wh.DeploymentMode = "BYOC"
 		wh.CloudProvider = "aws"
 		wh.Region = "us-east-1"
-		jsonResponse(w, 200, PageResponse[WarehouseItem]{
+		jsonResponse(t, w, 200, PageResponse[WarehouseItem]{
 			Success:   true,
 			RequestID: "req-list-fallback",
 			Data:      []WarehouseItem{wh},
@@ -489,7 +489,7 @@ func TestGetWarehouseFallsBackToListWhenDetailIsEmpty(t *testing.T) {
 	client := newTestClient(t, ts)
 
 	mux.HandleFunc("/v1/warehouses/WH-DELETING", func(w http.ResponseWriter, r *http.Request) {
-		jsonResponse(w, http.StatusOK, APIResponse[WarehouseItem]{Success: true})
+		jsonResponse(t, w, http.StatusOK, APIResponse[WarehouseItem]{Success: true})
 	})
 	mux.HandleFunc("/v1/warehouses", func(w http.ResponseWriter, r *http.Request) {
 		if got := r.URL.Query().Get("warehouseId"); got != "WH-DELETING" {
@@ -497,7 +497,7 @@ func TestGetWarehouseFallsBackToListWhenDetailIsEmpty(t *testing.T) {
 		}
 		wh := mockWarehouse("WH-DELETING", "deleting-warehouse")
 		wh.Status = "Deleting"
-		jsonResponse(w, http.StatusOK, PageResponse[WarehouseItem]{
+		jsonResponse(t, w, http.StatusOK, PageResponse[WarehouseItem]{
 			Success: true,
 			Data:    []WarehouseItem{wh},
 			Total:   1,
@@ -535,7 +535,7 @@ func TestListWarehouses(t *testing.T) {
 			t.Errorf("expected cloudProvider=aws, got %q", q.Get("cloudProvider"))
 		}
 
-		jsonResponse(w, 200, PageResponse[WarehouseItem]{
+		jsonResponse(t, w, 200, PageResponse[WarehouseItem]{
 			Success:   true,
 			RequestID: "req-005",
 			Data: []WarehouseItem{
@@ -577,13 +577,16 @@ func TestUpdateWarehouse(t *testing.T) {
 			return
 		}
 		var req UpdateWarehouseRequest
-		json.NewDecoder(r.Body).Decode(&req)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Errorf("decode request: %v", err)
+			return
+		}
 
 		if req.Name == nil || *req.Name != "renamed-warehouse" {
 			t.Errorf("expected name 'renamed-warehouse'")
 		}
 
-		jsonResponse(w, 200, APIResponse[struct{}]{
+		jsonResponse(t, w, 200, APIResponse[struct{}]{
 			Success:   true,
 			RequestID: "req-006",
 		})
@@ -610,7 +613,7 @@ func TestDeleteWarehouse(t *testing.T) {
 		if r.Header.Get("RequestId") == "" {
 			t.Error("expected RequestId header for DELETE")
 		}
-		jsonResponse(w, 200, APIResponse[struct{}]{
+		jsonResponse(t, w, 200, APIResponse[struct{}]{
 			Success:   true,
 			RequestID: "req-007",
 		})
@@ -632,11 +635,14 @@ func TestUpgradeWarehouse(t *testing.T) {
 			return
 		}
 		var req UpgradeWarehouseRequest
-		json.NewDecoder(r.Body).Decode(&req)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Errorf("decode request: %v", err)
+			return
+		}
 		if req.TargetVersionID != 42 {
 			t.Errorf("expected targetVersionId 42, got %d", req.TargetVersionID)
 		}
-		jsonResponse(w, 200, APIResponse[struct{}]{
+		jsonResponse(t, w, 200, APIResponse[struct{}]{
 			Success:   true,
 			RequestID: "req-010",
 		})
@@ -658,11 +664,14 @@ func TestChangeWarehousePassword(t *testing.T) {
 			return
 		}
 		var req ChangePasswordRequest
-		json.NewDecoder(r.Body).Decode(&req)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Errorf("decode request: %v", err)
+			return
+		}
 		if req.NewPassword != "NewPass@12345.aA" {
 			t.Errorf("expected newPassword 'NewPass@12345.aA', got %q", req.NewPassword)
 		}
-		jsonResponse(w, 200, APIResponse[struct{}]{
+		jsonResponse(t, w, 200, APIResponse[struct{}]{
 			Success:   true,
 			RequestID: "req-011",
 		})
@@ -683,7 +692,7 @@ func TestGetWarehouseConnections(t *testing.T) {
 		if !requireMethod(t, w, r, http.MethodGet) {
 			return
 		}
-		jsonResponse(w, 200, APIResponse[WarehouseConnections]{
+		jsonResponse(t, w, 200, APIResponse[WarehouseConnections]{
 			Success:   true,
 			RequestID: "req-013",
 			Data: WarehouseConnections{
@@ -731,7 +740,7 @@ func TestUnauthorizedError(t *testing.T) {
 	c := NewFormationClient(host, "", 0, 10*time.Second)
 
 	mux.HandleFunc("/v1/warehouses", func(w http.ResponseWriter, r *http.Request) {
-		jsonResponse(w, 401, map[string]any{
+		jsonResponse(t, w, 401, map[string]any{
 			"code":      "Unauthorized.InvalidApiKey",
 			"message":   "API Key not found or invalid",
 			"success":   false,

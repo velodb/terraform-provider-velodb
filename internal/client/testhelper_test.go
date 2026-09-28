@@ -27,10 +27,13 @@ func newTestClient(t *testing.T, ts *httptest.Server) *FormationClient {
 }
 
 // jsonResponse writes a JSON response with the given status code.
-func jsonResponse(w http.ResponseWriter, status int, v any) {
+func jsonResponse(t *testing.T, w http.ResponseWriter, status int, v any) {
+	t.Helper()
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		t.Errorf("encode response: %v", err)
+	}
 }
 
 // requireMethod checks the HTTP method and returns 405 if wrong.
@@ -46,7 +49,7 @@ func requireMethod(t *testing.T, w http.ResponseWriter, r *http.Request, method 
 // requireAPIKey checks the X-API-Key header.
 func requireAPIKey(t *testing.T, w http.ResponseWriter, r *http.Request) bool {
 	if r.Header.Get("X-API-Key") == "" {
-		jsonResponse(w, 401, map[string]any{
+		jsonResponse(t, w, 401, map[string]any{
 			"code":    "Unauthorized.InvalidApiKey",
 			"message": "API Key not found or invalid",
 			"success": false,

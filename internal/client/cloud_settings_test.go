@@ -60,7 +60,7 @@ func TestCloudSettingCredentialLifecycle(t *testing.T) {
 			if req.BucketName != credential.BucketName || req.DataCredentialARN != credential.DataCredentialARN || req.DeploymentCredentialARN != credential.DeploymentCredentialARN {
 				t.Fatalf("unexpected credential request: %#v", req)
 			}
-			jsonResponse(w, http.StatusCreated, APIResponse[CreateCloudSettingCredentialResult]{
+			jsonResponse(t, w, http.StatusCreated, APIResponse[CreateCloudSettingCredentialResult]{
 				Success: true, RequestID: "req-create-credential",
 				Data: CreateCloudSettingCredentialResult{CredentialID: credential.CredentialID},
 			})
@@ -68,7 +68,7 @@ func TestCloudSettingCredentialLifecycle(t *testing.T) {
 			if r.URL.Query().Get("page") != "1" || r.URL.Query().Get("size") != "20" || r.URL.Query().Get("region") != credential.Region {
 				t.Fatalf("unexpected credential list query: %s", r.URL.RawQuery)
 			}
-			jsonResponse(w, http.StatusOK, PageResponse[CloudSettingCredential]{
+			jsonResponse(t, w, http.StatusOK, PageResponse[CloudSettingCredential]{
 				Success: true, RequestID: "req-list-credentials", Data: []CloudSettingCredential{credential}, Page: 1, Size: 20, Total: 1,
 			})
 		default:
@@ -79,9 +79,9 @@ func TestCloudSettingCredentialLifecycle(t *testing.T) {
 	mux.HandleFunc("/v1/cloud-settings/aws/credentials/123", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
-			jsonResponse(w, http.StatusOK, APIResponse[CloudSettingCredential]{Success: true, RequestID: "req-get-credential", Data: credential})
+			jsonResponse(t, w, http.StatusOK, APIResponse[CloudSettingCredential]{Success: true, RequestID: "req-get-credential", Data: credential})
 		case http.MethodDelete:
-			jsonResponse(w, http.StatusOK, APIResponse[struct{}]{Success: true, RequestID: "req-delete-credential", Data: struct{}{}})
+			jsonResponse(t, w, http.StatusOK, APIResponse[struct{}]{Success: true, RequestID: "req-delete-credential", Data: struct{}{}})
 		default:
 			w.WriteHeader(http.StatusMethodNotAllowed)
 		}
@@ -142,7 +142,7 @@ func TestEncryptionKeyGetPopulatesAllFields(t *testing.T) {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
-		jsonResponse(w, http.StatusOK, APIResponse[EncryptionKey]{Success: true, RequestID: "req-get-key", Data: want})
+		jsonResponse(t, w, http.StatusOK, APIResponse[EncryptionKey]{Success: true, RequestID: "req-get-key", Data: want})
 	})
 
 	got, err := client.GetEncryptionKey(context.Background(), "aws", 789)
@@ -191,7 +191,7 @@ func TestEncryptionKeyLifecycle(t *testing.T) {
 			if req.UseTDE == nil || *req.UseTDE != 1 || req.UseEBS == nil || *req.UseEBS != 0 {
 				t.Fatalf("unexpected use flags: useTde=%v useEbs=%v", req.UseTDE, req.UseEBS)
 			}
-			jsonResponse(w, http.StatusCreated, APIResponse[CreateEncryptionKeyResult]{
+			jsonResponse(t, w, http.StatusCreated, APIResponse[CreateEncryptionKeyResult]{
 				Success: true, RequestID: "req-create-key",
 				Data: CreateEncryptionKeyResult{EncryptionKeyID: key.EncryptionKeyID},
 			})
@@ -199,7 +199,7 @@ func TestEncryptionKeyLifecycle(t *testing.T) {
 			if r.URL.Query().Get("page") != "1" || r.URL.Query().Get("size") != "20" || r.URL.Query().Get("region") != key.Region {
 				t.Fatalf("unexpected encryption key list query: %s", r.URL.RawQuery)
 			}
-			jsonResponse(w, http.StatusOK, PageResponse[EncryptionKey]{
+			jsonResponse(t, w, http.StatusOK, PageResponse[EncryptionKey]{
 				Success: true, RequestID: "req-list-keys", Data: []EncryptionKey{key}, Page: 1, Size: 20, Total: 1,
 			})
 		default:
@@ -210,9 +210,9 @@ func TestEncryptionKeyLifecycle(t *testing.T) {
 	mux.HandleFunc("/v1/cloud-settings/aws/encryption-keys/789", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
-			jsonResponse(w, http.StatusOK, APIResponse[EncryptionKey]{Success: true, RequestID: "req-get-key", Data: key})
+			jsonResponse(t, w, http.StatusOK, APIResponse[EncryptionKey]{Success: true, RequestID: "req-get-key", Data: key})
 		case http.MethodDelete:
-			jsonResponse(w, http.StatusOK, APIResponse[struct{}]{Success: true, RequestID: "req-delete-key", Data: struct{}{}})
+			jsonResponse(t, w, http.StatusOK, APIResponse[struct{}]{Success: true, RequestID: "req-delete-key", Data: struct{}{}})
 		default:
 			w.WriteHeader(http.StatusMethodNotAllowed)
 		}
@@ -298,7 +298,7 @@ func TestCloudSettingNetworkConfigLifecycle(t *testing.T) {
 					t.Fatalf("unexpected zone mapping %d: %#v", i, mapping)
 				}
 			}
-			jsonResponse(w, http.StatusCreated, APIResponse[CreateCloudSettingNetworkConfigResult]{
+			jsonResponse(t, w, http.StatusCreated, APIResponse[CreateCloudSettingNetworkConfigResult]{
 				Success: true, RequestID: "req-create-network",
 				Data: CreateCloudSettingNetworkConfigResult{NetworkConfigID: network.NetworkConfigID},
 			})
@@ -306,7 +306,7 @@ func TestCloudSettingNetworkConfigLifecycle(t *testing.T) {
 			if r.URL.Query().Get("page") != "1" || r.URL.Query().Get("size") != "20" || r.URL.Query().Get("region") != network.Region {
 				t.Fatalf("unexpected network list query: %s", r.URL.RawQuery)
 			}
-			jsonResponse(w, http.StatusOK, PageResponse[CloudSettingNetworkConfig]{
+			jsonResponse(t, w, http.StatusOK, PageResponse[CloudSettingNetworkConfig]{
 				Success: true, RequestID: "req-list-networks", Data: []CloudSettingNetworkConfig{network}, Page: 1, Size: 20, Total: 1,
 			})
 		default:
@@ -317,9 +317,9 @@ func TestCloudSettingNetworkConfigLifecycle(t *testing.T) {
 	mux.HandleFunc("/v1/cloud-settings/aws/network-configs/456", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
-			jsonResponse(w, http.StatusOK, APIResponse[CloudSettingNetworkConfig]{Success: true, RequestID: "req-get-network", Data: network})
+			jsonResponse(t, w, http.StatusOK, APIResponse[CloudSettingNetworkConfig]{Success: true, RequestID: "req-get-network", Data: network})
 		case http.MethodDelete:
-			jsonResponse(w, http.StatusOK, APIResponse[struct{}]{Success: true, RequestID: "req-delete-network", Data: struct{}{}})
+			jsonResponse(t, w, http.StatusOK, APIResponse[struct{}]{Success: true, RequestID: "req-delete-network", Data: struct{}{}})
 		default:
 			w.WriteHeader(http.StatusMethodNotAllowed)
 		}

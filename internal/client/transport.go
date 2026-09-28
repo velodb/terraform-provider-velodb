@@ -58,7 +58,8 @@ func (t *formationTransport) RoundTrip(req *http.Request) (*http.Response, error
 		resp, err = t.base.RoundTrip(req)
 		if err != nil {
 			if resp != nil && resp.Body != nil {
-				resp.Body.Close()
+				// Best-effort cleanup; preserve the request error and retry behavior.
+				_ = resp.Body.Close()
 			}
 			continue // network error, retry
 		}
@@ -66,7 +67,8 @@ func (t *formationTransport) RoundTrip(req *http.Request) (*http.Response, error
 			break
 		}
 		if attempt < t.maxRetries && resp.Body != nil {
-			resp.Body.Close()
+			// Best-effort cleanup; preserve the request error and retry behavior.
+			_ = resp.Body.Close()
 		}
 	}
 	return resp, err

@@ -57,19 +57,19 @@ variable "subnet_cidrs" {
 }
 
 variable "warehouse_client_cidrs" {
-  description = "CIDR blocks of VPCs that need to reach the warehouse on ports 8000-10000. Leave empty when access is only via PrivateLink."
+  description = "CIDR blocks allowed to reach warehouse query ports 8000-10000. Null defaults to the new VPC CIDR; set [] to disable direct client access."
   type        = list(string)
-  default     = []
+  default     = null
 
   validation {
-    condition     = alltrue([for cidr in var.warehouse_client_cidrs : can(cidrhost(cidr, 0))])
+    condition     = alltrue([for cidr in(var.warehouse_client_cidrs == null ? [] : var.warehouse_client_cidrs) : can(cidrhost(cidr, 0))])
     error_message = "Each warehouse_client_cidrs value must be a valid IPv4 CIDR block, for example \"10.0.0.0/16\"."
   }
 
   validation {
     # Reject /0 (e.g. 0.0.0.0/0), which would open the warehouse ports to the
     # entire internet. Scope access to the specific client VPC CIDRs instead.
-    condition     = alltrue([for cidr in var.warehouse_client_cidrs : can(cidrhost(cidr, 0)) ? tonumber(split("/", cidr)[1]) > 0 : true])
+    condition     = alltrue([for cidr in(var.warehouse_client_cidrs == null ? [] : var.warehouse_client_cidrs) : can(cidrhost(cidr, 0)) ? tonumber(split("/", cidr)[1]) > 0 : true])
     error_message = "warehouse_client_cidrs must not include a /0 block such as 0.0.0.0/0; specify the client VPC CIDRs that need warehouse access."
   }
 }
