@@ -378,4 +378,4 @@ import {
 }
 ```
 
-~> **Note:** The `admin_password`, `admin_password_version`, `initial_cluster`, `initial_core_version`, `public_access_policy`, `credential_id`, `network_config_id`, `tde_encryption_key_id`, and `ebs_encryption_key_id` attributes cannot be read from the API and will not be populated after import. Set the create-only BYOC and encryption fields in your configuration to match the existing warehouse before the next plan; otherwise, because they force replacement, Terraform will plan to recreate the warehouse.
+~> **Note:** The `tde_encryption_key_id` and `ebs_encryption_key_id` attributes are populated from the API after import. The `admin_password`, `admin_password_version`, `initial_cluster`, `initial_core_version`, `public_access_policy`, `credential_id`, and `network_config_id` attributes cannot be read from the API. Set those create-only fields in your configuration to match the existing warehouse before the next plan; otherwise, because they force replacement, Terraform will plan to recreate the warehouse.

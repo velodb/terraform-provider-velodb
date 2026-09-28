@@ -337,8 +337,9 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				},
 			},
 			"tde_encryption_key_id": schema.Int64Attribute{
-				Description: "Registered encryption key ID used for transparent data encryption (TDE) of warehouse data. Create the key with velodb_encryption_key (use_tde = true). Create-only.",
+				Description: "Registered encryption key ID used for transparent data encryption (TDE) of warehouse data. Create the key with velodb_encryption_key (use_tde = true). Changing this forces replacement.",
 				Optional:    true,
+				Computed:    true,
 				PlanModifiers: []planmodifier.Int64{
 					int64planmodifier.RequiresReplace(),
 				},
@@ -347,8 +348,9 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				},
 			},
 			"ebs_encryption_key_id": schema.Int64Attribute{
-				Description: "Registered encryption key ID used to encrypt the warehouse's EBS volumes. Create the key with velodb_encryption_key (use_ebs = true). Create-only.",
+				Description: "Registered encryption key ID used to encrypt the warehouse's EBS volumes. Create the key with velodb_encryption_key (use_ebs = true). Changing this forces replacement.",
 				Optional:    true,
+				Computed:    true,
 				PlanModifiers: []planmodifier.Int64{
 					int64planmodifier.RequiresReplace(),
 				},
@@ -546,9 +548,8 @@ func (r *WarehouseResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 		if resp.Diagnostics.HasError() {
 			return
 		}
-		// Create-only attributes the API accepts only at creation. Keep this
-		// table in sync with the RequiresReplace attributes in the schema and the
-		// create-only fields deliberately not read back in readWarehouseIntoState.
+		// Create-only attributes that need a tailored validation error. Other
+		// create-only attributes are handled by RequiresReplace in the schema.
 		createOnly := []struct {
 			p                 path.Path
 			planVal, stateVal attr.Value
@@ -977,11 +978,8 @@ func (r *WarehouseResource) readWarehouseIntoState(ctx context.Context, warehous
 	state.PayType = stringOrNull(wh.PayType)
 	state.EndpointServiceID = stringOrNull(wh.EndpointServiceID)
 	state.EndpointServiceName = stringOrNull(wh.EndpointServiceName)
-	// tde_encryption_key_id / ebs_encryption_key_id are create-only (RequiresReplace)
-	// and Optional (not Computed), so -- like credential_id / network_config_id --
-	// they are deliberately not read back: overwriting them from the API would
-	// produce "inconsistent result after apply" on create and spurious replace
-	// diffs if the API ever omits or defaults them.
+	state.TdeEncryptionKeyId = types.Int64PointerValue(wh.TdeEncryptionKeyId)
+	state.EbsEncryptionKeyId = types.Int64PointerValue(wh.EbsEncryptionKeyId)
 
 	if wh.CreatedAt != nil {
 		state.CreatedAt = types.StringValue(wh.CreatedAt.Format(time.RFC3339))
