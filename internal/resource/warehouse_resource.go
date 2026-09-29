@@ -262,8 +262,9 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				Optional:    true,
 			},
 			"table_name_case_sensitive": schema.BoolAttribute{
-				Description: "Whether table names are case-sensitive. Omit to use the case-sensitive server default. Create-only; changes after creation are rejected. The API does not return this setting, so Terraform preserves configured values and imports leave it unset.",
+				Description: "Whether table names are case-sensitive. Omit to use the case-sensitive server default. Create-only; changes after creation are rejected. Terraform reads this setting from the API when available.",
 				Optional:    true,
+				Computed:    true,
 				PlanModifiers: []planmodifier.Bool{
 					warehouseImmutableBool{},
 				},
@@ -753,7 +754,6 @@ func (r *WarehouseResource) Read(ctx context.Context, req resource.ReadRequest, 
 	// Preserve admin_password and admin_password_version from prior state (can't read from API)
 	priorPassword := state.AdminPassword
 	priorPasswordVersion := state.AdminPasswordVersion
-	priorTableNameCaseSensitive := state.TableNameCaseSensitive
 	priorInitialCluster := state.InitialCluster
 	priorTimeouts := state.Timeouts
 
@@ -764,8 +764,6 @@ func (r *WarehouseResource) Read(ctx context.Context, req resource.ReadRequest, 
 
 	state.AdminPassword = priorPassword
 	state.AdminPasswordVersion = priorPasswordVersion
-	// The API does not return this create-only setting.
-	state.TableNameCaseSensitive = priorTableNameCaseSensitive
 	state.InitialCluster = priorInitialCluster
 	state.Timeouts = priorTimeouts
 
@@ -988,6 +986,17 @@ func (r *WarehouseResource) readWarehouseIntoState(ctx context.Context, warehous
 	state.NetworkConfigID = warehouseAssociationID(wh.NetworkConfigID, state.NetworkConfigID)
 	state.TdeEncryptionKeyId = types.Int64PointerValue(wh.TdeEncryptionKeyId)
 	state.EbsEncryptionKeyId = types.Int64PointerValue(wh.EbsEncryptionKeyId)
+	if wh.LowerCaseMode != nil {
+		switch *wh.LowerCaseMode {
+		case 0:
+			state.TableNameCaseSensitive = types.BoolValue(true)
+		case 1:
+			state.TableNameCaseSensitive = types.BoolValue(false)
+		default:
+			diags.AddError("Invalid warehouse table name mode", fmt.Sprintf("API returned lowerCaseMode=%d; expected 0 or 1.", *wh.LowerCaseMode))
+			return
+		}
+	}
 
 	if wh.CreatedAt != nil {
 		state.CreatedAt = types.StringValue(wh.CreatedAt.Format(time.RFC3339))

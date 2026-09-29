@@ -237,7 +237,8 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 					"warehouseId": "WH-BYOC-CREATE-001", "name": "advanced-byoc", "status": "Running",
 					"cloudProvider": "aws", "region": "us-east-1", "zone": "us-east-1a",
 					"deploymentMode": "BYOC", "coreVersion": "3.0.3", "payType": "PostPaid",
-					"createdAt": now.Format(time.RFC3339),
+					"lowerCaseMode": 1,
+					"createdAt":     now.Format(time.RFC3339),
 				},
 			})
 		case http.MethodDelete:
@@ -315,6 +316,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 				"cloudProvider": "aws", "region": "us-east-1", "zone": "us-east-1a",
 				"deploymentMode": "BYOC", "coreVersion": "3.0.3", "payType": "PostPaid",
 				"endpointServiceName": "com.amazonaws.vpce.us-east-1.vpce-svc-byoc",
+				"lowerCaseMode":       1,
 				"setupGuide": map[string]any{
 					"shellCommand": "curl https://setup.example.com | bash",
 					"setupUrl":     "https://setup.example.com/template",
@@ -686,7 +688,7 @@ resource "velodb_warehouse" "byoc" {
 					resource.TestCheckResourceAttr("velodb_warehouse.byoc", "region", "us-east-1"),
 					resource.TestCheckResourceAttr("velodb_warehouse.byoc", "initial_cluster_id", "CL-BYOC-001"),
 					resource.TestCheckResourceAttr("velodb_warehouse.byoc", "byoc_setup.0.shell_command", "curl https://setup.example.com | bash"),
-					resource.TestCheckNoResourceAttr("velodb_warehouse.byoc", "table_name_case_sensitive"),
+					resource.TestCheckResourceAttr("velodb_warehouse.byoc", "table_name_case_sensitive", "false"),
 				),
 			},
 		},

@@ -52,3 +52,39 @@ func TestWarehouseReadAssociationIDs(t *testing.T) {
 		})
 	}
 }
+
+func TestWarehouseReadTableNameCaseSensitivity(t *testing.T) {
+	for _, tc := range []struct {
+		name, field string
+		prior, want types.Bool
+		wantError   bool
+	}{
+		{"case-sensitive import", `,"lowerCaseMode":0`, types.BoolNull(), types.BoolValue(true), false},
+		{"case-insensitive import", `,"lowerCaseMode":1`, types.BoolNull(), types.BoolValue(false), false},
+		{"refresh drift", `,"lowerCaseMode":1`, types.BoolValue(true), types.BoolValue(false), false},
+		{"legacy backend retains state", "", types.BoolValue(false), types.BoolValue(false), false},
+		{"legacy backend import stays null", "", types.BoolNull(), types.BoolNull(), false},
+		{"invalid API value", `,"lowerCaseMode":2`, types.BoolNull(), types.BoolNull(), true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				if _, err := fmt.Fprintf(w, `{"success":true,"data":{"warehouseId":"WH-TEST"%s}}`, tc.field); err != nil {
+					t.Error(err)
+				}
+			}))
+			defer server.Close()
+
+			r := WarehouseResource{client: client.NewFormationClient(strings.TrimPrefix(server.URL, "http://"), "test", 0, time.Second)}
+			state := WarehouseResourceModel{TableNameCaseSensitive: tc.prior, InitialClusterID: types.StringValue("cluster")}
+			var diagnostics diag.Diagnostics
+			r.readWarehouseIntoState(context.Background(), "WH-TEST", &state, &diagnostics)
+			if diagnostics.HasError() != tc.wantError {
+				t.Fatalf("diagnostics = %v, wantError = %v", diagnostics, tc.wantError)
+			}
+			if !state.TableNameCaseSensitive.Equal(tc.want) {
+				t.Fatalf("TableNameCaseSensitive = %s, want %s", state.TableNameCaseSensitive, tc.want)
+			}
+		})
+	}
+}
