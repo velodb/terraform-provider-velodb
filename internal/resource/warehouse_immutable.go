@@ -75,7 +75,12 @@ func (warehouseImmutableBool) PlanModifyBool(_ context.Context, req planmodifier
 	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
 		return
 	}
-	// This setting cannot be recovered after import; permit initial binding.
+	if req.ConfigValue.IsNull() {
+		// Optional+computed: omission retains the API-reported setting.
+		resp.PlanValue = req.StateValue
+		return
+	}
+	// Legacy backends may omit this value after import; permit initial binding.
 	if req.StateValue.IsNull() {
 		return
 	}

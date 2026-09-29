@@ -38,8 +38,8 @@ func TestWarehouseTableNameCaseSensitivity(t *testing.T) {
 	if !ok {
 		t.Fatalf("table_name_case_sensitive is %T, want schema.BoolAttribute", resp.Schema.Attributes["table_name_case_sensitive"])
 	}
-	if !attribute.Optional || len(attribute.PlanModifiers) == 0 {
-		t.Fatal("table_name_case_sensitive must be optional and reject changes")
+	if !attribute.Optional || !attribute.Computed || len(attribute.PlanModifiers) == 0 {
+		t.Fatal("table_name_case_sensitive must be optional, computed, and reject changes")
 	}
 
 	for _, tt := range []struct {

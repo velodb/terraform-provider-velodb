@@ -100,6 +100,7 @@ type WarehouseItem struct {
 	SetupGuide                 *WarehouseSetupGuide      `json:"setupGuide,omitempty"`
 	TdeEncryptionKeyId         *int64                    `json:"tdeEncryptionKeyId,omitempty"`
 	EbsEncryptionKeyId         *int64                    `json:"ebsEncryptionKeyId,omitempty"`
+	LowerCaseMode              *int                      `json:"lowerCaseMode,omitempty"`
 	CreatedAt                  *time.Time                `json:"createdAt,omitempty"`
 	ExpireTime                 *time.Time                `json:"expireTime,omitempty"`
 	Tags                       map[string]string         `json:"tags,omitempty"`

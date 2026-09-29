@@ -325,6 +325,7 @@ func TestGetWarehousePopulatesImportFields(t *testing.T) {
 	expire := created.Add(24 * time.Hour)
 	tdeEncryptionKeyID := int64(789)
 	ebsEncryptionKeyID := int64(790)
+	lowerCaseMode := 1
 
 	mux.HandleFunc("/v1/warehouses/WH-IMPORT", func(w http.ResponseWriter, r *http.Request) {
 		if !requireMethod(t, w, r, http.MethodGet) {
@@ -347,6 +348,7 @@ func TestGetWarehousePopulatesImportFields(t *testing.T) {
 				EndpointServiceName: "com.amazonaws.vpce.us-east-1.vpce-svc-import",
 				TdeEncryptionKeyId:  &tdeEncryptionKeyID,
 				EbsEncryptionKeyId:  &ebsEncryptionKeyID,
+				LowerCaseMode:       &lowerCaseMode,
 				CreatedAt:           &created,
 				ExpireTime:          &expire,
 			},
@@ -373,6 +375,9 @@ func TestGetWarehousePopulatesImportFields(t *testing.T) {
 	if wh.TdeEncryptionKeyId == nil || *wh.TdeEncryptionKeyId != tdeEncryptionKeyID ||
 		wh.EbsEncryptionKeyId == nil || *wh.EbsEncryptionKeyId != ebsEncryptionKeyID {
 		t.Fatalf("encryption key IDs = (%v, %v), want (%d, %d)", wh.TdeEncryptionKeyId, wh.EbsEncryptionKeyId, tdeEncryptionKeyID, ebsEncryptionKeyID)
+	}
+	if wh.LowerCaseMode == nil || *wh.LowerCaseMode != lowerCaseMode {
+		t.Fatalf("LowerCaseMode = %v, want %d", wh.LowerCaseMode, lowerCaseMode)
 	}
 }
 
