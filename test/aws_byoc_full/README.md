@@ -6,9 +6,10 @@ for users. Set `create_tde_encryption_key` and `create_ebs_encryption_key` in
 `live.auto.tfvars` to exercise module-managed KMS keys, or provide existing KMS
 key ARNs instead.
 
-The module creates a new VPC, one public subnet, three private subnets, a NAT
-gateway and Elastic IP, routing, IAM, S3, security groups, PrivateLink, VeloDB
-registrations, and a warehouse. These resources incur charges until destroyed.
+The module creates a new VPC, one or three private subnets, a regional NAT
+gateway, routing, IAM, S3, security groups, PrivateLink, VeloDB registrations,
+and a warehouse. The regional NAT gateway needs no public subnet and manages
+its own Elastic IPs. These resources incur charges until destroyed.
 
 ## Environment
 

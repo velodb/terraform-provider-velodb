@@ -65,7 +65,7 @@ go 1.24.0
 
 require (
     github.com/pulumi/pulumi-terraform-bridge/v3 v3.132.0
-    github.com/velodb/terraform-provider-velodb v1.1.4
+    github.com/velodb/terraform-provider-velodb v1.1.10
 )
 
 // Pulumi's fork of terraform-plugin-sdk is required transitively.
@@ -245,7 +245,7 @@ Configure credentials and run against a local file backend (no Pulumi Cloud
 account required):
 
 ```bash
-export VELODB_API_KEY=vdb_sk_xxx           # or: pulumi config set --secret velodb:apiKey ...
+export VELODB_API_KEY='sk-...'             # or: pulumi config set --secret velodb:apiKey ...
 export VELODB_HOST=api.velodb.cloud        # default; override for other environments
 export PULUMI_BACKEND_URL="file://$PWD/.pulumi-state"
 export PULUMI_CONFIG_PASSPHRASE="<choose-one>"
@@ -258,17 +258,11 @@ pulumi up --yes
 
 ### Creating a resource
 
-```java
-import com.velodb.velodb.Warehouse;
-import com.velodb.velodb.WarehouseArgs;
-
-var wh = new Warehouse("example", WarehouseArgs.builder()
-    .name("pulumi-demo")
-    .deploymentMode("SAAS")     // required: deploymentMode, cloudProvider, region
-    .cloudProvider("aws")
-    .region("us-east-1")
-    .build());
-```
+The generated SDK must use the provider's exact enum value `SaaS`, not `SAAS`.
+A new warehouse also needs its creation settings, including an administrator
+password and `initial_cluster`. See the
+[`velodb_warehouse` resource example](../resources/warehouse.md#saas-warehouse)
+and the generated Java SDK types for the bridge version you built.
 
 ## Publishing (optional)
 
