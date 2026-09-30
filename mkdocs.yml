@@ -1,9 +1,9 @@
 site_name: VeloDB Terraform Provider
 site_description: Terraform provider for VeloDB Cloud (SelectDB Cloud)
 site_url: https://terraform-provider-velodb.pages.dev/
-repo_url: https://github.com/tomz-alt/terraform-provider-velodb
-repo_name: tomz-alt/terraform-provider-velodb
-edit_uri: edit/master/docs/
+repo_url: https://github.com/velodb/terraform-provider-velodb
+repo_name: velodb/terraform-provider-velodb
+edit_uri: edit/main/docs/
 
 docs_dir: docs
 
@@ -41,7 +41,11 @@ theme:
 
 nav:
   - Overview: index.md
-  - Single-page reference: velodb-provider-docs.md
+  - Quick reference: velodb-provider-docs.md
+  - Guides:
+    - Warehouse feature support: guides/feature-support.md
+    - Using with Pulumi: guides/using-with-pulumi.md
+    - Publishing: how-to-publish.md
   - Resources:
     - velodb_warehouse: resources/warehouse.md
     - velodb_byoc_credential: resources/byoc_credential.md

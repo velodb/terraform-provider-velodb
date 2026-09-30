@@ -43,17 +43,18 @@ terraform {
   }
 }
 
-provider "velodb" {
-  host    = var.velodb_host
-  api_key = var.velodb_api_key
-}
+provider "velodb" {}
 ```
+
+The provider reads `VELODB_API_KEY` and optional `VELODB_HOST` from the
+environment when `api_key` and `host` are omitted.
 
 ## Resources
 
 - `velodb_warehouse`
 - `velodb_byoc_credential`
 - `velodb_byoc_network`
+- `velodb_encryption_key`
 - `velodb_cluster`
 - `velodb_warehouse_public_access_policy`
 - `velodb_warehouse_private_endpoint`
@@ -67,10 +68,14 @@ provider "velodb" {
 - `velodb_warehouse_versions`
 - `velodb_private_link_endpoint_services`
 - `velodb_byoc_prerequisites`
+- `velodb_byoc_credentials`
+- `velodb_byoc_network_configs`
+- `velodb_encryption_keys`
 - `velodb_aws_assume_role_policy`
 - `velodb_aws_crossaccount_policy`
 - `velodb_aws_data_access_assume_role_policy`
 - `velodb_aws_data_access_policy`
+- `velodb_aws_kms_key_policy`
 
 ## Known limitations
 
