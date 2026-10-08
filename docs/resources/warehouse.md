@@ -260,10 +260,10 @@ To destroy the initial cluster later:
 
 ### Required
 
-- `cloud_provider` (String) Cloud provider for the warehouse. Only `aws` is supported. Changing this forces a new resource.
-- `deployment_mode` (String) Deployment mode: `BYOC` or `SaaS`. Changing this forces a new resource.
+- `cloud_provider` (String) Cloud provider for the warehouse. Only `aws` is supported. Changes after creation are rejected.
+- `deployment_mode` (String) Deployment mode: `BYOC` or `SaaS`. Changes after creation are rejected.
 - `name` (String) Warehouse display name.
-- `region` (String) Cloud region (e.g., `us-east-1`). Changing this forces a new resource.
+- `region` (String) Cloud region (e.g., `us-east-1`). Changes after creation are rejected.
 
 ### Optional
 
@@ -273,15 +273,15 @@ To destroy the initial cluster later:
 - `core_version` (String) Desired version. Creation accepts two or three numeric parts; upgrades require an exact three-part target. Omit to leave upgrades unmanaged.
 - `core_version_id` (Number) Legacy target version ID for an in-place upgrade. Prefer `core_version`.
 - `table_name_case_sensitive` (Boolean) Whether table names are case-sensitive. Omit to use the case-sensitive server default. Create-only; changes after creation are rejected. Terraform reads this setting from the API when available.
-- `setup_mode` (String) BYOC setup mode. Set to `advanced` for AWS custom-infrastructure creation. Guided/template setup is not supported. Changing this forces a new resource.
+- `setup_mode` (String) BYOC setup mode. Set to `advanced` for AWS custom-infrastructure creation. Guided/template setup is not supported. Changes after creation are rejected.
 - `credential_id` (Number) Registered credential configuration ID for advanced AWS BYOC. Read from the API when available. Changes are rejected; omission retains the existing binding.
-- `ebs_encryption_key_id` (Number) Registered encryption key ID used to encrypt the warehouse's EBS volumes. Create the key with `velodb_encryption_key` (`use_ebs = true`). Changing this forces a new resource.
+- `ebs_encryption_key_id` (Number) Registered encryption key ID used to encrypt the warehouse's EBS volumes. Create the key with `velodb_encryption_key` (`use_ebs = true`). Changes after creation are rejected.
 - `initial_cluster` (Block List, Max: 1) Initial cluster created together with the warehouse. This is a create-only configuration. After creation, manage the cluster lifecycle by importing it as a `velodb_cluster` resource. (see [below for nested schema](#nestedblock--initial_cluster))
 - `network_config_id` (Number) Registered network configuration ID for advanced AWS BYOC. Read from the API when available. Changes are rejected; omission retains the existing binding.
-- `tde_encryption_key_id` (Number) Registered encryption key ID used for transparent data encryption (TDE) of warehouse data. Create the key with `velodb_encryption_key` (`use_tde = true`). Changing this forces a new resource.
+- `tde_encryption_key_id` (Number) Registered encryption key ID used for transparent data encryption (TDE) of warehouse data. Create the key with `velodb_encryption_key` (`use_tde = true`). Changes after creation are rejected.
 - `tags` (Map of String) Warehouse tags as key/value pairs. Create-only: the management API accepts tags only at creation and does not return or update them, so changing tags after creation is rejected.
 - `timeouts` (Block, Optional) (see [below for nested schema](#nestedblock--timeouts))
-- `vpc_mode` (String) VPC consistency hint for Template mode: `existing` or `new`. Changing this forces a new resource.
+- `vpc_mode` (String) VPC consistency hint for Template mode: `existing` or `new`. Changes after creation are rejected.
 
 ### Read-Only
 
@@ -383,7 +383,7 @@ import {
 }
 ```
 
-~> **Note:** The `tde_encryption_key_id` and `ebs_encryption_key_id` attributes are populated from the API after import. `credential_id` and `network_config_id` are also recovered when the backend returns `credentialId` and `networkConfigId`. Older backends that omit these fields preserve known state values; after import, supply the existing IDs if needed. Missing fields cannot be used to detect association removal. The `admin_password`, `admin_password_version`, and `initial_cluster` attributes cannot be read from the API. Set those create-only fields in your configuration to match the existing warehouse before the next plan; the provider permits initialization of missing create-only bindings after import, but subsequent binding changes are rejected.
+~> **Note:** The `tde_encryption_key_id` and `ebs_encryption_key_id` attributes are populated from the API after import. `credential_id` and `network_config_id` are also recovered when the backend returns `credentialId` and `networkConfigId`. Older backends that omit these fields preserve known state values; after import, supply the existing IDs if needed. Missing fields cannot be used to detect association removal. The API cannot return `admin_password`, `admin_password_version`, or the `initial_cluster` creation settings. Terraform cannot reconstruct those values on import; if you configure them, use the actual existing values. Manage the initial cluster after creation by importing it as a separate `velodb_cluster` resource.
 
 ## Immutable infrastructure
 

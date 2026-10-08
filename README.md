@@ -49,29 +49,18 @@ terraform {
   }
 }
 
-provider "velodb" {
-  host    = var.velodb_host
-  api_key = var.velodb_api_key
-}
-
-variable "velodb_host" {
-  type        = string
-  description = "VeloDB Cloud Management API host, without https://."
-  default     = "api.velodb.cloud"
-}
-
-variable "velodb_api_key" {
-  type        = string
-  description = "VeloDB Cloud API key."
-  sensitive   = true
-}
+provider "velodb" {}
 ```
 
-Environment variables are also supported:
+The provider reads `VELODB_API_KEY` and optional `VELODB_HOST` from the
+environment when those arguments are omitted. To configure them through
+Terraform variables instead, set `api_key` and `host` explicitly and supply
+those variables separately.
+
+Then run:
 
 ```bash
-export VELODB_HOST='api.velodb.cloud'
-export VELODB_API_KEY='sk-...'
+terraform init
 terraform plan
 ```
 
@@ -149,6 +138,7 @@ to modification, replacement, or deletion.
 | `velodb_warehouse` | Manage SaaS warehouses and advanced AWS BYOC warehouses. |
 | `velodb_byoc_credential` | Register AWS storage and deployment credentials for BYOC. |
 | `velodb_byoc_network` | Register AWS VPC network configuration for BYOC. |
+| `velodb_encryption_key` | Register AWS KMS keys for BYOC encryption. |
 | `velodb_cluster` | Manage COMPUTE clusters inside a warehouse, including resize, pause, resume, and reboot. |
 | `velodb_warehouse_public_access_policy` | Manage public endpoint access policy and CIDR allowlists. |
 | `velodb_warehouse_private_endpoint` | Register and describe inbound PrivateLink endpoints for warehouse access. |
@@ -164,10 +154,14 @@ to modification, replacement, or deletion.
 | `velodb_warehouse_versions` | List valid warehouse upgrade target version IDs. |
 | `velodb_private_link_endpoint_services` | List outbound PrivateLink endpoint services and connected endpoints. |
 | `velodb_byoc_prerequisites` | Discover AWS BYOC external ID, VeloDB principal, PrivateLink service, and supported zones. |
+| `velodb_byoc_credentials` | List registered BYOC credentials. |
+| `velodb_byoc_network_configs` | List registered BYOC network configurations. |
+| `velodb_encryption_keys` | List registered encryption keys. |
 | `velodb_aws_assume_role_policy` | Generate the deployment-role trust policy. |
 | `velodb_aws_crossaccount_policy` | Generate the deployment-role permissions policy. |
 | `velodb_aws_data_access_assume_role_policy` | Generate the data-access role trust policy. |
 | `velodb_aws_data_access_policy` | Generate the data-access role permissions policy. |
+| `velodb_aws_kms_key_policy` | Generate an AWS KMS key policy for BYOC encryption. |
 
 ## Known Limitations
 

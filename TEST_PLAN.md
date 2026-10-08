@@ -1,14 +1,15 @@
 # Terraform Provider Sandbox Test Plan
 
-Goal: validate the Terraform provider against the current Management API YAML in
-`/Users/zhhanz/Documents/velodb/Skills/managementapi(1).yaml`.
+Goal: validate the Terraform provider against the current Formation Management
+API and the provider's own request/response tests.
 
 ## API Shape Covered
 
 - Warehouse create uses `deploymentMode = "SaaS"` or `"BYOC"`.
-- Warehouse create sends only API-supported fields: `name`, `deploymentMode`,
-  `cloudProvider`, `region`, `vpcMode`, `setupMode`, `credentialId`,
-  `networkConfigId`, `adminPassword`, and `initialCluster`.
+- Warehouse create sends API-supported fields, including `name`,
+  `deploymentMode`, `cloudProvider`, `region`, `vpcMode`, `setupMode`,
+  `credentialId`, `networkConfigId`, `adminPassword`, `initialCluster`,
+  `lowerCaseMode`, and encryption key IDs.
 - Warehouse upgrade uses `POST /v1/warehouses/{warehouseId}/settings/upgrade`
   with `targetVersionId`.
 - Cluster actions use explicit endpoints:

@@ -5,12 +5,12 @@ The provider docs live in `docs/` as Markdown. `mkdocs.yml` configures MkDocs (M
 ## One-time setup
 
 1. Log into the [Cloudflare dashboard](https://dash.cloudflare.com/) → **Workers & Pages** → **Create** → **Pages** → **Connect to Git**
-2. Select the `tomz-alt/terraform-provider-velodb` repository
+2. Select the `velodb/terraform-provider-velodb` repository
 3. Configure the build:
 
    | Setting | Value |
    |---|---|
-   | Production branch | `master` |
+   | Production branch | `main` |
    | Build command | `pip install -r requirements.txt && mkdocs build` |
    | Build output directory | `site` |
    | Root directory | `/` |
@@ -23,7 +23,7 @@ The provider docs live in `docs/` as Markdown. `mkdocs.yml` configures MkDocs (M
 
 5. Click **Save and Deploy**
 
-Cloudflare auto-deploys on every push to `master`. Preview URLs also spin up for pull requests.
+Cloudflare auto-deploys on every push to `main`. Preview URLs also spin up for pull requests.
 
 ## Local preview
 

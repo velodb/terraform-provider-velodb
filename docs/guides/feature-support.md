@@ -14,7 +14,6 @@ only — SaaS warehouses use the `velodb_warehouse` resource directly.
 **Update legend**
 
 - ✅ **In-place** — changed on the existing warehouse.
-- ♻️ **Replaces** — changing it destroys and recreates the warehouse.
 - 🚫 **Create-only** — set once at creation; a later change is rejected.
 - — **N/A** — read-only, or applied through a different endpoint/resource.
 
@@ -36,12 +35,13 @@ only — SaaS warehouses use the `velodb_warehouse` resource directly.
 | Attribute | Creation | Update | Modes | Modules |
 |---|---|---|---|---|
 | `name` | ✅ | ✅ In-place | Both | `auto` (from `name_prefix`) |
-| `deployment_mode` | ✅ | ♻️ Replaces | Both | `auto` (`BYOC`) |
-| `cloud_provider` | ✅ | ♻️ Replaces | Both¹ | `auto` (`aws`) |
-| `region` | ✅ | ♻️ Replaces | Both | ✅ `region` |
-| `setup_mode` | ✅ | ♻️ Replaces | BYOC | `auto` (`advanced`) |
-| `vpc_mode` | ✅ | ♻️ Replaces | BYOC | `auto` |
-| `admin_password` | ✅ | ✅ In-place (bump `admin_password_version`) | Both | ✅ `admin_password` |
+| `deployment_mode` | ✅ | 🚫 Create-only | Both | `auto` (`BYOC`) |
+| `cloud_provider` | ✅ | 🚫 Create-only | Both¹ | `auto` (`aws`) |
+| `region` | ✅ | 🚫 Create-only | Both | ✅ `region` |
+| `setup_mode` | ✅ | 🚫 Create-only | BYOC | `auto` (`advanced`) |
+| `vpc_mode` | ✅ | 🚫 Create-only | BYOC | `auto` |
+| `admin_password` | ✅ | ✅ In-place (change the value or bump `admin_password_version`) | Both | ✅ `admin_password` |
+| `table_name_case_sensitive` | ✅ | 🚫 Create-only | Both | ✅ `table_name_case_sensitive` |
 | `tags` | ✅ | 🚫 Create-only | Both | ✅ `tags` |
 
 ¹ Advanced BYOC (what the modules use) requires `aws`. VeloDB Cloud SaaS also
@@ -63,12 +63,13 @@ backend choose the latest patch. Upgrade by setting an exact target such as
 
 | Attribute | Creation | Update | Modes | Modules |
 |---|---|---|---|---|
-| `public_access_policy` | ✅ | 🚫 Create-only¹ | BYOC² | ✅ `public_access_policy` |
+| `public_access_policy` | ✅ | ✅ In-place¹ | BYOC² | ✅ `public_access_policy` |
 | `enable_tls` | ✅ | 🚫 Create-only | Both | ❌ |
 | `enable_https` | ✅ | 🚫 Create-only | Both | ❌ |
 
-¹ Change it after creation with the separate `velodb_warehouse_public_access_policy`
-resource. `public_access_policy.rules` is a list — write `rules = [ { cidr = "…" } ]`.
+¹ The inline block updates the policy in place. Do not manage the same policy
+with the separate `velodb_warehouse_public_access_policy` resource.
+`public_access_policy.rules` is a list — write `rules = [ { cidr = "…" } ]`.
 
 ² The management API rejects an initial `public_access_policy` for SaaS warehouses.
 
@@ -84,10 +85,13 @@ VeloDB and do not take a credential, network config, or customer-managed keys.
 
 | Attribute | Creation | Update | Modes | Modules |
 |---|---|---|---|---|
-| `credential_id` | ✅ | ♻️ Replaces | BYOC | `derived` |
-| `network_config_id` | ✅ | ♻️ Replaces | BYOC | `derived` |
-| `tde_encryption_key_id` | ✅ | ♻️ Replaces | BYOC | ✅ `create_tde_encryption_key` / `tde_kms_key_arn` |
-| `ebs_encryption_key_id` | ✅ | ♻️ Replaces | BYOC | ✅ `create_ebs_encryption_key` / `ebs_kms_key_arn` |
+| `credential_id` | ✅ | 🚫 Create-only | BYOC | `derived` |
+| `network_config_id` | ✅ | 🚫 Create-only | BYOC | `derived` |
+| `tde_encryption_key_id` | ✅ | 🚫 Create-only | BYOC | ✅ `create_tde_encryption_key` / `tde_kms_key_arn` |
+| `ebs_encryption_key_id` | ✅ | 🚫 Create-only | BYOC | ✅ `create_ebs_encryption_key` / `ebs_kms_key_arn` |
+
+Infrastructure edits fail planning rather than replacing an existing warehouse.
+Provision a separate warehouse for a migration.
 
 ## Initial cluster
 
