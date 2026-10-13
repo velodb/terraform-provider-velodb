@@ -72,48 +72,48 @@ example.
 
 | Resource | Purpose |
 |---|---|
-| [`velodb_warehouse`](./resources/warehouse.md) | Manage SaaS warehouses and advanced AWS BYOC warehouses. |
-| [`velodb_byoc_credential`](./resources/byoc_credential.md) | Register AWS storage and deployment credentials for BYOC. |
-| [`velodb_byoc_network`](./resources/byoc_network.md) | Register AWS VPC network configuration for BYOC. |
-| [`velodb_encryption_key`](./resources/encryption_key.md) | Register AWS KMS keys for BYOC encryption. |
-| [`velodb_cluster`](./resources/cluster.md) | Manage COMPUTE clusters inside a warehouse, including resize, pause, resume, and reboot. |
-| [`velodb_warehouse_public_access_policy`](./resources/warehouse_public_access_policy.md) | Manage public endpoint access policy and CIDR allowlists. |
-| [`velodb_warehouse_private_endpoint`](./resources/warehouse_private_endpoint.md) | Register and describe inbound PrivateLink endpoints for warehouse access. |
-| [`velodb_private_link_endpoint_service`](./resources/private_link_endpoint_service.md) | Register external endpoint services that VeloDB Cloud can access through PrivateLink. |
+| [`velodb_warehouse`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/resources/warehouse) | Manage SaaS warehouses and advanced AWS BYOC warehouses. |
+| [`velodb_byoc_credential`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/resources/byoc_credential) | Register AWS storage and deployment credentials for BYOC. |
+| [`velodb_byoc_network`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/resources/byoc_network) | Register AWS VPC network configuration for BYOC. |
+| [`velodb_encryption_key`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/resources/encryption_key) | Register AWS KMS keys for BYOC encryption. |
+| [`velodb_cluster`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/resources/cluster) | Manage COMPUTE clusters inside a warehouse, including resize, pause, resume, and reboot. |
+| [`velodb_warehouse_public_access_policy`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/resources/warehouse_public_access_policy) | Manage public endpoint access policy and CIDR allowlists. |
+| [`velodb_warehouse_private_endpoint`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/resources/warehouse_private_endpoint) | Register and describe inbound PrivateLink endpoints for warehouse access. |
+| [`velodb_private_link_endpoint_service`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/resources/private_link_endpoint_service) | Register external endpoint services that VeloDB Cloud can access through PrivateLink. |
 
 ## Data Sources
 
 | Data Source | Purpose |
 |---|---|
-| [`velodb_warehouses`](./data-sources/warehouses.md) | List warehouses by ID, name, cloud provider, region, or deployment mode. |
-| [`velodb_clusters`](./data-sources/clusters.md) | List clusters in a warehouse by ID, name, status, type, or billing model. |
-| [`velodb_warehouse_connections`](./data-sources/warehouse_connections.md) | Read public/private endpoints, compute clusters, observer groups, and PrivateLink service names. |
-| [`velodb_warehouse_versions`](./data-sources/warehouse_versions.md) | List valid warehouse upgrade target version IDs. |
-| [`velodb_private_link_endpoint_services`](./data-sources/private_link_endpoint_services.md) | List outbound PrivateLink endpoint services and connected endpoints. |
-| [`velodb_byoc_prerequisites`](./data-sources/byoc_prerequisites.md) | Discover AWS BYOC external ID, VeloDB principal, PrivateLink service, and supported zones. |
-| [`velodb_byoc_credentials`](./data-sources/byoc_credentials.md) | List registered BYOC credentials. |
-| [`velodb_byoc_network_configs`](./data-sources/byoc_network_configs.md) | List registered BYOC network configurations. |
-| [`velodb_encryption_keys`](./data-sources/encryption_keys.md) | List registered encryption keys. |
-| [`velodb_aws_assume_role_policy`](./data-sources/aws_assume_role_policy.md) | Generate the deployment-role trust policy. |
-| [`velodb_aws_crossaccount_policy`](./data-sources/aws_crossaccount_policy.md) | Generate the deployment-role permissions policy. |
-| [`velodb_aws_data_access_assume_role_policy`](./data-sources/aws_data_access_assume_role_policy.md) | Generate the data-access role trust policy. |
-| [`velodb_aws_data_access_policy`](./data-sources/aws_data_access_policy.md) | Generate the data-access role permissions policy. |
-| [`velodb_aws_kms_key_policy`](./data-sources/aws_kms_key_policy.md) | Generate an AWS KMS key policy for BYOC encryption. |
+| [`velodb_warehouses`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/data-sources/warehouses) | List warehouses by ID, name, cloud provider, region, or deployment mode. |
+| [`velodb_clusters`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/data-sources/clusters) | List clusters in a warehouse by ID, name, status, type, or billing model. |
+| [`velodb_warehouse_connections`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/data-sources/warehouse_connections) | Read public/private endpoints, compute clusters, observer groups, and PrivateLink service names. |
+| [`velodb_warehouse_versions`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/data-sources/warehouse_versions) | List valid warehouse upgrade target version IDs. |
+| [`velodb_private_link_endpoint_services`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/data-sources/private_link_endpoint_services) | List outbound PrivateLink endpoint services and connected endpoints. |
+| [`velodb_byoc_prerequisites`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/data-sources/byoc_prerequisites) | Discover AWS BYOC external ID, VeloDB principal, PrivateLink service, and supported zones. |
+| [`velodb_byoc_credentials`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/data-sources/byoc_credentials) | List registered BYOC credentials. |
+| [`velodb_byoc_network_configs`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/data-sources/byoc_network_configs) | List registered BYOC network configurations. |
+| [`velodb_encryption_keys`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/data-sources/encryption_keys) | List registered encryption keys. |
+| [`velodb_aws_assume_role_policy`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/data-sources/aws_assume_role_policy) | Generate the deployment-role trust policy. |
+| [`velodb_aws_crossaccount_policy`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/data-sources/aws_crossaccount_policy) | Generate the deployment-role permissions policy. |
+| [`velodb_aws_data_access_assume_role_policy`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/data-sources/aws_data_access_assume_role_policy) | Generate the data-access role trust policy. |
+| [`velodb_aws_data_access_policy`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/data-sources/aws_data_access_policy) | Generate the data-access role permissions policy. |
+| [`velodb_aws_kms_key_policy`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/data-sources/aws_kms_key_policy) | Generate an AWS KMS key policy for BYOC encryption. |
 
 ## Known Limitations
 
-- New BYOC warehouse creation supports AWS custom infrastructure through
+- New BYOC [`velodb_warehouse`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/resources/warehouse) creation supports AWS custom infrastructure through
   `setup_mode = "advanced"`. Guided/template setup and other cloud providers are
   not supported yet.
-- `velodb_cluster` manages `COMPUTE` clusters. `SQL` and `OBSERVER` cluster
+- [`velodb_cluster`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/resources/cluster) manages `COMPUTE` clusters. `SQL` and `OBSERVER` cluster
   types are blocked at plan time.
-- CPU and cache resize are applied one dimension at a time. When increasing
+- CPU and cache resize on [`velodb_cluster`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/resources/cluster) are applied one dimension at a time. When increasing
   `compute_vcpu`, set `cache_gb` to the API-implied minimum for the new CPU
   size, then apply any additional cache-only change in a later run.
 - The current Management API does not accept `maintenance_window`,
   `upgrade_policy`, mixed-billing request fields, or legacy
-  `advanced_settings` in Terraform warehouse or cluster create/update requests.
-- `admin_password` is write-only in the API and is stored in Terraform state as
+  `advanced_settings` in Terraform [`velodb_warehouse`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/resources/warehouse) or [`velodb_cluster`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/resources/cluster) create/update requests.
+- `admin_password` on [`velodb_warehouse`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/resources/warehouse) is write-only in the API and is stored in Terraform state as
   a sensitive value so Terraform can detect password rotation.
 
 <!-- schema generated by tfplugindocs -->
