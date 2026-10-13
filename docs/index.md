@@ -85,20 +85,20 @@ example.
 
 | Data Source | Purpose |
 |---|---|
-| [`velodb_warehouses`](./data-sources/warehouses.md) | List warehouses by ID, name, cloud provider, region, or deployment mode. |
-| [`velodb_clusters`](./data-sources/clusters.md) | List clusters in a warehouse by ID, name, status, type, or billing model. |
-| [`velodb_warehouse_connections`](./data-sources/warehouse_connections.md) | Read public/private endpoints, compute clusters, observer groups, and PrivateLink service names. |
-| [`velodb_warehouse_versions`](./data-sources/warehouse_versions.md) | List valid warehouse upgrade target version IDs. |
-| [`velodb_private_link_endpoint_services`](./data-sources/private_link_endpoint_services.md) | List outbound PrivateLink endpoint services and connected endpoints. |
-| [`velodb_byoc_prerequisites`](./data-sources/byoc_prerequisites.md) | Discover AWS BYOC external ID, VeloDB principal, PrivateLink service, and supported zones. |
-| [`velodb_byoc_credentials`](./data-sources/byoc_credentials.md) | List registered BYOC credentials. |
-| [`velodb_byoc_network_configs`](./data-sources/byoc_network_configs.md) | List registered BYOC network configurations. |
-| [`velodb_encryption_keys`](./data-sources/encryption_keys.md) | List registered encryption keys. |
-| [`velodb_aws_assume_role_policy`](./data-sources/aws_assume_role_policy.md) | Generate the deployment-role trust policy. |
-| [`velodb_aws_crossaccount_policy`](./data-sources/aws_crossaccount_policy.md) | Generate the deployment-role permissions policy. |
-| [`velodb_aws_data_access_assume_role_policy`](./data-sources/aws_data_access_assume_role_policy.md) | Generate the data-access role trust policy. |
-| [`velodb_aws_data_access_policy`](./data-sources/aws_data_access_policy.md) | Generate the data-access role permissions policy. |
-| [`velodb_aws_kms_key_policy`](./data-sources/aws_kms_key_policy.md) | Generate an AWS KMS key policy for BYOC encryption. |
+| [`velodb_warehouses`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/data-sources/warehouses) | List warehouses by ID, name, cloud provider, region, or deployment mode. |
+| [`velodb_clusters`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/data-sources/clusters) | List clusters in a warehouse by ID, name, status, type, or billing model. |
+| [`velodb_warehouse_connections`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/data-sources/warehouse_connections) | Read public/private endpoints, compute clusters, observer groups, and PrivateLink service names. |
+| [`velodb_warehouse_versions`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/data-sources/warehouse_versions) | List valid warehouse upgrade target version IDs. |
+| [`velodb_private_link_endpoint_services`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/data-sources/private_link_endpoint_services) | List outbound PrivateLink endpoint services and connected endpoints. |
+| [`velodb_byoc_prerequisites`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/data-sources/byoc_prerequisites) | Discover AWS BYOC external ID, VeloDB principal, PrivateLink service, and supported zones. |
+| [`velodb_byoc_credentials`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/data-sources/byoc_credentials) | List registered BYOC credentials. |
+| [`velodb_byoc_network_configs`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/data-sources/byoc_network_configs) | List registered BYOC network configurations. |
+| [`velodb_encryption_keys`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/data-sources/encryption_keys) | List registered encryption keys. |
+| [`velodb_aws_assume_role_policy`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/data-sources/aws_assume_role_policy) | Generate the deployment-role trust policy. |
+| [`velodb_aws_crossaccount_policy`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/data-sources/aws_crossaccount_policy) | Generate the deployment-role permissions policy. |
+| [`velodb_aws_data_access_assume_role_policy`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/data-sources/aws_data_access_assume_role_policy) | Generate the data-access role trust policy. |
+| [`velodb_aws_data_access_policy`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/data-sources/aws_data_access_policy) | Generate the data-access role permissions policy. |
+| [`velodb_aws_kms_key_policy`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/data-sources/aws_kms_key_policy) | Generate an AWS KMS key policy for BYOC encryption. |
 
 ## Known Limitations
 
