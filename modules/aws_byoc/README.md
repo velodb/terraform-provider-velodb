@@ -40,6 +40,45 @@ change `name` when renaming a cluster so Terraform updates it instead of
 replacing it. `zone` is optional and defaults to the first configured zone.
 Removing an entry deletes only that additional cluster.
 
+Create virtual clusters as separate `velodb_virtual_cluster` resources linked
+to this module's output IDs. Terraform resolves these IDs during apply, so the
+warehouse, physical clusters, and virtual cluster can be created together.
+Create a physical standby cluster in another zone and reference its ID:
+
+```hcl
+resource "velodb_cluster" "standby" {
+  warehouse_id = module.velodb_byoc.warehouse_id
+  name         = "production_standby"
+  cluster_type = "COMPUTE"
+  zone         = "us-east-1b"
+  compute_vcpu = 4
+  cache_gb     = 100
+}
+
+resource "velodb_virtual_cluster" "main" {
+  warehouse_id               = module.velodb_byoc.warehouse_id
+  name                       = "production_vc"
+  desired_active_cluster_id  = module.velodb_byoc.initial_cluster_id
+  desired_standby_cluster_id = velodb_cluster.standby.id
+}
+```
+
+These inputs also accept IDs from separately managed resources or existing
+clusters. Change either desired ID to update the pair. Live roles and health
+are read from the virtual-cluster resource; automatic failover does not
+trigger a reversal to the configured pair. Change `pair_reconcile_trigger`
+to explicitly reapply that pair.
+
+The ID references order creation after the physical clusters and deletion
+before their infrastructure. Apply a member replacement before removing the
+old physical cluster. Deleting the virtual-cluster resource ends its routing
+and automatic failover while leaving its physical clusters in place.
+
+If adopting this configuration from the earlier bundled virtual-cluster
+implementation, move its Terraform state to the separate resource before
+applying; see the virtual-cluster resource documentation. Use a provider
+release that includes `velodb_virtual_cluster` for the separate resource.
+
 Set `tags` to apply extra key/value pairs to the AWS resources and the VeloDB
 warehouse (all get a `managed-by = terraform` tag by default). Warehouse tags
 are create-only, so they cannot be changed after the warehouse exists. Set `core_version` to `"26.1"` (backend selects the latest patch) or `"26.1.1"`

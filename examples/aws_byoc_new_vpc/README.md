@@ -87,6 +87,31 @@ additional_clusters = {
 Keep the map keys stable. Change `name` to rename a cluster; remove a map entry
 to delete only that additional cluster.
 
+To also manage a virtual cluster, use a provider release containing
+`velodb_virtual_cluster`, configure three availability zones, and copy the
+optional resource example:
+
+```bash
+cp virtual_cluster.tf.example virtual_cluster.tf
+```
+
+The example creates a standalone physical standby cluster, then links its ID
+and the BYOC initial-cluster ID to the virtual cluster. Terraform creates
+everything in one apply without copying IDs.
+Edit the ID expressions to select another cluster or supply an existing ID.
+The `virtual_cluster` output reports its configuration, live roles, and health.
+To delete only the virtual cluster, save `enable_virtual_cluster = false` in
+`terraform.tfvars`, review `terraform plan`, and run `terraform apply`. The
+physical clusters and warehouse remain, and the virtual-cluster output becomes
+null. Routing and automatic failover through the virtual cluster end. Setting
+the flag back to true creates a new virtual cluster. Keep the false setting in
+configuration so the next apply does not recreate it.
+
+The example includes a `moved` block for earlier configurations that used
+`velodb_virtual_cluster.main` without `count`. With the flag true, the first
+plan should move it to `velodb_virtual_cluster.main[0]` without recreating it.
+Removing the whole `virtual_cluster.tf` file also deletes its physical standby.
+
 ## Create the warehouse
 
 ```bash

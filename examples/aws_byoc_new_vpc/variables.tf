@@ -1,3 +1,9 @@
+variable "enable_virtual_cluster" {
+  description = "Whether to manage the virtual cluster from virtual_cluster.tf. Set false to delete only that virtual cluster; physical clusters remain."
+  type        = bool
+  default     = true
+}
+
 variable "region" {
   description = "AWS region supported by VeloDB BYOC."
   type        = string

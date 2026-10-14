@@ -60,6 +60,10 @@ additional_clusters = {
   }
 }
 
+# Applies after copying virtual_cluster.tf.example to virtual_cluster.tf.
+# Set false to delete only the virtual cluster. Physical clusters remain.
+# enable_virtual_cluster = true
+
 # ---------------------------------------------------------------------------
 # Warehouse options (optional)
 # ---------------------------------------------------------------------------
