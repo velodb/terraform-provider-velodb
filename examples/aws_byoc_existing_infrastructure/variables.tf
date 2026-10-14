@@ -41,6 +41,17 @@ variable "additional_clusters" {
   default = {}
 }
 
+variable "virtual_cluster" {
+  description = "Optional virtual cluster. Member keys are initial or keys in additional_clusters."
+  type = object({
+    name                        = string
+    desired_active_cluster_key  = string
+    desired_standby_cluster_key = string
+    pair_reconcile_trigger      = optional(number)
+  })
+  default = null
+}
+
 variable "security_group_id" {
   description = "Existing warehouse security group ID."
   type        = string

@@ -24,32 +24,14 @@ variables {
   vpc_cidr       = "10.58.0.0/16"
 }
 
-override_data {
-  target = data.velodb_byoc_prerequisites.aws
-  values = {
-    zones                       = [for z in ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d"] : { zone = z }]
-    endpoint_service_name       = "com.amazonaws.vpce.us-east-1.vpce-svc-test"
-    deployment_assumer_role_arn = "arn:aws:iam::123456789012:role/assumer"
-    external_id                 = "test-external-id"
-  }
-}
-
-override_data {
-  target = data.velodb_aws_crossaccount_policy.deployment
-  values = {
-    json = jsonencode({ Version = "2012-10-17", Statement = [for i in range(17) : { Effect = "Allow", Action = "*", Resource = "*" }] })
-  }
-}
-
-override_data {
-  target = data.velodb_aws_data_access_policy.data_access
-  values = {
-    json = jsonencode({ Version = "2012-10-17", Statement = [for i in range(3) : { Effect = "Allow", Action = "*", Resource = "*" }] })
-  }
-}
-
+# These tests cover subnet CIDR assignment, so plan only subnets and their
+# dependencies. This avoids unrelated credential and IAM mock validations.
 run "baseline_zones_abd" {
   command = plan
+
+  plan_options {
+    target = [aws_subnet.private]
+  }
 
   variables {
     zones = ["us-east-1a", "us-east-1b", "us-east-1d"]
@@ -73,6 +55,10 @@ run "baseline_zones_abd" {
 
 run "swapped_zones_acd" {
   command = plan
+
+  plan_options {
+    target = [aws_subnet.private]
+  }
 
   variables {
     zones = ["us-east-1a", "us-east-1c", "us-east-1d"]
@@ -109,6 +95,10 @@ run "swapped_zones_acd" {
 # without a subnet/network/warehouse replacement.
 run "explicit_cidr_override" {
   command = plan
+
+  plan_options {
+    target = [aws_subnet.private]
+  }
 
   variables {
     zones = ["us-east-1a", "us-east-1b", "us-east-1d"]

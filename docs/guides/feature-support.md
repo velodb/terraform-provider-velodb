@@ -106,6 +106,17 @@ Set on the warehouse at creation; resize or add clusters afterward with the
 | `initial_cluster.ratio` | ✅ | — (via `velodb_cluster`) | Both | ❌ (modules use explicit sizes) |
 | additional clusters | — | ✅ `velodb_cluster` | Both | ✅ `additional_clusters` (incl. `auto_pause`) |
 
+## Virtual clusters
+
+`velodb_virtual_cluster` manages an active and standby pair separately from
+`velodb_warehouse`. Both BYOC modules expose it through the optional
+`virtual_cluster` input. Member keys refer to `initial` or an
+`additional_clusters` map key; the module resolves those keys to cluster IDs.
+The `virtual_cluster` output reports the live roles, status, and risk reasons.
+An external failover updates the observed roles on refresh without changing
+the configured desired pair. Change `pair_reconcile_trigger` to explicitly
+request reconciliation to that pair.
+
 ## API features not yet exposed in the provider
 
 The Management API supports these; the Terraform provider (and therefore the

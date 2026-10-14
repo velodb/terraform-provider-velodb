@@ -140,6 +140,7 @@ to modification, replacement, or deletion.
 | `velodb_byoc_network` | Register AWS VPC network configuration for BYOC. |
 | `velodb_encryption_key` | Register AWS KMS keys for BYOC encryption. |
 | `velodb_cluster` | Manage COMPUTE clusters inside a warehouse, including resize, pause, resume, and reboot. |
+| `velodb_virtual_cluster` | Manage an active and standby cluster pair, including role changes and health reporting. |
 | `velodb_warehouse_public_access_policy` | Manage public endpoint access policy and CIDR allowlists. |
 | `velodb_warehouse_private_endpoint` | Register and describe inbound PrivateLink endpoints for warehouse access. |
 | `velodb_private_link_endpoint_service` | Register external endpoint services that VeloDB Cloud can access through PrivateLink. |

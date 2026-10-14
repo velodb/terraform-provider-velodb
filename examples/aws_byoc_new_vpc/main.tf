@@ -31,6 +31,7 @@ module "velodb_byoc" {
   subnet_cidrs              = var.subnet_cidrs
   warehouse_client_cidrs    = var.warehouse_client_cidrs
   additional_clusters       = var.additional_clusters
+  virtual_cluster           = var.virtual_cluster
   tags                      = var.tags
   core_version              = var.core_version
   table_name_case_sensitive = var.table_name_case_sensitive
@@ -56,6 +57,10 @@ output "initial_cluster_id" {
 
 output "additional_cluster_ids" {
   value = module.velodb_byoc.additional_cluster_ids
+}
+
+output "virtual_cluster" {
+  value = module.velodb_byoc.virtual_cluster
 }
 
 output "vpc_id" {
