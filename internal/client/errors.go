@@ -50,6 +50,11 @@ func (e *APIError) IsNotFound() bool {
 		e.Code == "ClusterNotFound"
 }
 
+// IsVirtualClusterNotFound identifies only the target virtual cluster, not its warehouse.
+func (e *APIError) IsVirtualClusterNotFound() bool {
+	return e.StatusCode == http.StatusNotFound && e.Code == "VirtualClusterNotFound"
+}
+
 // IsConflict returns true if the error indicates a conflict (e.g., idempotency).
 func (e *APIError) IsConflict() bool {
 	return e.StatusCode == 409
