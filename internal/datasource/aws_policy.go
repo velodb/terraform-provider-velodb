@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/velodb/terraform-provider-velodb/internal/validation"
 )
 
 const awsPolicyVersion = "2012-10-17"
@@ -67,7 +69,7 @@ func buildAWSDataAccessAssumeRolePolicy(roleARN string) (string, error) {
 }
 
 func buildAWSDataAccessPolicy(bucketName, roleARN, tdeKMSKeyARN string) (string, error) {
-	if err := validateAWSBucketName(bucketName); err != nil {
+	if err := validation.CheckS3BucketName(bucketName); err != nil {
 		return "", err
 	}
 	if _, err := awsAccountIDFromRoleARN(roleARN); err != nil {
@@ -109,7 +111,7 @@ func buildAWSDataAccessPolicy(bucketName, roleARN, tdeKMSKeyARN string) (string,
 }
 
 func buildAWSCrossAccountPolicy(bucketName, instanceProfileARN string) (string, error) {
-	if err := validateAWSBucketName(bucketName); err != nil {
+	if err := validation.CheckS3BucketName(bucketName); err != nil {
 		return "", err
 	}
 	roleARN, err := awsRoleARNFromInstanceProfileARN(instanceProfileARN)
@@ -341,11 +343,4 @@ func awsRoleARNFromInstanceProfileARN(instanceProfileARN string) (string, error)
 		return "", fmt.Errorf("data_credential_arn must be a commercial AWS IAM instance-profile ARN")
 	}
 	return strings.Replace(instanceProfileARN, ":instance-profile/", ":role/", 1), nil
-}
-
-func validateAWSBucketName(bucketName string) error {
-	if strings.TrimSpace(bucketName) == "" {
-		return fmt.Errorf("bucket_name must not be blank")
-	}
-	return nil
 }

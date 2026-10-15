@@ -83,3 +83,7 @@ In Terraform 1.4 and earlier, use the `terraform import` command:
 ```shell
 terraform import velodb_byoc_network.example aws/<network_config_id>/<credential_id>
 ```
+
+Names must be nonempty, at most 32 characters, and have no leading or trailing
+whitespace. Spaces inside names are allowed. Invalid known values are rejected
+during configuration validation.

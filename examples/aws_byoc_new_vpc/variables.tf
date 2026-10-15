@@ -15,7 +15,7 @@ variable "name_prefix" {
 }
 
 variable "admin_password" {
-  description = "Warehouse administrator password. Set with TF_VAR_admin_password."
+  description = "Warehouse administrator password: 8–20 allowed ASCII characters, using at least three of uppercase, lowercase, digits, and special characters. Set with TF_VAR_admin_password."
   type        = string
   sensitive   = true
 }

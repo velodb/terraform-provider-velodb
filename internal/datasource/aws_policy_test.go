@@ -134,6 +134,8 @@ func TestAWSPolicyBuildersRejectInvalidInputs(t *testing.T) {
 			return err
 		}},
 		{name: "invalid data role", fn: func() error { _, err := buildAWSDataAccessAssumeRolePolicy(testInstanceProfileARN); return err }},
+		{name: "leading hyphen data bucket", fn: func() error { _, err := buildAWSDataAccessPolicy("-invalid", testRoleARN, ""); return err }},
+		{name: "leading hyphen crossaccount bucket", fn: func() error { _, err := buildAWSCrossAccountPolicy("-invalid", testInstanceProfileARN); return err }},
 		{name: "blank bucket", fn: func() error { _, err := buildAWSDataAccessPolicy(" ", testRoleARN, ""); return err }},
 		{name: "invalid KMS ARN", fn: func() error { _, err := buildAWSDataAccessPolicy("velodb-data", testRoleARN, "alias/key"); return err }},
 		{name: "role instead of instance profile", fn: func() error { _, err := buildAWSCrossAccountPolicy("velodb-data", testRoleARN); return err }},

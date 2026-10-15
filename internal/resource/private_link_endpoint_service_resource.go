@@ -12,9 +12,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/velodb/terraform-provider-velodb/internal/client"
+	"github.com/velodb/terraform-provider-velodb/internal/validation"
 )
 
 var (
@@ -61,6 +63,7 @@ func (r *PrivateLinkEndpointServiceResource) Schema(_ context.Context, _ resourc
 			"cloud_provider": schema.StringAttribute{
 				Description: "Cloud provider. Only aws is supported.",
 				Required:    true,
+				Validators:  []validator.String{validation.TrimmedNonEmpty{}},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -68,6 +71,7 @@ func (r *PrivateLinkEndpointServiceResource) Schema(_ context.Context, _ resourc
 			"region": schema.StringAttribute{
 				Description: "Cloud region.",
 				Required:    true,
+				Validators:  []validator.String{validation.TrimmedNonEmpty{}},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -79,6 +83,7 @@ func (r *PrivateLinkEndpointServiceResource) Schema(_ context.Context, _ resourc
 			"endpoint_service_id": schema.StringAttribute{
 				Description: "Cloud-side endpoint service ID.",
 				Required:    true,
+				Validators:  []validator.String{validation.TrimmedNonEmpty{}},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -86,6 +91,7 @@ func (r *PrivateLinkEndpointServiceResource) Schema(_ context.Context, _ resourc
 			"endpoint_service_name": schema.StringAttribute{
 				Description: "Cloud-side endpoint service name.",
 				Required:    true,
+				Validators:  []validator.String{validation.TrimmedNonEmpty{}},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},

@@ -19,6 +19,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/velodb/terraform-provider-velodb/internal/client"
+	"github.com/velodb/terraform-provider-velodb/internal/validation"
 )
 
 var (
@@ -77,19 +78,19 @@ func (r *BYOCCredentialResource) Schema(_ context.Context, _ resource.SchemaRequ
 			"name": schema.StringAttribute{
 				Description:   "Credential configuration name.",
 				Required:      true,
-				Validators:    []validator.String{stringvalidator.LengthBetween(1, 32)},
+				Validators:    []validator.String{stringvalidator.LengthBetween(1, 32), validation.TrimmedNonEmpty{}},
 				PlanModifiers: replace,
 			},
 			"region": schema.StringAttribute{
 				Description:   "AWS region.",
 				Required:      true,
-				Validators:    []validator.String{stringvalidator.LengthAtLeast(1)},
+				Validators:    []validator.String{validation.TrimmedNonEmpty{}},
 				PlanModifiers: replace,
 			},
 			"bucket_name": schema.StringAttribute{
 				Description:   "S3 bucket used by the warehouse.",
 				Required:      true,
-				Validators:    []validator.String{stringvalidator.LengthAtLeast(1)},
+				Validators:    []validator.String{validation.S3BucketName{}},
 				PlanModifiers: replace,
 			},
 			"data_credential_arn": schema.StringAttribute{
