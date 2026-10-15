@@ -17,17 +17,6 @@ zones                  = ["us-east-1a", "us-east-1b", "us-east-1c"]
 
 additional_clusters = {}
 
-# Optional: place a second physical cluster in another zone, then mount both
-# in a virtual cluster. The initial cluster is always keyed as "initial".
-# additional_clusters = {
-#   standby = { name = "production_standby", zone = "us-east-1b", compute_vcpu = 4, cache_gb = 100 }
-# }
-# virtual_cluster = {
-#   name                        = "production_vc"
-#   desired_active_cluster_key  = "initial"
-#   desired_standby_cluster_key = "standby"
-# }
-
 tags = {
   environment = "production"
   managed-by  = "terraform"

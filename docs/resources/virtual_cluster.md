@@ -58,7 +58,50 @@ Import with `warehouse_id/virtual_cluster_id`:
 terraform import velodb_virtual_cluster.main WAREHOUSE_ID/VIRTUAL_CLUSTER_ID
 ```
 
+## Linking to BYOC module outputs
+
 For managed AWS BYOC deployments, the
 [`aws_byoc`](https://github.com/velodb/terraform-provider-velodb/tree/main/modules/aws_byoc)
 and [`aws_byoc_existing`](https://github.com/velodb/terraform-provider-velodb/tree/main/modules/aws_byoc_existing)
-modules can create the member clusters and virtual cluster together.
+modules expose the warehouse and initial-cluster IDs. Additional physical
+clusters can be declared as standalone resources:
+
+```terraform
+resource "velodb_cluster" "standby" {
+  warehouse_id = module.byoc.warehouse_id
+  name         = "production_standby"
+  cluster_type = "COMPUTE"
+  zone         = "us-east-1b"
+  compute_vcpu = 4
+  cache_gb     = 100
+}
+
+resource "velodb_virtual_cluster" "main" {
+  warehouse_id               = module.byoc.warehouse_id
+  name                       = "production_vc"
+  desired_active_cluster_id  = module.byoc.initial_cluster_id
+  desired_standby_cluster_id = velodb_cluster.standby.id
+}
+```
+
+Terraform creates the warehouse and physical clusters before the virtual
+cluster in the same apply. The IDs can also come from separate resources,
+variables, or existing clusters. Both clusters must belong to the selected
+warehouse and be in different availability zones.
+
+## Moving from the bundled module resource
+
+If the earlier module implementation already manages your virtual cluster,
+add the separate resource and move its state before applying. For example:
+
+```terraform
+moved {
+  from = module.byoc.velodb_virtual_cluster.this[0]
+  to   = velodb_virtual_cluster.main
+}
+```
+
+Substitute your actual resource addresses and preserve the configured name,
+desired IDs, and reconciliation trigger. Verify the plan shows a state move
+without virtual-cluster creation or destruction. Never remove the old state
+entry to recreate an existing virtual cluster.

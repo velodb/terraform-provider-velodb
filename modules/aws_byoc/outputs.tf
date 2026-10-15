@@ -66,18 +66,3 @@ output "additional_cluster_ids" {
   description = "Additional cluster IDs keyed by their stable Terraform identifiers."
   value       = { for key, cluster in velodb_cluster.additional : key => cluster.id }
 }
-
-output "virtual_cluster" {
-  description = "Managed virtual cluster ID, desired and observed members, lifecycle status, and health; null when disabled."
-  value = length(velodb_virtual_cluster.this) == 0 ? null : {
-    id                         = velodb_virtual_cluster.this[0].id
-    name                       = velodb_virtual_cluster.this[0].name
-    desired_active_cluster_id  = velodb_virtual_cluster.this[0].desired_active_cluster_id
-    desired_standby_cluster_id = velodb_virtual_cluster.this[0].desired_standby_cluster_id
-    active_cluster_id          = velodb_virtual_cluster.this[0].active_cluster_id
-    standby_cluster_id         = velodb_virtual_cluster.this[0].standby_cluster_id
-    status                     = velodb_virtual_cluster.this[0].status
-    at_risk                    = velodb_virtual_cluster.this[0].at_risk
-    risk_reasons               = velodb_virtual_cluster.this[0].risk_reasons
-  }
-}

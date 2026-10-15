@@ -1,0 +1,26 @@
+# Copy to virtual_cluster.tf with three configured zones. This creates a
+# physical standby cluster and links its ID in the same apply.
+resource "velodb_cluster" "standby" {
+  warehouse_id = module.velodb_byoc.warehouse_id
+  name         = "production_standby"
+  cluster_type = "COMPUTE"
+  zone         = var.zones[1]
+  compute_vcpu = 4
+  cache_gb     = 100
+}
+
+resource "velodb_virtual_cluster" "main" {
+  warehouse_id               = module.velodb_byoc.warehouse_id
+  name                       = "production_vc"
+  desired_active_cluster_id  = module.velodb_byoc.initial_cluster_id
+  desired_standby_cluster_id = velodb_cluster.standby.id
+}
+
+output "virtual_cluster" {
+  value = velodb_virtual_cluster.main
+}
+
+moved {
+  from = velodb_virtual_cluster.main[0]
+  to   = velodb_virtual_cluster.main
+}

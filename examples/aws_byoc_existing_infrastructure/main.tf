@@ -33,7 +33,6 @@ module "velodb_byoc" {
   data_credential_arn       = var.data_credential_arn
   deployment_credential_arn = var.deployment_credential_arn
   additional_clusters       = var.additional_clusters
-  virtual_cluster           = var.virtual_cluster
   tags                      = var.tags
   core_version              = var.core_version
   table_name_case_sensitive = var.table_name_case_sensitive
@@ -59,10 +58,6 @@ output "initial_cluster_id" {
 
 output "additional_cluster_ids" {
   value = module.velodb_byoc.additional_cluster_ids
-}
-
-output "virtual_cluster" {
-  value = module.velodb_byoc.virtual_cluster
 }
 
 output "aws_resources_managed" {

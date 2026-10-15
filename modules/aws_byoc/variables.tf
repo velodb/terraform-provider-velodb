@@ -187,31 +187,6 @@ variable "additional_clusters" {
   }
 }
 
-variable "virtual_cluster" {
-  description = "Optional virtual cluster using the initial cluster and additional_clusters map keys. Set null to leave it unmanaged."
-  type = object({
-    name                        = string
-    desired_active_cluster_key  = string
-    desired_standby_cluster_key = string
-    pair_reconcile_trigger      = optional(number)
-  })
-  default = null
-
-  validation {
-    condition = var.virtual_cluster == null || (
-      length(var.virtual_cluster.name) <= 32 &&
-      can(regex("^[A-Za-z][A-Za-z0-9_]*$", var.virtual_cluster.name)) &&
-      !strcontains(var.virtual_cluster.name, "__")
-    )
-    error_message = "virtual_cluster.name must start with a letter, contain at most 32 letters, numbers, or nonconsecutive underscores."
-  }
-
-  validation {
-    condition     = var.virtual_cluster == null || var.virtual_cluster.desired_active_cluster_key != var.virtual_cluster.desired_standby_cluster_key
-    error_message = "virtual_cluster must use two distinct physical-cluster keys."
-  }
-}
-
 variable "tags" {
   description = "Additional tags for AWS resources and the VeloDB warehouse."
   type        = map(string)

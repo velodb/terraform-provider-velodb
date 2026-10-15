@@ -87,13 +87,34 @@ additional_clusters = {
 Keep the map keys stable. Change `name` to rename a cluster; remove a map entry
 to delete only that additional cluster.
 
-To also manage a virtual cluster, put its active and standby physical clusters
-in different zones and set `virtual_cluster` as shown in
-`terraform.tfvars.example`. Use `initial` for the warehouse's first cluster or
-an `additional_clusters` map key. The `virtual_cluster` output includes its ID,
-observed roles, status, and risk reasons. Set `virtual_cluster = null` to delete
-only the virtual cluster; review the destroy plan because routing and automatic
-failover end when it is removed.
+To also manage a virtual cluster, use a provider release containing
+`velodb_virtual_cluster`, configure three availability zones, and copy the
+optional resource example:
+
+```bash
+cp virtual_cluster.tf.example virtual_cluster.tf
+```
+
+The example creates a standalone physical standby cluster, then links its ID
+and the BYOC initial-cluster ID to the virtual cluster. Terraform creates
+everything in one apply without copying IDs.
+Edit the ID expressions to select another cluster or supply an existing ID.
+The `virtual_cluster` output reports its configuration, live roles, and health.
+To delete only the virtual cluster, remove its `resource "velodb_virtual_cluster"
+"main"` block, the `output "virtual_cluster"` block, and the `moved` block from
+`virtual_cluster.tf`. Keep the physical cluster blocks in that file. Run
+`terraform plan -out=delete-vc.tfplan`, check that only the virtual cluster is
+marked for destruction, then run `terraform apply delete-vc.tfplan`. The
+physical clusters and warehouse remain; routing and automatic failover through
+the virtual cluster end. Restore the resource and output blocks from the
+template to create a new virtual cluster later.
+
+The template's `moved` block migrates existing state from the earlier counted
+address `velodb_virtual_cluster.main[0]` to `velodb_virtual_cluster.main`
+without recreating the cluster. Review the first plan after updating the
+configuration. Remove the `moved` block along with the resource when deleting
+the virtual cluster. Removing the whole `virtual_cluster.tf` file also deletes
+its physical standby.
 
 ## Create the warehouse
 
