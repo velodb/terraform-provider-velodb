@@ -89,3 +89,7 @@ Import uses the composite ID `warehouse_id/endpoint_id`:
 ```shell
 terraform import velodb_warehouse_private_endpoint.example AWVAR706/vpce-0abc123def456
 ```
+
+Required inputs `warehouse_id` and `endpoint_id`
+must not be empty or contain leading or trailing whitespace. Known invalid
+values fail configuration validation before API requests.

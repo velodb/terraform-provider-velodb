@@ -11,9 +11,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/velodb/terraform-provider-velodb/internal/client"
+	"github.com/velodb/terraform-provider-velodb/internal/validation"
 )
 
 var (
@@ -63,6 +65,7 @@ func (r *WarehousePrivateEndpointResource) Schema(_ context.Context, _ resource.
 			"warehouse_id": schema.StringAttribute{
 				Description: "Warehouse identifier.",
 				Required:    true,
+				Validators:  []validator.String{validation.TrimmedNonEmpty{}},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},
@@ -70,6 +73,7 @@ func (r *WarehousePrivateEndpointResource) Schema(_ context.Context, _ resource.
 			"endpoint_id": schema.StringAttribute{
 				Description: "Cloud-side PrivateLink endpoint identifier.",
 				Required:    true,
+				Validators:  []validator.String{validation.TrimmedNonEmpty{}},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
 				},

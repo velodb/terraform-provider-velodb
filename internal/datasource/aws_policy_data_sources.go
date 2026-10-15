@@ -8,6 +8,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+
+	"github.com/velodb/terraform-provider-velodb/internal/validation"
 )
 
 var (
@@ -93,7 +95,7 @@ func (d *AWSCrossAccountPolicyDataSource) Schema(_ context.Context, _ datasource
 			"bucket_name": schema.StringAttribute{
 				Description: "S3 bucket used by the BYOC warehouse.",
 				Required:    true,
-				Validators:  []validator.String{stringvalidator.LengthAtLeast(1)},
+				Validators:  []validator.String{validation.S3BucketName{}},
 			},
 			"data_credential_arn": schema.StringAttribute{
 				Description: "AWS IAM instance-profile ARN used by warehouse instances.",
@@ -192,7 +194,7 @@ func (d *AWSDataAccessPolicyDataSource) Schema(_ context.Context, _ datasource.S
 			"bucket_name": schema.StringAttribute{
 				Description: "S3 bucket used by the BYOC warehouse.",
 				Required:    true,
-				Validators:  []validator.String{stringvalidator.LengthAtLeast(1)},
+				Validators:  []validator.String{validation.S3BucketName{}},
 			},
 			"role_arn": schema.StringAttribute{
 				Description: "AWS IAM data-access role ARN.",

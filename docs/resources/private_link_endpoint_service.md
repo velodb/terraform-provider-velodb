@@ -102,3 +102,7 @@ resource "velodb_private_link_endpoint_service" "corp" {
 ```shell
 terraform import velodb_private_link_endpoint_service.example <endpoint_service_id>
 ```
+
+Required inputs `cloud_provider`, `region`, `endpoint_service_id`, and `endpoint_service_name`
+must not be empty or contain leading or trailing whitespace. Known invalid
+values fail configuration validation before API requests.
