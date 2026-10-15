@@ -54,11 +54,19 @@ deployment_credential_arn = "arn:aws:iam::123456789012:role/velodb-deployment"
 additional_clusters = {
   analytics = {
     name         = "production_analytics"
-    zone         = "us-east-1a"
+    zone         = "us-east-1b"
     compute_vcpu = 8
     cache_gb     = 200
   }
 }
+
+# Optional: mount the initial cluster and analytics as a virtual cluster.
+# Keep the two clusters in different availability zones.
+# virtual_cluster = {
+#   name                        = "production_vc"
+#   desired_active_cluster_key  = "initial"
+#   desired_standby_cluster_key = "analytics"
+# }
 
 # ---------------------------------------------------------------------------
 # Warehouse options (optional)

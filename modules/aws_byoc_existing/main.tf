@@ -238,3 +238,45 @@ resource "velodb_cluster" "additional" {
     }
   }
 }
+
+locals {
+  virtual_cluster_ids = merge(
+    { initial = velodb_warehouse.this.initial_cluster_id },
+    { for key, cluster in velodb_cluster.additional : key => cluster.id },
+  )
+  virtual_cluster_zones = merge(
+    { initial = local.zone },
+    { for key, cluster in var.additional_clusters : key => coalesce(cluster.zone, local.zone) },
+  )
+}
+
+resource "velodb_virtual_cluster" "this" {
+  count = var.virtual_cluster == null ? 0 : 1
+
+  warehouse_id               = velodb_warehouse.this.id
+  name                       = var.virtual_cluster.name
+  desired_active_cluster_id  = lookup(local.virtual_cluster_ids, var.virtual_cluster.desired_active_cluster_key, null)
+  desired_standby_cluster_id = lookup(local.virtual_cluster_ids, var.virtual_cluster.desired_standby_cluster_key, null)
+  pair_reconcile_trigger     = var.virtual_cluster.pair_reconcile_trigger
+
+  lifecycle {
+    precondition {
+      condition     = !contains(keys(var.additional_clusters), "initial")
+      error_message = "additional_clusters key initial is reserved for the warehouse's first cluster when virtual_cluster is enabled."
+    }
+    precondition {
+      condition = (
+        contains(keys(local.virtual_cluster_ids), var.virtual_cluster.desired_active_cluster_key) &&
+        contains(keys(local.virtual_cluster_ids), var.virtual_cluster.desired_standby_cluster_key)
+      )
+      error_message = "virtual_cluster member keys must be initial or keys in additional_clusters."
+    }
+    precondition {
+      condition = try(
+        local.virtual_cluster_zones[var.virtual_cluster.desired_active_cluster_key] != local.virtual_cluster_zones[var.virtual_cluster.desired_standby_cluster_key],
+        false,
+      )
+      error_message = "virtual_cluster active and standby clusters must be in different availability zones."
+    }
+  }
+}

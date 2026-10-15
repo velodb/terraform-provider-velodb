@@ -55,6 +55,14 @@ additional_clusters = {
 Keep the map keys stable. `zone` defaults to the first configured zone. Change
 `name` to rename a cluster; remove a map entry to delete only that cluster.
 
+To also manage a virtual cluster, put its active and standby physical clusters
+in different zones and set `virtual_cluster` as shown in
+`terraform.tfvars.example`. Use `initial` for the warehouse's first cluster or
+an `additional_clusters` map key. The `virtual_cluster` output includes its ID,
+observed roles, status, and risk reasons. Set `virtual_cluster = null` to delete
+only the virtual cluster; review the destroy plan because routing and automatic
+failover end when it is removed.
+
 Do not run `terraform import` for the existing AWS resources. Importing them
 would make Terraform manage their lifecycle, including replacement or deletion.
 
