@@ -110,6 +110,20 @@ public_access_policy = {
 Destroy removes the warehouse and its VeloDB registrations. All AWS resources
 remain and must be removed separately by their owner if no longer needed.
 
+## S3 bucket name validation
+
+`bucket_name` must be 3–63 characters using lowercase letters, numbers, periods,
+or hyphens, and must start and end with a letter or number. Adjacent periods,
+IP address formats, and AWS reserved prefixes/suffixes are rejected. For example,
+`velodb-data` is valid; `-velodb-data` is rejected before infrastructure changes.
+See the [AWS bucket naming rules](https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html).
+
+The provider validates known bucket names during `terraform validate` and the
+configuration validation phase of `terraform plan`/`apply`. Both BYOC modules
+also validate the input variable when its value is known. Values derived from
+other resources are checked once Terraform resolves them. This syntax check
+does not verify bucket availability, ownership, permissions, or namespace.
+
 ## Immutable warehouse infrastructure
 
 Once created, warehouse infrastructure inputs cannot be edited in place. The
@@ -135,3 +149,20 @@ Warehouse refresh and import recover `credential_id` and `network_config_id` whe
 the backend returns `credentialId` and `networkConfigId`. Older backends retain
 known bindings in state. Changes to known bindings are rejected without replacing
 the warehouse.
+
+## Input validation
+
+Administrator passwords must be 8–20 characters, contain at least three of
+uppercase letters, lowercase letters, digits, and special characters, and use
+only ASCII letters, digits, and these special characters:
+
+```text
+!@#$%^&*()_+{}[]:;<>,.?~\-
+```
+
+Known invalid passwords fail configuration validation without including the
+password in error messages. Both BYOC modules require a valid password for warehouse creation.
+
+`region` must not be empty or contain leading or trailing whitespace.
+The required existing `endpoint_id` must also be nonempty with no leading or
+trailing whitespace.

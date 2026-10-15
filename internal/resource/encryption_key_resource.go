@@ -20,6 +20,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/velodb/terraform-provider-velodb/internal/client"
+	"github.com/velodb/terraform-provider-velodb/internal/validation"
 )
 
 var (
@@ -78,7 +79,7 @@ func (r *EncryptionKeyResource) Schema(_ context.Context, _ resource.SchemaReque
 			"name": schema.StringAttribute{
 				Description:   "Encryption key configuration name. Unique within the organization.",
 				Required:      true,
-				Validators:    []validator.String{stringvalidator.LengthBetween(1, 32)},
+				Validators:    []validator.String{stringvalidator.LengthBetween(1, 32), validation.TrimmedNonEmpty{}},
 				PlanModifiers: replaceStr,
 			},
 			"key_arn": schema.StringAttribute{

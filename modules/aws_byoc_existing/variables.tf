@@ -1,11 +1,29 @@
 variable "region" {
   description = "AWS region containing the existing BYOC infrastructure."
   type        = string
+  nullable    = false
+
+  validation {
+    condition     = var.region != "" && var.region == trimspace(var.region)
+    error_message = "region must not be empty or contain leading or trailing whitespace."
+  }
 }
 
 variable "bucket_name" {
   description = "Existing S3 bucket name. This module does not manage or delete it."
   type        = string
+  nullable    = false
+
+  validation {
+    condition = (
+      can(regex("^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$", var.bucket_name)) &&
+      !strcontains(var.bucket_name, "..") &&
+      !can(regex("^[0-9]{1,3}(\\.[0-9]{1,3}){3}$", var.bucket_name)) &&
+      !can(regex("^(xn--|sthree-|amzn-s3-demo-)", var.bucket_name)) &&
+      !can(regex("(-s3alias|--ol-s3|\\.mrap|--x-s3|--table-s3)$", var.bucket_name))
+    )
+    error_message = "bucket_name must be a valid S3 bucket name: 3–63 lowercase letters, numbers, periods, or hyphens; start and end with a letter or number; no adjacent periods, IP address format, or AWS reserved prefixes/suffixes."
+  }
 }
 
 variable "name_prefix" {
@@ -22,6 +40,15 @@ variable "admin_password" {
   description = "Warehouse administrator password."
   type        = string
   sensitive   = true
+  nullable    = false
+
+  validation {
+    condition = (
+      can(regex("^[A-Za-z0-9!@#$%^&*()_+{}\\[\\]:;<>,.?~\\\\-]{8,20}$", var.admin_password)) &&
+      length([for pattern in ["[A-Z]", "[a-z]", "[0-9]", "[^A-Za-z0-9]"] : pattern if can(regex(pattern, var.admin_password))]) >= 3
+    )
+    error_message = "admin_password must be 8–20 characters using only letters, digits, and !@#$%^&*()_+{}[]:;<>,.?~\\-; include at least three of uppercase letters, lowercase letters, digits, and special characters."
+  }
 }
 
 variable "vpc_id" {
@@ -47,6 +74,12 @@ variable "security_group_id" {
 variable "endpoint_id" {
   description = "Existing VeloDB interface VPC endpoint ID. This module does not manage or delete it."
   type        = string
+  nullable    = false
+
+  validation {
+    condition     = var.endpoint_id != "" && var.endpoint_id == trimspace(var.endpoint_id)
+    error_message = "endpoint_id must not be empty or contain leading or trailing whitespace."
+  }
 }
 
 variable "data_credential_arn" {

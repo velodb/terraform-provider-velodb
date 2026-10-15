@@ -400,3 +400,17 @@ Explicit destruction remains supported.
 API responses using the legacy `WHITELIST_ONLY` value are normalized to
 `ALLOWLIST_ONLY` on refresh, preserving allowlist rules. Continue using
 `ALLOWLIST_ONLY` in Terraform configuration; requests use the current enum name.
+
+## Password validation
+
+Administrator passwords must be 8–20 characters, contain at least three of
+uppercase letters, lowercase letters, digits, and special characters, and use
+only ASCII letters, digits, and these special characters:
+
+```text
+!@#$%^&*()_+{}[]:;<>,.?~\-
+```
+
+Known invalid passwords fail configuration validation without including the
+password in error messages. The provider applies this check to creation and
+password rotation; an omitted password remains supported for import.

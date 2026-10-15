@@ -22,6 +22,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
 	"github.com/velodb/terraform-provider-velodb/internal/client"
+	"github.com/velodb/terraform-provider-velodb/internal/validation"
 )
 
 var (
@@ -84,7 +85,7 @@ func (r *BYOCNetworkResource) Schema(_ context.Context, _ resource.SchemaRequest
 			"name": schema.StringAttribute{
 				Description:   "Network configuration name.",
 				Required:      true,
-				Validators:    []validator.String{stringvalidator.LengthBetween(1, 32)},
+				Validators:    []validator.String{stringvalidator.LengthBetween(1, 32), validation.TrimmedNonEmpty{}},
 				PlanModifiers: replace,
 			},
 			"credential_id": schema.Int64Attribute{

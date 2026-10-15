@@ -22,6 +22,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/velodb/terraform-provider-velodb/internal/client"
+	"github.com/velodb/terraform-provider-velodb/internal/validation"
 )
 
 var (
@@ -273,6 +274,7 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				Description: "Administrator password. Write-only in the API and preserved as sensitive Terraform state so password rotation can be detected.",
 				Optional:    true,
 				Sensitive:   true,
+				Validators:  []validator.String{validation.AdminPassword{}},
 			},
 			"admin_password_version": schema.Int64Attribute{
 				Description: "Increment to trigger a password change.",
