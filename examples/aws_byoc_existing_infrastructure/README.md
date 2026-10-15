@@ -68,17 +68,21 @@ and the BYOC initial-cluster ID to the virtual cluster. Terraform creates
 everything in one apply without copying IDs.
 Edit the ID expressions to select another cluster or supply an existing ID.
 The `virtual_cluster` output reports its configuration, live roles, and health.
-To delete only the virtual cluster, save `enable_virtual_cluster = false` in
-`terraform.tfvars`, review `terraform plan`, and run `terraform apply`. The
-physical clusters and warehouse remain, and the virtual-cluster output becomes
-null. Routing and automatic failover through the virtual cluster end. Setting
-the flag back to true creates a new virtual cluster. Keep the false setting in
-configuration so the next apply does not recreate it.
+To delete only the virtual cluster, remove its `resource "velodb_virtual_cluster"
+"main"` block, the `output "virtual_cluster"` block, and the `moved` block from
+`virtual_cluster.tf`. Keep the physical cluster blocks in that file. Run
+`terraform plan -out=delete-vc.tfplan`, check that only the virtual cluster is
+marked for destruction, then run `terraform apply delete-vc.tfplan`. The
+physical clusters and warehouse remain; routing and automatic failover through
+the virtual cluster end. Restore the resource and output blocks from the
+template to create a new virtual cluster later.
 
-The example includes a `moved` block for earlier configurations that used
-`velodb_virtual_cluster.main` without `count`. With the flag true, the first
-plan should move it to `velodb_virtual_cluster.main[0]` without recreating it.
-Removing the whole `virtual_cluster.tf` file also deletes its physical standby.
+The template's `moved` block migrates existing state from the earlier counted
+address `velodb_virtual_cluster.main[0]` to `velodb_virtual_cluster.main`
+without recreating the cluster. Review the first plan after updating the
+configuration. Remove the `moved` block along with the resource when deleting
+the virtual cluster. Removing the whole `virtual_cluster.tf` file also deletes
+its physical standby.
 
 Do not run `terraform import` for the existing AWS resources. Importing them
 would make Terraform manage their lifecycle, including replacement or deletion.
