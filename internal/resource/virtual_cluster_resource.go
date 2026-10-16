@@ -195,8 +195,11 @@ func (r *VirtualClusterResource) Create(ctx context.Context, req resource.Create
 		StandbyClusterID: plan.DesiredStandbyClusterID.ValueString(),
 	})
 	if err != nil {
-		title, detail := userError("creating virtual cluster", err)
-		resp.Diagnostics.AddError(title, detail+"\n\nIf the request may have been accepted, list virtual clusters and import the matching ID before retrying creation.")
+		resp.Diagnostics.AddError("Error creating virtual cluster", fmt.Sprintf(
+			"%v\n\nIf the request may have been accepted, inspect virtual clusters in warehouse %q for name %q and the requested members. "+
+				"Import the confirmed match with `terraform import <resource_address> %s/<virtual_cluster_id>` before retrying creation. "+
+				"If no match is visible, investigate the request ID with support; do not retry creation blindly.",
+			err, warehouseID, plan.Name.ValueString(), warehouseID))
 		return
 	}
 

@@ -56,7 +56,7 @@ func (c *FormationClient) CreateVirtualCluster(ctx context.Context, warehouseID 
 		return nil, err
 	}
 	if result.Data.VirtualClusterID == "" {
-		return nil, fmt.Errorf("creating virtual cluster: response has no virtualClusterId")
+		return nil, withRequestID(fmt.Errorf("creating virtual cluster: response has no virtualClusterId"), resp.Request)
 	}
 	return &result.Data, nil
 }

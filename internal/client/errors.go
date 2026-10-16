@@ -24,7 +24,7 @@ func (e *APIError) UserMessage() string {
 	base := e.Error()
 	switch {
 	case e.StatusCode == http.StatusAccepted:
-		return base + "\n\nThe operation is still processing and did not return a resource ID. Retry after it completes."
+		return base + "\n\nThe request is still processing and its outcome is not confirmed. Inspect the resource and request ID before retrying; a new apply may send a new request ID."
 	case e.StatusCode == 401:
 		return base + "\n\nAuthentication failed — verify your api_key is correct and not expired."
 	case e.StatusCode == 403:
@@ -41,6 +41,20 @@ func (e *APIError) UserMessage() string {
 	default:
 		return base + "\n\nFix the configuration and re-run terraform apply."
 	}
+}
+
+func withRequestID(err error, req *http.Request) error {
+	if err == nil || req == nil || req.Header.Get("RequestId") == "" {
+		return err
+	}
+	requestID := req.Header.Get("RequestId")
+	if apiErr, ok := err.(*APIError); ok {
+		if apiErr.RequestID == "" {
+			apiErr.RequestID = requestID
+		}
+		return err
+	}
+	return fmt.Errorf("%w (requestId=%s)", err, requestID)
 }
 
 // IsNotFound returns true if the error indicates the resource was not found.
@@ -67,9 +81,12 @@ func (e *APIError) IsRateLimited() bool {
 
 // parseResponse reads an HTTP response and decodes the JSON body into result.
 // It returns an APIError for non-2xx responses.
-func parseResponse[T any](resp *http.Response, result *T) error {
+func parseResponse[T any](resp *http.Response, result *T) (err error) {
 	// Closing a consumed response must not replace the API or decoding error.
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		_ = resp.Body.Close()
+		err = withRequestID(err, resp.Request)
+	}()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("reading response body: %w", err)
