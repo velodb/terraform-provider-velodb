@@ -541,8 +541,21 @@ func (r *ClusterResource) Delete(ctx context.Context, req resource.DeleteRequest
 	clusterID := state.ID.ValueString()
 
 	if err := r.client.DeleteCluster(ctx, warehouseID, clusterID); err != nil {
-		if apiErr, ok := err.(*client.APIError); ok && apiErr.IsNotFound() {
-			return
+		var apiErr *client.APIError
+		if errors.As(err, &apiErr) {
+			if apiErr.IsNotFound() {
+				return
+			}
+			if apiErr.IsConflict() {
+				resp.Diagnostics.AddError("Error deleting cluster", apiErr.Error()+"\n\n"+
+					"If this cluster is still bound to a virtual cluster, keep or restore its Terraform declaration, "+
+					"apply the virtual-cluster pair update to detach it, then remove the old physical cluster in a later apply. "+
+					"Retrying an unchanged plan cannot fix dependency ordering. For future replacements, set "+
+					"lifecycle { create_before_destroy = true } on physical members and apply it before removing their declarations. "+
+					"Use a distinct replacement name and allow capacity for both clusters. "+
+					"For other conflicts, resolve the operation reported by the API before retrying.")
+				return
+			}
 		}
 		resp.Diagnostics.AddError(userError("deleting cluster", err))
 		return

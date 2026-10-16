@@ -46,6 +46,57 @@ routing and automatic failover. If relevant users have no default cluster,
 their requests through the deleted virtual cluster will fail. Review the
 destroy plan before applying.
 
+## Replacing physical members
+
+A bound physical cluster cannot be deleted. Without lifecycle ordering,
+Terraform can try to delete the old member before updating the virtual-cluster
+pair and receive `409 OperationConflict`; retrying the same plan can fail again.
+The provider cannot reorder Terraform's dependency graph from its delete call.
+
+Set this on each independently managed physical member (`velodb_cluster`):
+
+```terraform
+lifecycle {
+  create_before_destroy = true
+}
+```
+
+Both BYOC modules include this rule for `additional_clusters`. For an existing
+deployment, first apply the updated module or lifecycle rule while keeping the
+current members and desired pair IDs unchanged. Terraform records the lifecycle
+rule in state even if no API writes are required. Do this **before** removing an
+outgoing declaration or map key; adding the rule only to its replacement does
+not protect the outgoing member.
+
+For a replacement at the same resource address, keep the rule and change the
+replacement-triggering attribute (for example, `zone`) together with the name.
+Choose a name distinct from the old name ignoring case, allow capacity for both
+physical clusters, and keep the replacement in a zone different from its partner.
+Changing only `name` performs a rename, not a replacement. Reference the managed
+member's `.id` in the virtual-cluster pair so Terraform can order creation,
+pair update, then deletion of the old member. Literal IDs do not establish this
+dependency. Review the plan: the virtual cluster must retain its ID.
+
+For migration to a new resource address or `additional_clusters` key, the
+outgoing member must already have this lifecycle rule recorded in state. If
+that cannot be established, use two applies: keep both physical declarations,
+create the new member and update the pair, then remove the old declaration
+after the pair update completes. This also works when the new member already
+exists. The warehouse's initial cluster has its own lifecycle; this rule does
+not make replacing the warehouse safe.
+
+If an apply already failed to delete a bound member:
+
+1. Keep or restore the old physical declaration or map entry with its original
+   settings. Retain any replacement already created and tracked in state.
+2. Point the desired pair at the replacement and apply while both physical
+   declarations remain. Verify the live pair no longer contains the old ID.
+3. Remove the detached old declaration and apply again. Confirm the virtual
+   cluster retains its ID and the final plan is empty.
+
+Do not remove state, recreate the virtual cluster, or manually delete a bound
+member to work around ordering. Resolve other reported conflicts separately.
+
 ## Arguments
 
 - `warehouse_id` (required): Parent warehouse ID. Moving to another warehouse
@@ -111,6 +162,10 @@ resource "velodb_cluster" "standby" {
   zone         = "us-east-1b"
   compute_vcpu = 4
   cache_gb     = 100
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "velodb_virtual_cluster" "main" {

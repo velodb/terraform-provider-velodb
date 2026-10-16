@@ -455,6 +455,8 @@ resource "velodb_cluster" "additional" {
   }
 
   lifecycle {
+    create_before_destroy = true
+
     precondition {
       condition     = contains(var.zones, coalesce(each.value.zone, local.zone))
       error_message = "Additional cluster ${each.key} must use one of the zones configured for this warehouse."
