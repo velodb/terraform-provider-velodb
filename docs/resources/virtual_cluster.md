@@ -58,6 +58,16 @@ Import with `warehouse_id/virtual_cluster_id`:
 terraform import velodb_virtual_cluster.main WAREHOUSE_ID/VIRTUAL_CLUSTER_ID
 ```
 
+If creation returns `202 Processing`, the provider retries with the same
+`RequestId` and request body, subject to its existing retry limit and timeouts.
+If it still cannot obtain the virtual-cluster ID, the error includes the
+request ID for investigation. Check the warehouse for the requested name and
+members, and import only a confirmed match before attempting creation again.
+If no match is visible, investigate the request ID with support; a failed
+create can be hidden from GET and list responses, so absence does not prove
+cleanup completed. These retries do not provide complete recovery when the
+backend loses the association between the request and the created cluster.
+
 ## Linking to BYOC module outputs
 
 For managed AWS BYOC deployments, the

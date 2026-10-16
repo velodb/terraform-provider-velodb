@@ -14,14 +14,14 @@ import (
 // formationTransport is a custom http.RoundTripper that handles:
 // - X-API-Key authentication header injection
 // - RequestId idempotency header for write operations
-// - Retry with exponential backoff for 429 and 503 responses
+// - Retry with exponential backoff for 429, 503, and writes still processing (202)
 type formationTransport struct {
 	base       http.RoundTripper
 	apiKey     string
 	maxRetries int
 }
 
-func (t *formationTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+func (t *formationTransport) RoundTrip(req *http.Request) (resp *http.Response, err error) {
 	// Inject auth header
 	req.Header.Set("X-API-Key", t.apiKey)
 	if req.Header.Get("Content-Type") == "" {
@@ -32,10 +32,9 @@ func (t *formationTransport) RoundTrip(req *http.Request) (*http.Response, error
 	if isWriteMethod(req.Method) && req.Header.Get("RequestId") == "" {
 		req.Header.Set("RequestId", uuid.NewString())
 	}
+	defer func() { err = withRequestID(err, req) }()
 
 	// Execute with retry + backoff
-	var resp *http.Response
-	var err error
 	for attempt := 0; attempt <= t.maxRetries; attempt++ {
 		if attempt > 0 {
 			if req.Body != nil {
@@ -63,7 +62,7 @@ func (t *formationTransport) RoundTrip(req *http.Request) (*http.Response, error
 			}
 			continue // network error, retry
 		}
-		if !isRetryableStatus(resp.StatusCode) {
+		if !isRetryableStatus(req.Method, resp.StatusCode) {
 			break
 		}
 		if attempt < t.maxRetries && resp.Body != nil {
@@ -78,8 +77,8 @@ func isWriteMethod(method string) bool {
 	return method == http.MethodPost || method == http.MethodPatch || method == http.MethodDelete || method == http.MethodPut
 }
 
-func isRetryableStatus(status int) bool {
-	return status == 429 || status == 503
+func isRetryableStatus(method string, status int) bool {
+	return status == 429 || status == 503 || (isWriteMethod(method) && status == http.StatusAccepted)
 }
 
 func backoffDuration(attempt int, resp *http.Response) time.Duration {

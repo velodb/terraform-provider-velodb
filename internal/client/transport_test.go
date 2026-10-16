@@ -2,11 +2,44 @@ package client
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
 )
+
+func TestTransportProcessingRespectsCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	c := NewFormationClient("localhost", "test-key", 5, 0)
+	requestID, calls := "", 0
+	body := &trackedReadCloser{Reader: strings.NewReader(`{"data":{"status":"processing"}}`)}
+	c.HTTPClient.Transport.(*formationTransport).base = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		calls++
+		requestID = req.Header.Get("RequestId")
+		cancel()
+		return &http.Response{StatusCode: http.StatusAccepted, Header: http.Header{"Retry-After": []string{"3600"}}, Body: body, Request: req}, nil
+	})
+	_, err := c.CreateVirtualCluster(ctx, "w-1", &CreateVirtualClusterRequest{Name: "production", ActiveClusterID: "a", StandbyClusterID: "b"})
+	if !errors.Is(err, context.Canceled) || requestID == "" || !strings.Contains(err.Error(), requestID) || calls != 1 || !body.closed {
+		t.Fatalf("processing retry must honor cancellation and retain request ID: calls=%d closed=%t error=%v", calls, body.closed, err)
+	}
+}
+
+func TestTransportDoesNotRetryAcceptedRead(t *testing.T) {
+	c := NewFormationClient("localhost", "test-key", 1, 0)
+	calls := 0
+	c.HTTPClient.Transport.(*formationTransport).base = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		calls++
+		return &http.Response{StatusCode: http.StatusAccepted, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`{}`)), Request: req}, nil
+	})
+	_, err := c.GetVirtualCluster(context.Background(), "w-1", "v-1")
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusAccepted || calls != 1 {
+		t.Fatalf("processing retries apply only to writes: calls=%d error=%v", calls, err)
+	}
+}
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
 

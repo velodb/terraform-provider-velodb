@@ -278,16 +278,32 @@ func TestVirtualClusterCreateKnownIDAndFailureRetainState(t *testing.T) {
 	for _, tc := range []struct {
 		name, status string
 		warning      bool
+		processing   bool
 	}{
 		{name: "running", status: "Running"},
 		{name: "at risk", status: "AtRisk"},
 		{name: "failed", status: "CreateFailed", warning: true},
+		{name: "processing then running", status: "Running", processing: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			posts, requestID := 0, ""
 			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				switch r.Method {
 				case http.MethodPost:
+					posts++
+					if posts == 1 {
+						requestID = r.Header.Get("RequestId")
+					}
+					if requestID == "" || r.Header.Get("RequestId") != requestID {
+						t.Error("create retry must preserve the request ID")
+					}
+					if tc.processing && posts == 1 {
+						w.Header().Set("Retry-After", "0")
+						w.WriteHeader(http.StatusAccepted)
+						_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]string{"status": "processing"}})
+						return
+					}
 					_ = json.NewEncoder(w).Encode(client.APIResponse[client.CreateVirtualClusterResult]{
 						Success: true, Data: client.CreateVirtualClusterResult{VirtualClusterID: "v-1"},
 					})
@@ -303,7 +319,7 @@ func TestVirtualClusterCreateKnownIDAndFailureRetainState(t *testing.T) {
 				}
 			}))
 			defer ts.Close()
-			r := &VirtualClusterResource{client: client.NewFormationClient(strings.TrimPrefix(ts.URL, "http://"), "key", 0, time.Second)}
+			r := &VirtualClusterResource{client: client.NewFormationClient(strings.TrimPrefix(ts.URL, "http://"), "key", 1, time.Second)}
 			ctx := context.Background()
 			state := virtualClusterTestState(t)
 			plan := virtualClusterTestModel()
@@ -324,12 +340,17 @@ func TestVirtualClusterCreateKnownIDAndFailureRetainState(t *testing.T) {
 				got.DesiredActiveClusterID.ValueString() != "c-a" || got.ActiveClusterID.ValueString() != "c-a" {
 				t.Fatalf("known created cluster must remain in state: %+v", got)
 			}
+			if tc.processing && posts != 2 {
+				t.Fatalf("expected one retry before saving the recovered ID, got %d posts", posts)
+			}
 		})
 	}
 }
 
 func TestVirtualClusterCreateWithoutIDReportsUncertainty(t *testing.T) {
+	requestID := ""
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestID = r.Header.Get("RequestId")
 		w.WriteHeader(http.StatusServiceUnavailable)
 		_ = json.NewEncoder(w).Encode(map[string]any{"code": "Unavailable", "message": "retry later"})
 	}))
@@ -344,8 +365,14 @@ func TestVirtualClusterCreateWithoutIDReportsUncertainty(t *testing.T) {
 	}
 	resp := resource.CreateResponse{State: state}
 	r.Create(ctx, resource.CreateRequest{Plan: tfsdk.Plan(state)}, &resp)
-	if !resp.Diagnostics.HasError() || !strings.Contains(resp.Diagnostics.Errors()[0].Detail(), "import") {
+	if !resp.Diagnostics.HasError() {
 		t.Fatalf("lost create ID must direct discovery/import before retry: %v", resp.Diagnostics)
+	}
+	detail := resp.Diagnostics.Errors()[0].Detail()
+	for _, expected := range []string{requestID, "production", "w-1", "terraform import <resource_address> w-1/<virtual_cluster_id>", "do not retry creation blindly"} {
+		if expected == "" || !strings.Contains(detail, expected) {
+			t.Fatalf("create recovery diagnostic missing %q: %s", expected, detail)
+		}
 	}
 }
 

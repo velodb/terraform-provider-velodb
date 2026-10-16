@@ -4,9 +4,99 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
+	"testing/iotest"
 )
+
+func TestCreateVirtualClusterRetriesProcessingWithSameRequest(t *testing.T) {
+	c := NewFormationClient("localhost", "test-key", 2, 0)
+	var requestID, requestBody string
+	var responseBodies []*trackedReadCloser
+	calls := 0
+	c.HTTPClient.Transport.(*formationTransport).base = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		calls++
+		body, err := io.ReadAll(req.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if calls == 1 {
+			requestID, requestBody = req.Header.Get("RequestId"), string(body)
+		}
+		if requestID == "" || req.Header.Get("RequestId") != requestID || string(body) != requestBody {
+			t.Fatal("retry must preserve the request ID and body")
+		}
+		status, payload := http.StatusAccepted, `{"success":true,"data":{"status":"processing"}}`
+		if calls == 3 {
+			status, payload = http.StatusCreated, `{"success":true,"data":{"virtualClusterId":"v-recovered"}}`
+		}
+		responseBody := &trackedReadCloser{Reader: strings.NewReader(payload)}
+		responseBodies = append(responseBodies, responseBody)
+		return &http.Response{StatusCode: status, Header: http.Header{"Retry-After": []string{"0"}}, Body: responseBody, Request: req}, nil
+	})
+	got, err := c.CreateVirtualCluster(context.Background(), "w-1", &CreateVirtualClusterRequest{Name: "production", ActiveClusterID: "a", StandbyClusterID: "b"})
+	if err != nil || got == nil || got.VirtualClusterID != "v-recovered" || calls != 3 {
+		t.Fatalf("create recovery: calls=%d result=%+v error=%v", calls, got, err)
+	}
+	for _, body := range responseBodies {
+		if !body.closed {
+			t.Fatal("retry and final response bodies must be closed")
+		}
+	}
+}
+
+func TestCreateVirtualClusterErrorsRetainRequestID(t *testing.T) {
+	for _, tc := range []struct {
+		name, payload string
+		status        int
+		bodyError     bool
+		networkError  bool
+	}{
+		{name: "truncated body", status: http.StatusCreated, bodyError: true},
+		{name: "invalid JSON", status: http.StatusCreated, payload: `{"data":`},
+		{name: "missing ID", status: http.StatusCreated, payload: `{"success":true,"data":{}}`},
+		{name: "processing exhausted", status: http.StatusAccepted, payload: `{"data":{"status":"processing"}}`},
+		{name: "API error without request ID", status: http.StatusInternalServerError, payload: `{"code":"InternalError"}`},
+		{name: "network error", networkError: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := NewFormationClient("localhost", "test-key", 1, 0)
+			requestID, calls := "", 0
+			c.HTTPClient.Transport.(*formationTransport).base = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				calls++
+				if requestID == "" {
+					requestID = req.Header.Get("RequestId")
+				}
+				if requestID != req.Header.Get("RequestId") {
+					t.Fatal("retry changed request ID")
+				}
+				if tc.networkError {
+					return nil, io.ErrUnexpectedEOF
+				}
+				var body io.Reader = strings.NewReader(tc.payload)
+				if tc.bodyError {
+					body = iotest.ErrReader(io.ErrUnexpectedEOF)
+				}
+				return &http.Response{StatusCode: tc.status, Header: http.Header{"Retry-After": []string{"0"}}, Body: io.NopCloser(body), Request: req}, nil
+			})
+			_, err := c.CreateVirtualCluster(context.Background(), "w-1", &CreateVirtualClusterRequest{Name: "production", ActiveClusterID: "a", StandbyClusterID: "b"})
+			if err == nil || requestID == "" || !strings.Contains(err.Error(), requestID) {
+				t.Fatalf("uncertain create must report request ID %q: %v", requestID, err)
+			}
+			if (tc.bodyError || tc.networkError) && !errors.Is(err, io.ErrUnexpectedEOF) {
+				t.Fatalf("underlying error lost: %v", err)
+			}
+			if tc.status == http.StatusAccepted {
+				apiErr, ok := err.(*APIError)
+				if !ok || apiErr.StatusCode != http.StatusAccepted || calls != 2 || strings.Contains(apiErr.UserMessage(), "Retry after it completes") {
+					t.Fatalf("exhausted processing must remain incomplete with safe recovery guidance: calls=%d error=%v", calls, err)
+				}
+			}
+		})
+	}
+}
 
 func TestVirtualClusterClientLifecycle(t *testing.T) {
 	ts, mux := newTestServer(t)
