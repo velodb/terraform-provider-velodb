@@ -55,6 +55,10 @@ resource "velodb_cluster" "standby" {
   zone         = "us-east-1b"
   compute_vcpu = 4
   cache_gb     = 100
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "velodb_virtual_cluster" "main" {
@@ -74,10 +78,21 @@ are read from the virtual-cluster resource; automatic failover does not
 trigger a reversal to the configured pair. Change `pair_reconcile_trigger`
 to explicitly reapply that pair.
 
-The ID references order creation after the physical clusters and deletion
-before their infrastructure. Apply a member replacement before removing the
-old physical cluster. Deleting the virtual-cluster resource ends its routing
-and automatic failover while leaving its physical clusters in place.
+Additional clusters managed by this module use `create_before_destroy` so a
+replacement can be created and attached to the virtual cluster before the old
+member is deleted. Standalone members need the lifecycle rule shown above.
+Existing deployments must first apply the updated module or lifecycle rule
+while keeping all current member declarations and pair IDs unchanged. This
+records the rule in state before an outgoing resource or map key is removed.
+A replacement needs a distinct name (ignoring case), spare capacity, and a zone
+different from its partner. Renaming a cluster alone does not replace it.
+
+If a bound-member deletion already failed, restore the old declaration, apply
+the pair update, then remove the old member in a later apply. See
+[Replacing physical members](../../docs/resources/virtual_cluster.md#replacing-physical-members)
+for the replacement and recovery procedure. Deleting the virtual-cluster
+resource ends its routing and automatic failover while leaving its physical
+clusters in place.
 
 If adopting this configuration from the earlier bundled virtual-cluster
 implementation, move its Terraform state to the separate resource before

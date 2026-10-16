@@ -25,6 +25,11 @@ Manages a COMPUTE cluster within a VeloDB Cloud warehouse.
 - Arbitrary `compute_vcpu` and `cache_gb` changes cannot be combined; when increasing CPU, set `cache_gb` to the API-implied minimum for the new CPU size
 - `compute_vcpu` minimum is 4, `cache_gb` minimum is `max(100, compute_vcpu * 25)`
 
+For members of a virtual cluster, configure `lifecycle { create_before_destroy = true }`
+before replacing or removing their declarations. Bound members cannot be deleted;
+see [Replacing physical members](virtual_cluster.md#replacing-physical-members)
+for the required preparatory apply, distinct replacement name, and recovery steps.
+
 ## Example Usage
 
 ### Basic COMPUTE cluster

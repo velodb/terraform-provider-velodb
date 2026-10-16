@@ -19,11 +19,14 @@ type virtualClusterMock struct {
 	current                              client.VirtualCluster
 	exists, pendingCreate, pendingDelete bool
 	creates, renames, updates, deletes   int
+	clusters                             map[string]client.ClusterDetail
+	clusterCreates                       int
+	events                               []string
 }
 
 func newVirtualClusterMock(t *testing.T) (*httptest.Server, *virtualClusterMock) {
 	t.Helper()
-	m := &virtualClusterMock{}
+	m := &virtualClusterMock{clusters: map[string]client.ClusterDetail{}}
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		m.mu.Lock()
 		defer m.mu.Unlock()
@@ -32,6 +35,10 @@ func newVirtualClusterMock(t *testing.T) (*httptest.Server, *virtualClusterMock)
 		if req.Header.Get("X-API-Key") != "test-api-key" || (req.Method != http.MethodGet && req.Header.Get("RequestId") == "") {
 			t.Error("request missing authentication or write idempotency header")
 			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		if strings.HasPrefix(req.URL.Path, "/v1/warehouses/w-test/clusters") {
+			m.servePhysicalCluster(t, w, req)
 			return
 		}
 		if req.Method == http.MethodPost && req.URL.Path == base {
@@ -89,6 +96,7 @@ func newVirtualClusterMock(t *testing.T) (*httptest.Server, *virtualClusterMock)
 			}
 			m.current.ActiveClusterID, m.current.StandbyClusterID = body.NewActiveClusterID, body.NewStandbyClusterID
 			m.updates++
+			m.events = append(m.events, "pair:"+body.NewStandbyClusterID)
 			writeJSONResponse(t, w, map[string]any{"success": true})
 		case req.Method == http.MethodDelete && req.URL.Path == base+"/v-test":
 			m.deletes++

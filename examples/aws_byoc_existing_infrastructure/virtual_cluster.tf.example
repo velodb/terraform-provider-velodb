@@ -7,6 +7,10 @@ resource "velodb_cluster" "standby" {
   zone         = sort(keys(var.subnet_ids_by_zone))[1]
   compute_vcpu = 4
   cache_gb     = 100
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "velodb_virtual_cluster" "main" {

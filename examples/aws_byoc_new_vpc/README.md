@@ -99,6 +99,13 @@ The example creates a standalone physical standby cluster, then links its ID
 and the BYOC initial-cluster ID to the virtual cluster. Terraform creates
 everything in one apply without copying IDs.
 Edit the ID expressions to select another cluster or supply an existing ID.
+The physical-member template includes `create_before_destroy`. If you already
+copied it, add this lifecycle rule to the existing physical resource and apply
+while keeping the current members and pair IDs unchanged before replacing a
+member. Copying a new template does not update an existing configuration. See
+[Replacing physical members](../../docs/resources/virtual_cluster.md#replacing-physical-members)
+for naming, capacity, and recovery requirements.
+
 The `virtual_cluster` output reports its configuration, live roles, and health.
 To delete only the virtual cluster, remove its `resource "velodb_virtual_cluster"
 "main"` block, the `output "virtual_cluster"` block, and the `moved` block from
