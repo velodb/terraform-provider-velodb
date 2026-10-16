@@ -707,8 +707,8 @@ func TestGetWarehouseConnections(t *testing.T) {
 			RequestID: "req-013",
 			Data: WarehouseConnections{
 				PublicEndpoints: []ConnectionEndpoint{
-					{Protocol: "jdbc", Host: "wh-001.selectdbcloud.com", Port: 9030},
-					{Protocol: "http", Host: "wh-001.selectdbcloud.com", Port: 8030},
+					{Protocol: "jdbc", Host: "wh-001.velodbcloud.com", Port: 9030},
+					{Protocol: "http", Host: "wh-001.velodbcloud.com", Port: 8030},
 				},
 				PrivateEndpoints: []PrivateConnectionEndpoint{
 					{ConnectionEndpoint: ConnectionEndpoint{Protocol: "jdbc", Host: "wh-001.internal", Port: 9030}, EndpointID: "vpce-001"},
@@ -727,8 +727,8 @@ func TestGetWarehouseConnections(t *testing.T) {
 	if len(conns.PublicEndpoints) != 2 {
 		t.Fatalf("expected 2 public endpoints, got %d", len(conns.PublicEndpoints))
 	}
-	if conns.PublicEndpoints[0].Host != "wh-001.selectdbcloud.com" {
-		t.Errorf("expected host 'wh-001.selectdbcloud.com', got %q", conns.PublicEndpoints[0].Host)
+	if conns.PublicEndpoints[0].Host != "wh-001.velodbcloud.com" {
+		t.Errorf("expected host 'wh-001.velodbcloud.com', got %q", conns.PublicEndpoints[0].Host)
 	}
 	if conns.PublicEndpoints[0].Port != 9030 {
 		t.Errorf("expected port 9030, got %d", conns.PublicEndpoints[0].Port)

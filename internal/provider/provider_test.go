@@ -368,8 +368,8 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 			"requestId": "mock-conns",
 			"data": map[string]any{
 				"publicEndpoints": []map[string]any{
-					{"protocol": "jdbc", "host": "mock.selectdbcloud.com", "port": 9030},
-					{"protocol": "http", "host": "mock.selectdbcloud.com", "port": 8030},
+					{"protocol": "jdbc", "host": "mock.velodbcloud.com", "port": 9030},
+					{"protocol": "http", "host": "mock.velodbcloud.com", "port": 8030},
 				},
 				"privateEndpoints": []map[string]any{
 					{"protocol": "jdbc", "host": "mock.internal", "port": 9030, "endpointId": "vpce-mock"},
@@ -491,7 +491,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 				"totalCpu": 4, "totalDiskSizeGb": 100,
 			},
 			"connectionInfo": map[string]any{
-				"publicEndpoint": "cl-mock.selectdbcloud.com", "privateEndpoint": "cl-mock.internal", "listenerPort": 9030,
+				"publicEndpoint": "cl-mock.velodbcloud.com", "privateEndpoint": "cl-mock.internal", "listenerPort": 9030,
 			},
 			"autoPause": map[string]any{"enabled": true, "idleTimeoutMinutes": 15},
 		}
@@ -890,7 +890,7 @@ resource "velodb_cluster" "test" {
 					resource.TestCheckResourceAttr("velodb_cluster.test", "status", "Running"),
 					resource.TestCheckResourceAttr("velodb_cluster.test", "cluster_type", "COMPUTE"),
 					resource.TestCheckResourceAttr("velodb_cluster.test", "desired_state", "running"),
-					resource.TestCheckResourceAttr("velodb_cluster.test", "connection_info.0.public_endpoint", "cl-mock.selectdbcloud.com"),
+					resource.TestCheckResourceAttr("velodb_cluster.test", "connection_info.0.public_endpoint", "cl-mock.velodbcloud.com"),
 					resource.TestCheckResourceAttr("velodb_cluster.test", "connection_info.0.listener_port", "9030"),
 				),
 			},
@@ -1347,7 +1347,7 @@ data "velodb_warehouse_connections" "test" {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "public_endpoints.#", "2"),
 					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "public_endpoints.0.protocol", "jdbc"),
-					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "public_endpoints.0.host", "mock.selectdbcloud.com"),
+					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "public_endpoints.0.host", "mock.velodbcloud.com"),
 					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "public_endpoints.0.port", "9030"),
 					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "private_endpoints.#", "1"),
 					resource.TestCheckResourceAttr("data.velodb_warehouse_connections.test", "private_endpoints.0.endpoint_id", "vpce-mock"),

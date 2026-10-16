@@ -8,16 +8,31 @@ description: |-
 # velodb_virtual_cluster (Resource)
 
 Manages a virtual cluster backed by two physical compute clusters in different
-availability zones. The clusters must already belong to the same warehouse.
+availability zones. Both must already belong to the same warehouse.
+
+The two members are ordinary compute-cluster IDs — any two distinct clusters in
+the warehouse. One takes the active role and the other standby; the role is
+independent of which cluster is the warehouse's initial cluster.
 
 ```terraform
 resource "velodb_virtual_cluster" "main" {
-  warehouse_id               = velodb_warehouse.main.id
-  name                       = "production_vc"
+  warehouse_id = velodb_warehouse.main.id
+  name         = "production_vc"
+
+  # Any two distinct compute clusters in this warehouse. Here the warehouse's
+  # first cluster is active and a separately managed cluster is standby —
+  # either ID can be any compute cluster in the warehouse.
   desired_active_cluster_id  = velodb_warehouse.main.initial_cluster_id
   desired_standby_cluster_id = velodb_cluster.standby.id
 }
 ```
+
+Supply each member ID from whatever fits your configuration:
+
+- `velodb_warehouse.<name>.initial_cluster_id` — the warehouse's first cluster.
+- `velodb_cluster.<name>.id` — a cluster managed as a separate resource.
+- `module.<byoc>.initial_cluster_id` / `module.<byoc>.additional_cluster_ids[...]` — IDs returned by the BYOC modules.
+- A literal ID for a cluster created outside Terraform.
 
 Changing either desired cluster ID updates the requested pair. Terraform
 refreshes `active_cluster_id` and `standby_cluster_id` from the API, so an
@@ -45,10 +60,22 @@ destroy plan before applying.
 
 ## Read-only Attributes
 
-`id`, `active_cluster_id`, `standby_cluster_id`, `status`, `at_risk`,
-`risk_reasons`, `created_at`, and `updated_at` are read from the API.
-`risk_reasons` can be empty while the virtual cluster is outside `Running`;
-an empty set alone does not prove health.
+These are read from the API on every refresh and cannot be set in configuration:
+
+- `id`: Virtual-cluster identifier. Used with `warehouse_id` for import.
+- `active_cluster_id`: Physical cluster currently serving traffic. Reflects the
+  live role, which can differ from `desired_active_cluster_id` after a failover.
+- `standby_cluster_id`: Physical cluster currently held in reserve.
+- `status`: Lifecycle status reported by the backend, such as `Creating`,
+  `Running`, `AtRisk`, `Updating`, or `Deleting`. `Running` and `AtRisk` are the
+  ready states in which an update or delete can proceed.
+- `at_risk`: Whether the backend currently reports the pair as unable to provide
+  full high availability (for example, a member is unhealthy).
+- `risk_reasons`: Risk reason codes behind `at_risk`. This set can be empty while
+  the virtual cluster is outside `Running`, so an empty set alone does not prove
+  health — check `status` as well.
+- `created_at`, `updated_at`: Creation and last-update times in RFC 3339 format
+  when the API returns them.
 
 ## Import
 

@@ -252,7 +252,7 @@ func buildAWSCrossAccountPolicy(bucketName, instanceProfileARN string) (string, 
 
 // buildAWSKMSKeyPolicy builds the resource-based key policy a customer must
 // attach to the KMS key registered as a velodb_encryption_key. It mirrors the
-// statements VeloDB Cloud (selectdb-cloud-manager) validates:
+// statements VeloDB Cloud validates:
 //   - AllowVeloDBTdeAccess grants the data-access role the TDE actions.
 //   - AllowVeloDBEbsAccess grants the deployment role the EBS actions, scoped to
 //     EC2 via the kms:ViaService condition.

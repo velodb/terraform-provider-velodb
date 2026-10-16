@@ -42,8 +42,10 @@ Removing an entry deletes only that additional cluster.
 
 Create virtual clusters as separate `velodb_virtual_cluster` resources linked
 to this module's output IDs. Terraform resolves these IDs during apply, so the
-warehouse, physical clusters, and virtual cluster can be created together.
-Create a physical standby cluster in another zone and reference its ID:
+warehouse, physical clusters, and virtual cluster can be created together. The
+two members are any two distinct compute clusters in the warehouse; the active
+and standby roles are independent of which one is the initial cluster. Create a
+physical standby cluster in another zone and reference its ID:
 
 ```hcl
 resource "velodb_cluster" "standby" {
@@ -56,8 +58,11 @@ resource "velodb_cluster" "standby" {
 }
 
 resource "velodb_virtual_cluster" "main" {
-  warehouse_id               = module.velodb_byoc.warehouse_id
-  name                       = "production_vc"
+  warehouse_id = module.velodb_byoc.warehouse_id
+  name         = "production_vc"
+
+  # Either ID can be any compute cluster in the warehouse. Here the module's
+  # initial cluster is active and a separately managed cluster is standby.
   desired_active_cluster_id  = module.velodb_byoc.initial_cluster_id
   desired_standby_cluster_id = velodb_cluster.standby.id
 }

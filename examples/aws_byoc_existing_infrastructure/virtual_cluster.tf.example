@@ -10,8 +10,12 @@ resource "velodb_cluster" "standby" {
 }
 
 resource "velodb_virtual_cluster" "main" {
-  warehouse_id               = module.velodb_byoc.warehouse_id
-  name                       = "production_vc"
+  warehouse_id = module.velodb_byoc.warehouse_id
+  name         = "production_vc"
+
+  # Either ID can be any distinct compute cluster in the warehouse. Here the
+  # module's initial cluster is active and the cluster above is standby; the
+  # roles do not have to follow which cluster is the initial one.
   desired_active_cluster_id  = module.velodb_byoc.initial_cluster_id
   desired_standby_cluster_id = velodb_cluster.standby.id
 }

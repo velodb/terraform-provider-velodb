@@ -103,7 +103,7 @@ func mockCluster(id, warehouseID, name string) ClusterItem {
 			IdleTimeoutMinutes: &idleTimeout,
 		},
 		ConnectionInfo: &ClusterConnectionInfo{
-			PublicEndpoint:  fmt.Sprintf("%s.selectdbcloud.com", id),
+			PublicEndpoint:  fmt.Sprintf("%s.velodbcloud.com", id),
 			PrivateEndpoint: fmt.Sprintf("%s.internal", id),
 			ListenerPort:    9030,
 		},
