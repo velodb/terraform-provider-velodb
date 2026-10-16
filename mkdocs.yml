@@ -1,5 +1,5 @@
 site_name: VeloDB Terraform Provider
-site_description: Terraform provider for VeloDB Cloud (SelectDB Cloud)
+site_description: Terraform provider for VeloDB Cloud
 site_url: https://terraform-provider-velodb.pages.dev/
 repo_url: https://github.com/velodb/terraform-provider-velodb
 repo_name: velodb/terraform-provider-velodb
