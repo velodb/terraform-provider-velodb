@@ -111,9 +111,22 @@ func TestWarehouseImportReadUpdateLeaveInitialIdentityNull(t *testing.T) {
 	ctx := context.Background()
 	r := &WarehouseResource{client: client.NewFormationClient(strings.TrimPrefix(ts.URL, "http://"), "key", 0, time.Second)}
 	imported := resource.ImportStateResponse{State: warehouseIdentityTestState(t)}
+	if diags := imported.State.SetAttribute(ctx, path.Root("initial_cluster_id"), "stale-cached-member"); diags.HasError() {
+		t.Fatal(diags)
+	}
 	r.ImportState(ctx, resource.ImportStateRequest{ID: "w-existing"}, &imported)
 	if imported.Diagnostics.HasError() || len(imported.Diagnostics.Warnings()) != 1 {
-		t.Fatalf("import must succeed with unresolved-identity guidance: %v", imported.Diagnostics)
+		t.Fatalf("import must succeed with separate-cluster import guidance: %v", imported.Diagnostics)
+	}
+	if !strings.Contains(imported.Diagnostics.Warnings()[0].Detail(), "velodb_cluster") {
+		t.Fatalf("import guidance must explain how to manage ordinary physical clusters: %v", imported.Diagnostics)
+	}
+	var importedWarehouse WarehouseResourceModel
+	if diags := imported.State.Get(ctx, &importedWarehouse); diags.HasError() {
+		t.Fatal(diags)
+	}
+	if !importedWarehouse.InitialClusterID.IsNull() || !importedWarehouse.InitialCluster.IsNull() {
+		t.Fatalf("import must not assign a cached member or reconstruct initial-cluster creation settings: %+v", importedWarehouse)
 	}
 	read := resource.ReadResponse{State: imported.State}
 	r.Read(ctx, resource.ReadRequest{State: imported.State}, &read)

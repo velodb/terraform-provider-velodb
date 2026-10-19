@@ -197,11 +197,19 @@ An empty, denied, incomplete, malformed, or ambiguous result leaves the output
 null with a warning while retaining the created warehouse ID. Refresh and
 updates do not retry this inference.
 
-**Importing an existing warehouse leaves `initial_cluster_id` null.** This avoids
-selecting a newer member merely because it appears first in the cluster list.
-Use an explicitly verified physical cluster ID for physical-cluster imports and
-virtual-cluster membership. Names, list position, and the oldest surviving
-cluster do not establish historical identity. Existing nonnull values cached
+**Importing an existing warehouse leaves `initial_cluster_id` null.** Import
+does not designate an initial physical cluster or import its compute clusters.
+Existing compute clusters, including the one created with the warehouse, are
+ordinary physical clusters. Import a cluster separately as a `velodb_cluster`
+resource only if you want Terraform to manage its settings and lifecycle.
+Virtual-cluster membership can reference managed cluster IDs, explicitly select
+a cluster with the [`velodb_clusters` data source](../data-sources/clusters.md),
+or use a verified physical ID; physical-cluster import is not required just to
+reference a member. The `initial_cluster` block describes warehouse creation
+only; omit it when importing an existing warehouse.
+
+Names, list position, and the oldest surviving cluster do not establish
+historical identity. Existing nonnull values cached
 by older providers are preserved for compatibility and are not automatically
 verified or repaired; confirm the target before using them.
 
@@ -394,7 +402,7 @@ Optional:
 Import is supported using the following syntax:
 
 ```shell
-# Warehouses can be imported by specifying the warehouse ID.
+# This imports only the warehouse, without assigning an initial cluster.
 terraform import velodb_warehouse.example ALBJ07YE
 ```
 

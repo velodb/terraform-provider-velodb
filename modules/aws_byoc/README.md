@@ -42,8 +42,12 @@ Removing an entry deletes only that additional cluster.
 
 `initial_cluster_id` is captured on a best-effort basis during warehouse creation
 and remains null after importing an existing warehouse. Refresh does not infer
-it from current clusters. Use a verified physical ID when this output is null,
-and verify older cached IDs before using them for imports or pair membership.
+it from current clusters. Warehouse import does not import physical clusters.
+To manage an existing compute cluster, import it separately as a `velodb_cluster`
+resource. Virtual-cluster members can use managed resource IDs, explicit
+[`velodb_clusters` data-source lookups](../../docs/data-sources/clusters.md),
+or verified physical IDs without importing the physical resources.
+Verify older cached IDs before using them for imports or pair membership.
 See [Managing the Initial Cluster](../../docs/resources/warehouse.md#managing-the-initial-cluster).
 
 Create virtual clusters as separate `velodb_virtual_cluster` resources linked
