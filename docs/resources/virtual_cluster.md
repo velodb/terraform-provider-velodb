@@ -56,6 +56,19 @@ routing and automatic failover. If relevant users have no default cluster,
 their requests through the deleted virtual cluster will fail. Review the
 destroy plan before applying.
 
+If deletion times out or fails, Terraform retains the virtual-cluster ID until
+GET confirms that the target no longer exists. Running destroy again submits
+DELETE even when the virtual cluster is already `Deleting`: the backend
+acknowledges an active deletion task or queues another cleanup attempt after a
+failed task. Terraform then waits for confirmed absence; an accepted DELETE or
+`Deleted` status alone does not remove the resource from state.
+
+Retry recovery requires the Cloud Manager failed-deletion retry support and the
+Formation worker that handles already-removed remote configuration. Deploy the
+Formation worker first, then Cloud Manager, before relying on this behavior.
+A failed deletion does not restore routing or automatic failover; inspect the
+backend task if repeated attempts fail.
+
 ## Replacing physical members
 
 A bound physical cluster cannot be deleted. Without lifecycle ordering,
@@ -129,7 +142,8 @@ These are read from the API on every refresh and cannot be set in configuration:
 - `standby_cluster_id`: Physical cluster currently held in reserve.
 - `status`: Lifecycle status reported by the backend, such as `Creating`,
   `Running`, `AtRisk`, `Updating`, or `Deleting`. `Running` and `AtRisk` are the
-  ready states in which an update or delete can proceed.
+  ready states in which an update or initial delete can proceed. A destroy retry
+  can also resume cleanup from `Deleting`.
 - `at_risk`: Whether the backend currently reports the pair as unable to provide
   full high availability (for example, a member is unhealthy).
 - `risk_reasons`: Risk reason codes behind `at_risk`. This set can be empty while

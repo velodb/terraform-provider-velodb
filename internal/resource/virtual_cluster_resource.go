@@ -423,11 +423,12 @@ func (r *VirtualClusterResource) Delete(ctx context.Context, req resource.Delete
 		fail(err)
 		return
 	}
-	if current.Status != "Deleting" && current.Status != "Deleted" {
-		if !virtualClusterStable(current) {
+	if current.Status != "Deleted" {
+		if current.Status != "Deleting" && !virtualClusterStable(current) {
 			resp.Diagnostics.AddError("Virtual cluster is not ready for deletion", fmt.Sprintf("Current status is %q. Inspect the backend operation and restore a deletable state before retrying. The virtual-cluster ID remains in Terraform state.", current.Status))
 			return
 		}
+		// Repeated DELETE acknowledges an active task or retries failed cleanup on the backend.
 		if deleteErr := r.client.DeleteVirtualCluster(ctx, state.WarehouseID.ValueString(), state.ID.ValueString()); deleteErr != nil {
 			// A lost response or concurrent delete may have started the task; verify without resubmitting.
 			latest, readErr := get(ctx)
