@@ -29,10 +29,15 @@ resource "velodb_virtual_cluster" "main" {
 
 Supply each member ID from whatever fits your configuration:
 
-- `velodb_warehouse.<name>.initial_cluster_id` — the warehouse's first cluster.
+- `velodb_warehouse.<name>.initial_cluster_id` — a best-effort creation-time ID, when available.
 - `velodb_cluster.<name>.id` — a cluster managed as a separate resource.
 - `module.<byoc>.initial_cluster_id` / `module.<byoc>.additional_cluster_ids[...]` — IDs returned by the BYOC modules.
 - A literal ID for a cluster created outside Terraform.
+
+The `initial_cluster_id` output is null after warehouse import or unresolved
+creation-time discovery. Supply a verified physical ID in those cases, and
+verify older cached values before using them. See
+[Managing the Initial Cluster](warehouse.md#managing-the-initial-cluster).
 
 Changing either desired cluster ID updates the requested pair. Terraform
 refreshes `active_cluster_id` and `standby_cluster_id` from the API, so an

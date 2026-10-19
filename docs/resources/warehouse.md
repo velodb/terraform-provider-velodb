@@ -187,7 +187,26 @@ The VeloDB API requires an `initial_cluster` block at warehouse creation.
 The `initial_cluster` block is create-only. To manage or delete the initial
 cluster later, import it into a separate `velodb_cluster` resource.
 
-The warehouse exposes `initial_cluster_id` as a computed output to simplify this workflow:
+The warehouse exposes `initial_cluster_id` as a best-effort, creation-time
+computed output. The current API does not return an authoritative association
+between a warehouse and its original compute cluster.
+
+The provider attempts discovery only immediately after creating the warehouse,
+and only accepts one explicit COMPUTE candidate from a complete first page.
+An empty, denied, incomplete, malformed, or ambiguous result leaves the output
+null with a warning while retaining the created warehouse ID. Refresh and
+updates do not retry this inference.
+
+**Importing an existing warehouse leaves `initial_cluster_id` null.** This avoids
+selecting a newer member merely because it appears first in the cluster list.
+Use an explicitly verified physical cluster ID for physical-cluster imports and
+virtual-cluster membership. Names, list position, and the oldest surviving
+cluster do not establish historical identity. Existing nonnull values cached
+by older providers are preserved for compatibility and are not automatically
+verified or repaired; confirm the target before using them.
+
+Create the warehouse first. After verifying the physical ID and current settings,
+add the separate cluster resource and import block shown below:
 
 ```terraform
 resource "velodb_warehouse" "main" {
@@ -219,10 +238,15 @@ resource "velodb_cluster" "etl" {
   cache_gb     = 400
 }
 
-# Import the initial cluster so it becomes a first-class managed resource
+variable "verified_initial_cluster_id" {
+  description = "Physical cluster ID verified independently before importing it."
+  type        = string
+}
+
+# Add after the warehouse exists and the physical ID has been verified.
 import {
   to = velodb_cluster.initial
-  id = "${velodb_warehouse.main.id}/${velodb_warehouse.main.initial_cluster_id}"
+  id = "${velodb_warehouse.main.id}/${var.verified_initial_cluster_id}"
 }
 
 resource "velodb_cluster" "initial" {
@@ -289,7 +313,7 @@ To destroy the initial cluster later:
 - `created_at` (String) Warehouse creation time in ISO 8601 / RFC 3339 format.
 - `expire_time` (String) Warehouse expiration time when available.
 - `id` (String) Warehouse identifier (e.g., `ALBJ07YE`).
-- `initial_cluster_id` (String) ID of the initial cluster created with the warehouse. Use this with an `import {}` block to manage the initial cluster as a `velodb_cluster` resource. See [Managing the Initial Cluster](#managing-the-initial-cluster).
+- `initial_cluster_id` (String) Best-effort initial compute-cluster ID captured at creation; null after warehouse import or unresolved creation-time discovery. Existing cached values are not automatically verified. See [Managing the Initial Cluster](#managing-the-initial-cluster).
 - `endpoint_service_id` (String) PrivateLink endpoint service ID when available.
 - `endpoint_service_name` (String) PrivateLink endpoint service name when available.
 - `pay_type` (String) Billing type: `PostPaid` or `PrePaid`.

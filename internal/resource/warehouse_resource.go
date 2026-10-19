@@ -330,7 +330,7 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				},
 			},
 			"initial_cluster_id": schema.StringAttribute{
-				Description: "ID of the initial cluster created with the warehouse. Use this to import the cluster as a velodb_cluster resource (e.g., to delete it after you add other clusters).",
+				Description: "Best-effort initial compute-cluster ID captured when this provider creates the warehouse. Null after warehouse import; the current API cannot recover the original cluster. Verify the ID before importing or binding a physical cluster.",
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
@@ -696,6 +696,7 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 	}
 
 	plan.ID = types.StringValue(result.WarehouseID)
+	plan.InitialClusterID = types.StringNull()
 
 	// Store BYOC setup if returned
 	r.setByocSetup(ctx, &plan, result.SetupGuide, &resp.Diagnostics)
@@ -740,6 +741,15 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 	r.readWarehouseIntoState(ctx, result.WarehouseID, &plan, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+	initialClusterID, err := r.createdWarehouseInitialClusterID(ctx, result.WarehouseID)
+	if err != nil {
+		resp.Diagnostics.AddWarning("Initial cluster ID unavailable",
+			"The warehouse was created, but its initial compute cluster could not be identified: "+err.Error()+". "+
+				"The warehouse ID is retained and initial_cluster_id is null. Verify a physical cluster ID explicitly "+
+				"before importing or binding it. Later refreshes will not infer the original cluster from the cluster list.")
+	} else {
+		plan.InitialClusterID = types.StringValue(initialClusterID)
 	}
 
 	// Preserve admin_password from plan (can't be read from API)
@@ -957,9 +967,43 @@ func (r *WarehouseResource) ImportState(ctx context.Context, req resource.Import
 	}
 
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), warehouseID)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("initial_cluster_id"), types.StringNull())...)
+	resp.Diagnostics.AddWarning("Initial cluster ID cannot be recovered on import",
+		"The current warehouse API does not identify the original compute cluster. initial_cluster_id remains null; "+
+			"cluster-list order, names, and surviving clusters cannot establish that identity. "+
+			"Use an explicitly verified physical cluster ID for cluster imports and virtual-cluster membership.")
 }
 
 // --- Helpers ---
+
+func (r *WarehouseResource) createdWarehouseInitialClusterID(ctx context.Context, warehouseID string) (string, error) {
+	const pageSize = 50
+	clusters, err := r.client.ListClusters(ctx, warehouseID, &client.ListClustersOptions{Page: 1, Size: pageSize})
+	if err != nil {
+		return "", err
+	}
+	if clusters.Total > int64(len(clusters.Data)) || len(clusters.Data) >= pageSize {
+		return "", fmt.Errorf("cluster list may span multiple pages")
+	}
+	// shortcut: even one compute candidate proves no historical identity; replace with an authoritative API field when available.
+	var id string
+	for _, cluster := range clusters.Data {
+		if cluster.ClusterType != "COMPUTE" || strings.HasPrefix(cluster.ClusterID, "m-") {
+			continue
+		}
+		if cluster.ClusterID == "" || cluster.WarehouseID != warehouseID {
+			return "", fmt.Errorf("compute-cluster response has a missing ID or mismatched warehouse")
+		}
+		if id != "" {
+			return "", fmt.Errorf("multiple compute clusters were returned")
+		}
+		id = cluster.ClusterID
+	}
+	if id == "" {
+		return "", fmt.Errorf("no compute cluster was returned")
+	}
+	return id, nil
+}
 
 func (r *WarehouseResource) readWarehouseIntoState(ctx context.Context, warehouseID string, state *WarehouseResourceModel, diags *diag.Diagnostics) {
 	wh, err := r.client.GetWarehouse(ctx, warehouseID)
@@ -1009,21 +1053,9 @@ func (r *WarehouseResource) readWarehouseIntoState(ctx context.Context, warehous
 		state.ExpireTime = types.StringNull()
 	}
 
-	// Find initial_cluster ID by selecting the first non-system cluster.
-	if state.InitialClusterID.IsNull() || state.InitialClusterID.IsUnknown() {
-		clusters, err := r.client.ListClusters(ctx, warehouseID, &client.ListClustersOptions{Page: 1, Size: 50})
-		if err == nil {
-			for _, c := range clusters.Data {
-				if strings.HasPrefix(c.ClusterID, "m-") {
-					continue
-				}
-				state.InitialClusterID = types.StringValue(c.ClusterID)
-				break
-			}
-		}
-		if state.InitialClusterID.IsNull() || state.InitialClusterID.IsUnknown() {
-			state.InitialClusterID = types.StringNull()
-		}
+	// The API cannot reconstruct original-member identity during import or refresh.
+	if state.InitialClusterID.IsUnknown() {
+		state.InitialClusterID = types.StringNull()
 	}
 
 	r.readManagedPublicAccessPolicy(ctx, state, diags)
