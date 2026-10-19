@@ -330,7 +330,7 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				},
 			},
 			"initial_cluster_id": schema.StringAttribute{
-				Description: "Best-effort initial compute-cluster ID captured when this provider creates the warehouse. Null after warehouse import; the current API cannot recover the original cluster. Verify the ID before importing or binding a physical cluster.",
+				Description: "Best-effort compute-cluster ID captured only when this provider creates the warehouse. Null after warehouse import. To manage an existing physical cluster, import it separately as a velodb_cluster resource.",
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
@@ -968,10 +968,10 @@ func (r *WarehouseResource) ImportState(ctx context.Context, req resource.Import
 
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), warehouseID)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("initial_cluster_id"), types.StringNull())...)
-	resp.Diagnostics.AddWarning("Initial cluster ID cannot be recovered on import",
-		"The current warehouse API does not identify the original compute cluster. initial_cluster_id remains null; "+
-			"cluster-list order, names, and surviving clusters cannot establish that identity. "+
-			"Use an explicitly verified physical cluster ID for cluster imports and virtual-cluster membership.")
+	resp.Diagnostics.AddWarning("Warehouse import does not import physical clusters",
+		"Only the warehouse is imported. initial_cluster_id remains null and no physical cluster is assigned an initial role. "+
+			"To manage an existing compute cluster, import it separately as a velodb_cluster resource. "+
+			"Virtual-cluster members can use managed resource IDs, explicit cluster data-source lookups, or verified physical-cluster IDs.")
 }
 
 // --- Helpers ---

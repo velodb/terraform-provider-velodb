@@ -35,8 +35,13 @@ Supply each member ID from whatever fits your configuration:
 - A literal ID for a cluster created outside Terraform.
 
 The `initial_cluster_id` output is null after warehouse import or unresolved
-creation-time discovery. Supply a verified physical ID in those cases, and
-verify older cached values before using them. See
+creation-time discovery. After warehouse import, treat all existing compute
+clusters as ordinary physical clusters. No member needs an initial role.
+Reference a managed `velodb_cluster` resource's `.id`, explicitly select an
+existing cluster with the [`velodb_clusters` data source](../data-sources/clusters.md),
+or supply an independently verified physical ID. Import a physical cluster only
+if you want Terraform to manage it; import is not required just to reference a
+member. Verify older cached values before using them. See
 [Managing the Initial Cluster](warehouse.md#managing-the-initial-cluster).
 
 Changing either desired cluster ID updates the requested pair. Terraform
