@@ -99,9 +99,10 @@ The example creates a standalone physical standby cluster, then links its ID
 and the BYOC initial-cluster ID to the virtual cluster. Terraform creates
 everything in one apply without copying IDs.
 Edit the ID expressions to select another cluster or supply an existing ID.
-The module's `initial_cluster_id` is best effort at creation and null after
-warehouse import or unresolved discovery. Use a verified physical ID in those
-cases; older cached IDs also need verification before use.
+The module's `initial_cluster_id` uses the API-reported original compute ID,
+including after import, and is null when unknown. Confirm the physical member
+still exists; this historical ID survives deletion. Use a verified physical ID
+when unknown. Null or omitted API values clear any previously cached identity.
 The physical-member template includes `create_before_destroy`. If you already
 copied it, add this lifecycle rule to the existing physical resource and apply
 while keeping the current members and pair IDs unchanged before replacing a

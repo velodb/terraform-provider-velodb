@@ -59,7 +59,7 @@ output "warehouse_status" {
 }
 
 output "initial_cluster_id" {
-  description = "Best-effort initial compute-cluster ID captured at creation; null after warehouse import or unresolved discovery. Verify before use."
+  description = "Original compute-cluster ID reported by the warehouse API, including after import; null when unknown. Retained after physical deletion. Null or omitted API values clear cached identity."
   value       = velodb_warehouse.this.initial_cluster_id
 }
 

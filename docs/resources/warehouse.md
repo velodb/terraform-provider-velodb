@@ -187,23 +187,25 @@ The VeloDB API requires an `initial_cluster` block at warehouse creation.
 The `initial_cluster` block is create-only. To manage or delete the initial
 cluster later, import it into a separate `velodb_cluster` resource.
 
-The warehouse exposes `initial_cluster_id` as a best-effort, creation-time
-computed output. The current API does not return an authoritative association
-between a warehouse and its original compute cluster.
+The warehouse exposes `initial_cluster_id` from the API's authoritative
+`initialClusterId` field on create, import, refresh, and update. A returned ID
+replaces any older cached value, including an incorrect value recorded by an
+older provider. Null or omitted values clear the output when identity is unknown.
+The provider never infers original identity from cluster names, list order,
+or surviving members.
 
-The provider attempts discovery only immediately after creating the warehouse,
-and only accepts one explicit COMPUTE candidate from a complete first page.
-An empty, denied, incomplete, malformed, or ambiguous result leaves the output
-null with a warning while retaining the created warehouse ID. Refresh and
-updates do not retry this inference.
+For new warehouses, creation waits for Running and a known initial ID within
+the configured create timeout. The accepted warehouse ID is retained if polling
+or readback fails, including when identity remains null or omitted until timeout.
+Import warns when the API cannot identify the original compute cluster. Use an
+independently verified physical ID when the output is unknown; cached identity
+is never used as a fallback for a null or omitted API value.
 
-**Importing an existing warehouse leaves `initial_cluster_id` null.** This avoids
-selecting a newer member merely because it appears first in the cluster list.
-Use an explicitly verified physical cluster ID for physical-cluster imports and
-virtual-cluster membership. Names, list position, and the oldest surviving
-cluster do not establish historical identity. Existing nonnull values cached
-by older providers are preserved for compatibility and are not automatically
-verified or repaired; confirm the target before using them.
+The output records historical identity and remains populated after the original
+cluster is renamed or deleted. Confirm that the physical cluster still exists
+before importing it or using it as a virtual-cluster member. A refresh that
+corrects a previously wrong ID can change downstream plans; review any resulting
+physical imports or virtual-cluster member updates before applying.
 
 Create the warehouse first. After verifying the physical ID and current settings,
 add the separate cluster resource and import block shown below:
@@ -313,7 +315,7 @@ To destroy the initial cluster later:
 - `created_at` (String) Warehouse creation time in ISO 8601 / RFC 3339 format.
 - `expire_time` (String) Warehouse expiration time when available.
 - `id` (String) Warehouse identifier (e.g., `ALBJ07YE`).
-- `initial_cluster_id` (String) Best-effort initial compute-cluster ID captured at creation; null after warehouse import or unresolved creation-time discovery. Existing cached values are not automatically verified. See [Managing the Initial Cluster](#managing-the-initial-cluster).
+- `initial_cluster_id` (String) Original compute-cluster ID returned by the warehouse API, including after import. Null when identity is unknown; retained after physical deletion. Null or omitted API values clear cached identity. See [Managing the Initial Cluster](#managing-the-initial-cluster).
 - `endpoint_service_id` (String) PrivateLink endpoint service ID when available.
 - `endpoint_service_name` (String) PrivateLink endpoint service name when available.
 - `pay_type` (String) Billing type: `PostPaid` or `PrePaid`.

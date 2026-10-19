@@ -179,14 +179,16 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 			if r.URL.Query().Get("warehouseId") == "WH-BYOC-LIST" {
 				data = append(data, map[string]any{
 					"warehouseId": "WH-BYOC-LIST", "name": "mock-byoc-list", "status": "Running",
-					"cloudProvider": "aws", "region": "us-east-1", "zone": "us-east-1a",
+					"initialClusterId": "CL-BYOC-LIST",
+					"cloudProvider":    "aws", "region": "us-east-1", "zone": "us-east-1a",
 					"deploymentMode": "BYOC", "coreVersion": "26.0.2", "payType": "PostPaid",
 					"createdAt": now.Format(time.RFC3339),
 				})
 			} else if !whDeleted {
 				data = append(data, map[string]any{
 					"warehouseId": "WH-MOCK-001", "name": "mock-warehouse", "status": "Running",
-					"cloudProvider": "aws", "region": "us-east-1", "zone": "us-east-1a",
+					"initialClusterId": "CL-MOCK-001",
+					"cloudProvider":    "aws", "region": "us-east-1", "zone": "us-east-1a",
 					"deploymentMode": "SaaS", "coreVersion": "3.0.3", "payType": "PostPaid",
 					"lowerCaseMode": 0,
 					"createdAt":     now.Format(time.RFC3339),
@@ -236,7 +238,8 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 				"success": true, "requestId": "mock-get-created-byoc-wh",
 				"data": map[string]any{
 					"warehouseId": "WH-BYOC-CREATE-001", "name": "advanced-byoc", "status": "Running",
-					"cloudProvider": "aws", "region": "us-east-1", "zone": "us-east-1a",
+					"initialClusterId": "CL-BYOC-CREATE-001",
+					"cloudProvider":    "aws", "region": "us-east-1", "zone": "us-east-1a",
 					"deploymentMode": "BYOC", "coreVersion": "3.0.3", "payType": "PostPaid",
 					"lowerCaseMode": 1,
 					"createdAt":     now.Format(time.RFC3339),
@@ -285,7 +288,8 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 				"success": true, "requestId": "mock-get-wh",
 				"data": map[string]any{
 					"warehouseId": "WH-MOCK-001", "name": "mock-warehouse", "status": "Running",
-					"cloudProvider": "aws", "region": "us-east-1", "zone": "us-east-1a",
+					"initialClusterId": "CL-MOCK-001",
+					"cloudProvider":    "aws", "region": "us-east-1", "zone": "us-east-1a",
 					"deploymentMode": "SaaS", "coreVersion": "3.0.3", "payType": "PostPaid",
 					"lowerCaseMode":     0,
 					"endpointServiceId": "vpce-svc-mock", "endpointServiceName": "com.amazonaws.vpce.us-east-1.vpce-svc-mock",
@@ -620,8 +624,8 @@ resource "velodb_warehouse" "test" {
 				ResourceName:            "velodb_warehouse.test",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateCheck:        warehouseImportCheck(map[string]string{"id": "WH-MOCK-001", "initial_cluster_id": ""}),
-				ImportStateVerifyIgnore: []string{"admin_password", "admin_password_version", "initial_cluster", "initial_cluster_id", "advanced_settings", "timeouts"},
+				ImportStateCheck:        warehouseImportCheck(map[string]string{"id": "WH-MOCK-001", "initial_cluster_id": "CL-MOCK-001"}),
+				ImportStateVerifyIgnore: []string{"admin_password", "admin_password_version", "initial_cluster", "advanced_settings", "timeouts"},
 			},
 		},
 	})
@@ -712,7 +716,7 @@ resource "velodb_warehouse" "byoc" {
 				ImportState:   true,
 				ImportStateId: "WH-BYOC-LIST",
 				ImportStateCheck: warehouseImportCheck(map[string]string{
-					"id": "WH-BYOC-LIST", "name": "mock-byoc-list", "deployment_mode": "BYOC", "initial_cluster_id": "",
+					"id": "WH-BYOC-LIST", "name": "mock-byoc-list", "deployment_mode": "BYOC", "initial_cluster_id": "CL-BYOC-LIST",
 				}),
 			},
 		},

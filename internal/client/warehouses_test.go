@@ -3,10 +3,49 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
+
+func TestWarehouseInitialClusterIdentityDecoding(t *testing.T) {
+	for _, fallback := range []bool{false, true} {
+		for _, field := range []string{`"initialClusterId":"c-original",`, `"initialClusterId":null,`, ""} {
+			t.Run(fmt.Sprintf("fallback=%t/%s", fallback, field), func(t *testing.T) {
+				ts, mux := newTestServer(t)
+				defer ts.Close()
+				c := newTestClient(t, ts)
+				mux.HandleFunc("/v1/warehouses/w-test", func(w http.ResponseWriter, _ *http.Request) {
+					if fallback {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"code":"WarehouseNotFound","message":"missing"}`))
+						return
+					}
+					_, _ = w.Write([]byte(`{"success":true,"data":{` + field + `"warehouseId":"w-test","name":"test"}}`))
+				})
+				mux.HandleFunc("/v1/warehouses", func(w http.ResponseWriter, _ *http.Request) {
+					_, _ = w.Write([]byte(`{"success":true,"data":[{` + field + `"warehouseId":"w-test","name":"test"}],"total":1}`))
+				})
+				wh, err := c.GetWarehouse(context.Background(), "w-test")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if wh.WarehouseID != "w-test" || wh.Name != "test" {
+					t.Fatalf("warehouse identity was not decoded: %+v", wh)
+				}
+				if strings.Contains(field, "c-original") {
+					if wh.InitialClusterID == nil || *wh.InitialClusterID != "c-original" {
+						t.Fatalf("InitialClusterID = %v, want c-original", wh.InitialClusterID)
+					}
+				} else if wh.InitialClusterID != nil {
+					t.Fatalf("InitialClusterID = %v, want nil", wh.InitialClusterID)
+				}
+			})
+		}
+	}
+}
 
 func TestCreateWarehouse(t *testing.T) {
 	ts, mux := newTestServer(t)

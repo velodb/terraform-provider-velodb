@@ -81,6 +81,7 @@ type ChangePasswordRequest struct {
 type WarehouseItem struct {
 	WarehouseID                string                    `json:"warehouseId"`
 	Name                       string                    `json:"name"`
+	InitialClusterID           *string                   `json:"initialClusterId,omitempty"`
 	Status                     string                    `json:"status,omitempty"`
 	CloudProvider              string                    `json:"cloudProvider"`
 	Region                     string                    `json:"region"`

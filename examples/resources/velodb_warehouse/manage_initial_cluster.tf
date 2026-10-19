@@ -6,8 +6,9 @@
 #
 # To manage the initial cluster post-creation (resize, pause, destroy), import
 # it into a separate velodb_cluster resource using an independently verified
-# physical ID. initial_cluster_id is best effort at creation and null after
-# warehouse import; values cached by older providers may be incorrect.
+# physical ID. initial_cluster_id now uses API-reported identity, including on
+# import, and is null when the API value is null or omitted. It remains populated
+# after physical deletion, so confirm that the physical member still exists.
 # Create the warehouse first, then add the physical import/resource blocks.
 
 variable "admin_password" {
