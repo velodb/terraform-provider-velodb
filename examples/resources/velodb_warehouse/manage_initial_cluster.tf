@@ -5,8 +5,10 @@
 # velodb_warehouse is create-only (changes to it after creation are ignored).
 #
 # To manage the initial cluster post-creation (resize, pause, destroy), import
-# it into a separate velodb_cluster resource using the computed
-# initial_cluster_id attribute.
+# it into a separate velodb_cluster resource using an independently verified
+# physical ID. initial_cluster_id is best effort at creation and null after
+# warehouse import; values cached by older providers may be incorrect.
+# Create the warehouse first, then add the physical import/resource blocks.
 
 variable "admin_password" {
   type      = string
@@ -43,10 +45,15 @@ resource "velodb_cluster" "etl" {
   cache_gb     = 400
 }
 
-# 3. Import the initial cluster so Terraform can manage it
+variable "verified_initial_cluster_id" {
+  description = "Physical cluster ID verified independently before importing it."
+  type        = string
+}
+
+# 3. After verifying the ID and current settings, import the physical cluster.
 import {
   to = velodb_cluster.initial
-  id = "${velodb_warehouse.main.id}/${velodb_warehouse.main.initial_cluster_id}"
+  id = "${velodb_warehouse.main.id}/${var.verified_initial_cluster_id}"
 }
 
 resource "velodb_cluster" "initial" {

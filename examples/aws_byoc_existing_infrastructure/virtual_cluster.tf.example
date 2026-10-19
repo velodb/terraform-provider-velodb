@@ -20,6 +20,7 @@ resource "velodb_virtual_cluster" "main" {
   # Either ID can be any distinct compute cluster in the warehouse. Here the
   # module's initial cluster is active and the cluster above is standby; the
   # roles do not have to follow which cluster is the initial one.
+  # For imported warehouses or unresolved discovery, use a verified physical ID.
   desired_active_cluster_id  = module.velodb_byoc.initial_cluster_id
   desired_standby_cluster_id = velodb_cluster.standby.id
 }

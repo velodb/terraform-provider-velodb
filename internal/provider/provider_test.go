@@ -188,7 +188,8 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 					"warehouseId": "WH-MOCK-001", "name": "mock-warehouse", "status": "Running",
 					"cloudProvider": "aws", "region": "us-east-1", "zone": "us-east-1a",
 					"deploymentMode": "SaaS", "coreVersion": "3.0.3", "payType": "PostPaid",
-					"createdAt": now.Format(time.RFC3339),
+					"lowerCaseMode": 0,
+					"createdAt":     now.Format(time.RFC3339),
 				})
 			}
 			writeJSONResponse(t, w, map[string]any{
@@ -286,6 +287,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 					"warehouseId": "WH-MOCK-001", "name": "mock-warehouse", "status": "Running",
 					"cloudProvider": "aws", "region": "us-east-1", "zone": "us-east-1a",
 					"deploymentMode": "SaaS", "coreVersion": "3.0.3", "payType": "PostPaid",
+					"lowerCaseMode":     0,
 					"endpointServiceId": "vpce-svc-mock", "endpointServiceName": "com.amazonaws.vpce.us-east-1.vpce-svc-mock",
 					"createdAt": now.Format(time.RFC3339),
 				},
@@ -602,6 +604,7 @@ resource "velodb_warehouse" "test" {
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("velodb_warehouse.test", "id", "WH-MOCK-001"),
+					resource.TestCheckResourceAttr("velodb_warehouse.test", "initial_cluster_id", "CL-MOCK-001"),
 					resource.TestCheckResourceAttr("velodb_warehouse.test", "name", "mock-warehouse"),
 					resource.TestCheckResourceAttr("velodb_warehouse.test", "status", "Running"),
 					resource.TestCheckResourceAttr("velodb_warehouse.test", "initial_cluster.0.ratio", "8"),
@@ -617,7 +620,8 @@ resource "velodb_warehouse" "test" {
 				ResourceName:            "velodb_warehouse.test",
 				ImportState:             true,
 				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"admin_password", "admin_password_version", "initial_cluster", "advanced_settings", "timeouts"},
+				ImportStateCheck:        warehouseImportCheck(map[string]string{"id": "WH-MOCK-001", "initial_cluster_id": ""}),
+				ImportStateVerifyIgnore: []string{"admin_password", "admin_password_version", "initial_cluster", "initial_cluster_id", "advanced_settings", "timeouts"},
 			},
 		},
 	})
@@ -675,27 +679,20 @@ resource "velodb_warehouse" "byoc" {
   region          = "us-east-1"
 }
 `,
-				ResourceName:            "velodb_warehouse.byoc",
-				ImportState:             true,
-				ImportStateId:           "WH-BYOC-001",
-				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"timeouts"},
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("velodb_warehouse.byoc", "id", "WH-BYOC-001"),
-					resource.TestCheckResourceAttr("velodb_warehouse.byoc", "name", "mock-byoc"),
-					resource.TestCheckResourceAttr("velodb_warehouse.byoc", "deployment_mode", "BYOC"),
-					resource.TestCheckResourceAttr("velodb_warehouse.byoc", "cloud_provider", "aws"),
-					resource.TestCheckResourceAttr("velodb_warehouse.byoc", "region", "us-east-1"),
-					resource.TestCheckResourceAttr("velodb_warehouse.byoc", "initial_cluster_id", "CL-BYOC-001"),
-					resource.TestCheckResourceAttr("velodb_warehouse.byoc", "byoc_setup.0.shell_command", "curl https://setup.example.com | bash"),
-					resource.TestCheckResourceAttr("velodb_warehouse.byoc", "table_name_case_sensitive", "false"),
-				),
+				ResourceName:  "velodb_warehouse.byoc",
+				ImportState:   true,
+				ImportStateId: "WH-BYOC-001",
+				ImportStateCheck: warehouseImportCheck(map[string]string{
+					"id": "WH-BYOC-001", "name": "mock-byoc", "deployment_mode": "BYOC",
+					"cloud_provider": "aws", "region": "us-east-1", "initial_cluster_id": "",
+					"byoc_setup.0.shell_command": "curl https://setup.example.com | bash", "table_name_case_sensitive": "false",
+				}),
 			},
 		},
 	})
 }
 
-func TestWarehouseImportBYOCFallsBackToList(t *testing.T) {
+func TestWarehouseImportBYOCWarehouseListFallback(t *testing.T) {
 	ts := mockAPIServer(t)
 	defer ts.Close()
 
@@ -711,17 +708,12 @@ resource "velodb_warehouse" "byoc" {
   region          = "us-east-1"
 }
 `,
-				ResourceName:            "velodb_warehouse.byoc",
-				ImportState:             true,
-				ImportStateId:           "WH-BYOC-LIST",
-				ImportStateVerify:       true,
-				ImportStateVerifyIgnore: []string{"timeouts"},
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("velodb_warehouse.byoc", "id", "WH-BYOC-LIST"),
-					resource.TestCheckResourceAttr("velodb_warehouse.byoc", "name", "mock-byoc-list"),
-					resource.TestCheckResourceAttr("velodb_warehouse.byoc", "deployment_mode", "BYOC"),
-					resource.TestCheckResourceAttr("velodb_warehouse.byoc", "initial_cluster_id", "CL-BYOC-LIST"),
-				),
+				ResourceName:  "velodb_warehouse.byoc",
+				ImportState:   true,
+				ImportStateId: "WH-BYOC-LIST",
+				ImportStateCheck: warehouseImportCheck(map[string]string{
+					"id": "WH-BYOC-LIST", "name": "mock-byoc-list", "deployment_mode": "BYOC", "initial_cluster_id": "",
+				}),
 			},
 		},
 	})
