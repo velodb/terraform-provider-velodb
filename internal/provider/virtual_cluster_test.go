@@ -22,6 +22,7 @@ type virtualClusterMock struct {
 	clusters                             map[string]client.ClusterDetail
 	clusterCreates                       int
 	events                               []string
+	deleteRequestIDs                     []string
 }
 
 func newVirtualClusterMock(t *testing.T) (*httptest.Server, *virtualClusterMock) {
@@ -100,6 +101,7 @@ func newVirtualClusterMock(t *testing.T) (*httptest.Server, *virtualClusterMock)
 			writeJSONResponse(t, w, map[string]any{"success": true})
 		case req.Method == http.MethodDelete && req.URL.Path == base+"/v-test":
 			m.deletes++
+			m.deleteRequestIDs = append(m.deleteRequestIDs, req.Header.Get("RequestId"))
 			if m.pendingDelete {
 				m.current.Status = "Deleting"
 			} else {
@@ -217,12 +219,15 @@ func TestAccVirtualClusterDeleteRetryRetainsState(t *testing.T) {
 			{Config: config, Check: virtualClusterCheck("production", "c-a", "c-b", "c-a", "c-b")},
 			{Config: config, Destroy: true, ExpectError: regexp.MustCompile("timed out waiting for virtual-cluster absence")},
 			{Config: config, PlanOnly: true},
-			{PreConfig: func() { mock.mu.Lock(); mock.exists = false; mock.mu.Unlock() }, Config: config, Destroy: true},
+			{PreConfig: func() { mock.mu.Lock(); mock.pendingDelete = false; mock.mu.Unlock() }, Config: config, Destroy: true},
 		},
 	})
 	mock.mu.Lock()
 	defer mock.mu.Unlock()
-	if mock.creates != 1 || mock.deletes != 1 {
-		t.Fatalf("failed destroy must retain state without recreation or duplicate delete: creates=%d deletes=%d", mock.creates, mock.deletes)
+	if mock.creates != 1 || mock.deletes != 2 || mock.exists {
+		t.Fatalf("retry must resume deletion of the retained resource: creates=%d deletes=%d exists=%t", mock.creates, mock.deletes, mock.exists)
+	}
+	if mock.deleteRequestIDs[0] == mock.deleteRequestIDs[1] {
+		t.Fatal("a new destroy attempt must use a new RequestId to avoid replaying the previous task acceptance")
 	}
 }
