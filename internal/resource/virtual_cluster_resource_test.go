@@ -441,7 +441,7 @@ func TestWaitForVirtualClusterCreateRequiresFinalStatusAndPair(t *testing.T) {
 		default:
 			return &client.VirtualCluster{Status: "Running", ActiveClusterID: "c-a", StandbyClusterID: "c-b"}, nil
 		}
-	}, matches, true, time.Millisecond)
+	}, matches, nil, true, time.Millisecond)
 	if err != nil || cluster == nil || calls != 3 {
 		t.Fatalf("wait returned before the requested pair was Running: cluster=%+v err=%v calls=%d", cluster, err, calls)
 	}
@@ -450,7 +450,7 @@ func TestWaitForVirtualClusterCreateRequiresFinalStatusAndPair(t *testing.T) {
 	defer cancel()
 	cluster, err = waitForVirtualCluster(ctx, func(context.Context) (*client.VirtualCluster, error) {
 		return &client.VirtualCluster{Status: "Creating"}, nil
-	}, matches, true, time.Millisecond)
+	}, matches, nil, true, time.Millisecond)
 	if cluster == nil || !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("pending create should return last observation and deadline: cluster=%+v err=%v", cluster, err)
 	}

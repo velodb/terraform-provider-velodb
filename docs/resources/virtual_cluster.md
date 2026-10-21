@@ -51,6 +51,17 @@ switch the live pair back. To request that explicitly while leaving the
 configured IDs unchanged, change `pair_reconcile_trigger` to a new integer.
 Review any planned active-cluster change before applying.
 
+Avoid managing the same virtual cluster from independent Terraform states.
+If a rename or pair update observes a stable value different from both the
+value read before the request and the requested value, the provider reports a
+concurrent-modification error instead of waiting for the update timeout. It
+saves the observed remote state and retains the previous desired pair and
+reconciliation trigger for an unverified pair change. Refresh and review a new
+plan before retrying; the provider does not automatically repeat the write.
+Reads that still show the pre-update value continue polling because they may
+reflect normal propagation delay. This detection does not prevent stale
+writes or detect an intervening update that restores the original value.
+
 Deleting the resource unmounts both physical clusters and ends virtual-cluster
 routing and automatic failover. If relevant users have no default cluster,
 their requests through the deleted virtual cluster will fail. Review the

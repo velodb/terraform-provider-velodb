@@ -217,7 +217,7 @@ func (r *VirtualClusterResource) Create(ctx context.Context, req resource.Create
 		return r.client.GetVirtualCluster(ctx, warehouseID, result.VirtualClusterID)
 	}, func(cluster *client.VirtualCluster) bool {
 		return cluster.ActiveClusterID == plan.DesiredActiveClusterID.ValueString() && cluster.StandbyClusterID == plan.DesiredStandbyClusterID.ValueString()
-	}, true, 15*time.Second)
+	}, nil, true, 15*time.Second)
 	if cluster != nil {
 		resp.Diagnostics.Append(plan.setVirtualClusterObserved(ctx, cluster)...)
 		if cluster.Name != plan.Name.ValueString() {
@@ -233,7 +233,7 @@ func (r *VirtualClusterResource) Create(ctx context.Context, req resource.Create
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
-func waitForVirtualCluster(ctx context.Context, get func(context.Context) (*client.VirtualCluster, error), matches func(*client.VirtualCluster) bool, allowMissing bool, interval time.Duration) (*client.VirtualCluster, error) {
+func waitForVirtualCluster(ctx context.Context, get func(context.Context) (*client.VirtualCluster, error), matches, unchanged func(*client.VirtualCluster) bool, allowMissing bool, interval time.Duration) (*client.VirtualCluster, error) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	var latest *client.VirtualCluster
@@ -248,8 +248,14 @@ func waitForVirtualCluster(ctx context.Context, get func(context.Context) (*clie
 			if cluster.Status == "CreateFailed" || cluster.Status == "Deleting" || cluster.Status == "Deleted" {
 				return latest, fmt.Errorf("API reported %s", cluster.Status)
 			}
-			if virtualClusterStable(cluster) && matches(cluster) {
-				return latest, nil
+			if virtualClusterStable(cluster) {
+				if matches(cluster) {
+					return latest, nil
+				}
+				// shortcut: unchanged values may be propagation; detecting concurrent resets requires API versions.
+				if unchanged != nil && !unchanged(cluster) {
+					return latest, fmt.Errorf("concurrent modification detected: the virtual cluster is %q with a value different from both the pre-update value and the requested value; another update or failover may have superseded this request. Refresh and review a new Terraform plan before retrying", cluster.Status)
+				}
 			}
 		}
 		select {
@@ -337,12 +343,15 @@ func (r *VirtualClusterResource) Update(ctx context.Context, req resource.Update
 	triggerChanged := !plan.PairReconcileTrigger.Equal(state.PairReconcileTrigger)
 	pairChanged := virtualClusterPairChanged(plan, state)
 	if current.Name != plan.Name.ValueString() {
+		previousName := current.Name
 		if err := r.client.RenameVirtualCluster(ctx, state.WarehouseID.ValueString(), state.ID.ValueString(), &client.RenameVirtualClusterRequest{NewName: plan.Name.ValueString()}); err != nil {
 			fail("renaming virtual cluster", err)
 			return
 		}
 		current, err = waitForVirtualCluster(ctx, get, func(cluster *client.VirtualCluster) bool {
 			return cluster.Name == plan.Name.ValueString()
+		}, func(cluster *client.VirtualCluster) bool {
+			return cluster.Name == previousName
 		}, false, 15*time.Second)
 		observe(current)
 		if err != nil {
@@ -358,6 +367,7 @@ func (r *VirtualClusterResource) Update(ctx context.Context, req resource.Update
 			return cluster.ActiveClusterID == plan.DesiredActiveClusterID.ValueString() && cluster.StandbyClusterID == plan.DesiredStandbyClusterID.ValueString()
 		}
 		if triggerChanged || !matchesPair(current) {
+			previousActive, previousStandby := current.ActiveClusterID, current.StandbyClusterID
 			warnVirtualClusterActiveChange(&resp.Diagnostics, types.StringValue(current.ActiveClusterID), types.StringValue(current.StandbyClusterID), plan.DesiredActiveClusterID, plan.DesiredStandbyClusterID)
 			if err := r.client.UpdateVirtualCluster(ctx, state.WarehouseID.ValueString(), state.ID.ValueString(), &client.UpdateVirtualClusterRequest{
 				NewActiveClusterID: plan.DesiredActiveClusterID.ValueString(), NewStandbyClusterID: plan.DesiredStandbyClusterID.ValueString(),
@@ -365,7 +375,9 @@ func (r *VirtualClusterResource) Update(ctx context.Context, req resource.Update
 				fail("updating virtual-cluster members", err)
 				return
 			}
-			current, err = waitForVirtualCluster(ctx, get, matchesPair, false, 15*time.Second)
+			current, err = waitForVirtualCluster(ctx, get, matchesPair, func(cluster *client.VirtualCluster) bool {
+				return cluster.ActiveClusterID == previousActive && cluster.StandbyClusterID == previousStandby
+			}, false, 15*time.Second)
 			observe(current)
 			if err != nil {
 				fail("verifying virtual-cluster members", err)
