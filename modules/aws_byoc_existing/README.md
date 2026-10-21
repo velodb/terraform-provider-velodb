@@ -109,8 +109,11 @@ applying; see the virtual-cluster resource documentation. Use a provider
 release that includes `velodb_virtual_cluster` for the separate resource.
 
 Set `tags` to apply extra key/value pairs to the VeloDB warehouse (it gets a
-`managed-by = terraform` tag by default). Warehouse tags are create-only and
-cannot be changed after the warehouse exists. Set `core_version` to `"26.1"` (backend selects the latest patch) or `"26.1.1"`
+`managed-by = terraform` tag by default). Warehouse tags update in place and
+serve as defaults for existing and future clusters. Organization tags take
+precedence over cluster overrides, which take precedence over warehouse
+defaults. Refresh reads the stored warehouse tags, excluding inherited tags and
+direct AWS edits. Set `core_version` to `"26.1"` (backend selects the latest patch) or `"26.1.1"`
 at creation. Change it to an exact three-part version such as `"26.1.2"` to
 upgrade the same warehouse in place. A two-part creation selector remains
 two-part in Terraform state; the provider reads the actual patch internally

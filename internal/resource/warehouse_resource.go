@@ -281,7 +281,7 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				Optional:    true,
 			},
 			"tags": schema.MapAttribute{
-				Description: "Warehouse tags as key/value pairs. Create-only: the management API accepts tags only at creation and does not return or update them, so changing tags after creation is rejected.",
+				Description: "BYOC warehouse-scope tags as key/value pairs. Additions, changes, and removals update the warehouse in place. Organization tags take precedence, and cluster overrides remain separate. Readback reflects stored warehouse tags, not live cloud tags.",
 				Optional:    true,
 				ElementType: types.StringType,
 			},
@@ -527,10 +527,9 @@ func (r *WarehouseResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 		return
 	}
 
-	// Update path: reject changes to create-only attributes.
+	// Update path: validate version changes.
 	if !req.State.Raw.IsNull() {
-		var plan, state WarehouseResourceModel
-		resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+		var state WarehouseResourceModel
 		resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 		if resp.Diagnostics.HasError() {
 			return
@@ -546,25 +545,6 @@ func (r *WarehouseResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 				resp.Diagnostics.AddAttributeError(path.Root("core_version"), "Invalid core version upgrade", err.Error())
 			}
 		}
-		// Create-only attributes that need a tailored validation error. Other
-		// infrastructure attributes are rejected by their plan modifiers.
-		createOnly := []struct {
-			p                 path.Path
-			planVal, stateVal attr.Value
-			summary, detail   string
-		}{
-			{
-				p:        path.Root("tags"),
-				planVal:  plan.Tags,
-				stateVal: state.Tags,
-				summary:  "Warehouse tags cannot be changed after creation",
-				detail: "The VeloDB management API accepts warehouse tags only at creation time and cannot update them. " +
-					"Revert the tags change, or destroy and recreate the warehouse to apply new tags.",
-			},
-		}
-		for _, a := range createOnly {
-			rejectCreateOnlyChange(&resp.Diagnostics, a.p, a.planVal, a.stateVal, a.summary, a.detail)
-		}
 		return
 	}
 
@@ -578,20 +558,6 @@ func (r *WarehouseResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 		return
 	}
 	validateWarehouseCreation(&resp.Diagnostics, &plan, true)
-}
-
-// rejectCreateOnlyChange errors when a create-only attribute is changed after
-// creation. It skips when the planned value is unknown (interpolated — it may
-// resolve to the existing value) or when the prior state has no value (e.g.
-// after import, where create-only fields are never read back and would
-// otherwise block every apply).
-func rejectCreateOnlyChange(diags *diag.Diagnostics, p path.Path, planVal, stateVal attr.Value, summary, detail string) {
-	if planVal.IsUnknown() || stateVal.IsNull() {
-		return
-	}
-	if !planVal.Equal(stateVal) {
-		diags.AddAttributeError(p, summary, detail)
-	}
 }
 
 func (r *WarehouseResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
@@ -636,7 +602,10 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 		Region:         plan.Region.ValueString(),
 	}
 	var tags map[string]string
-	plan.Tags.ElementsAs(ctx, &tags, false)
+	resp.Diagnostics.Append(plan.Tags.ElementsAs(ctx, &tags, false)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	createReq.Tags = tags
 	setOptionalString(&createReq.Version, plan.CoreVersion)
 	setOptionalString(&createReq.VpcMode, plan.VpcMode)
@@ -815,13 +784,24 @@ func (r *WarehouseResource) Update(ctx context.Context, req resource.UpdateReque
 		return
 	}
 
-	// Rename via PATCH /warehouses/{id}
+	updateReq := &client.UpdateWarehouseRequest{}
 	if !plan.Name.Equal(state.Name) {
-		updateReq := &client.UpdateWarehouseRequest{}
 		s := plan.Name.ValueString()
 		updateReq.Name = &s
+	}
+	if !plan.Tags.Equal(state.Tags) {
+		tags := map[string]string{}
+		if !plan.Tags.IsNull() {
+			resp.Diagnostics.Append(plan.Tags.ElementsAs(ctx, &tags, false)...)
+			if resp.Diagnostics.HasError() {
+				return
+			}
+		}
+		updateReq.Tags = &tags
+	}
+	if updateReq.Name != nil || updateReq.Tags != nil {
 		if err := r.client.UpdateWarehouse(ctx, warehouseID, updateReq); err != nil {
-			resp.Diagnostics.AddError("Error renaming warehouse", err.Error())
+			resp.Diagnostics.AddError("Error updating warehouse", err.Error())
 			return
 		}
 	}
@@ -1025,6 +1005,14 @@ func (r *WarehouseResource) readWarehouseIntoState(ctx context.Context, warehous
 	state.DeploymentMode = stringOrNull(wh.DeploymentMode)
 	state.CoreVersion = coreVersionForState(state.CoreVersion, wh.CoreVersion)
 	state.PayType = stringOrNull(wh.PayType)
+	// Missing tags on older APIs or list fallback cannot establish tag removal.
+	if wh.Tags != nil && (len(wh.Tags) > 0 || !state.Tags.IsNull()) {
+		tags, tagDiags := types.MapValueFrom(ctx, types.StringType, wh.Tags)
+		diags.Append(tagDiags...)
+		state.Tags = tags
+	} else if state.Tags.IsUnknown() {
+		state.Tags = types.MapNull(types.StringType)
+	}
 	state.EndpointServiceID = stringOrNull(wh.EndpointServiceID)
 	state.EndpointServiceName = stringOrNull(wh.EndpointServiceName)
 	// Older backends omit these associations; retain known bindings in that case.

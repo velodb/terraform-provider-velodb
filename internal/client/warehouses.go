@@ -122,7 +122,7 @@ func (c *FormationClient) ListWarehouses(ctx context.Context, opts *ListWarehous
 	return &result, nil
 }
 
-// UpdateWarehouse updates a warehouse's basic info (name, maintenance window).
+// UpdateWarehouse updates a warehouse's name or warehouse-scope tags.
 func (c *FormationClient) UpdateWarehouse(ctx context.Context, warehouseID string, req *UpdateWarehouseRequest) error {
 	resp, err := c.patch(ctx, fmt.Sprintf("%s/%s", warehousesBasePath, warehouseID), req)
 	if err != nil {
