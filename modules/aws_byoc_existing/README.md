@@ -78,8 +78,19 @@ resource "velodb_virtual_cluster" "main" {
   # initial cluster is active and a separately managed cluster is standby.
   desired_active_cluster_id  = module.velodb_byoc.initial_cluster_id
   desired_standby_cluster_id = velodb_cluster.standby.id
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 ```
+
+Keep `prevent_destroy` on the virtual cluster to block accidental deletion,
+including when a targeted physical-member destroy includes its dependent VC.
+This also blocks a full destroy until you explicitly disable the rule.
+Removing the whole VC declaration removes the guard. Existing configurations
+must add the rule themselves. See
+[Preventing accidental deletion](../../docs/resources/virtual_cluster.md#preventing-accidental-deletion).
 
 These inputs also accept IDs from separately managed resources or existing
 clusters. Change either desired ID to update the pair. Live roles and health

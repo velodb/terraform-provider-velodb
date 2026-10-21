@@ -110,6 +110,12 @@ member. Copying a new template does not update an existing configuration. See
 for naming, capacity, and recovery requirements.
 
 The `virtual_cluster` output reports its configuration, live roles, and health.
+The template sets `prevent_destroy = true` on the virtual cluster to block a
+targeted member destroy from also deleting the VC. Existing copied
+configurations must add this rule themselves. It also blocks full destruction
+while the resource declaration remains. See
+[Preventing accidental deletion](../../docs/resources/virtual_cluster.md#preventing-accidental-deletion).
+
 To delete only the virtual cluster, remove its `resource "velodb_virtual_cluster"
 "main"` block, the `output "virtual_cluster"` block, and the `moved` block from
 `virtual_cluster.tf`. Keep the physical cluster blocks in that file. Run
@@ -140,6 +146,11 @@ minutes. Do not treat the deployment as successful until the warehouse reaches
 `Running`.
 
 ## Destroy the deployment
+
+If you enabled the virtual-cluster template, explicitly set its
+`prevent_destroy` rule to `false` before planning an intentional full destroy.
+Keep the rule enabled when the VC must be preserved; a warning alone does not
+block deletion with `-auto-approve`.
 
 ```bash
 terraform plan -destroy -out=destroy.tfplan

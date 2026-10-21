@@ -103,12 +103,23 @@ func (r *VirtualClusterResource) ValidateConfig(ctx context.Context, req resourc
 }
 
 func (r *VirtualClusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+	if req.State.Raw.IsNull() {
 		return
 	}
 	var planned, prior VirtualClusterResourceModel
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &planned)...)
 	resp.Diagnostics.Append(req.State.Get(ctx, &prior)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if req.Plan.Raw.IsNull() {
+		resp.Diagnostics.AddWarning("Virtual cluster will be destroyed", fmt.Sprintf(
+			"Terraform will delete virtual cluster %q (ID %q), ending routing through its endpoint and automatic failover. "+
+				"A terraform destroy -target on a referenced physical member can also delete its dependent virtual cluster. "+
+				"Review every resource in the destroy plan. To block accidental deletion, add lifecycle { prevent_destroy = true } to the virtual-cluster resource. "+
+				"This warning does not block destruction, including with -auto-approve.", prior.Name.ValueString(), prior.ID.ValueString()))
+		return
+	}
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &planned)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

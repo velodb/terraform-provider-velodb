@@ -23,6 +23,10 @@ resource "velodb_virtual_cluster" "main" {
   # For imported warehouses or unresolved discovery, use a verified physical ID.
   desired_active_cluster_id  = module.velodb_byoc.initial_cluster_id
   desired_standby_cluster_id = velodb_cluster.standby.id
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 output "virtual_cluster" {

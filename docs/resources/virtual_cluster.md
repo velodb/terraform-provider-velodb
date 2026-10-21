@@ -24,6 +24,10 @@ resource "velodb_virtual_cluster" "main" {
   # either ID can be any compute cluster in the warehouse.
   desired_active_cluster_id  = velodb_warehouse.main.initial_cluster_id
   desired_standby_cluster_id = velodb_cluster.standby.id
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 ```
 
@@ -55,6 +59,36 @@ Deleting the resource unmounts both physical clusters and ends virtual-cluster
 routing and automatic failover. If relevant users have no default cluster,
 their requests through the deleted virtual cluster will fail. Review the
 destroy plan before applying.
+
+## Preventing accidental deletion
+
+When a virtual cluster references managed physical members in the same state,
+`terraform destroy -target=velodb_cluster.a` can include the dependent virtual
+cluster. Terraform deletes the virtual cluster first, then its physical member;
+the backend's bound-member check cannot block that sequence after the virtual
+cluster has been deleted. `create_before_destroy` handles member replacement,
+not this targeted destroy.
+
+Add `lifecycle { prevent_destroy = true }` to the virtual-cluster resource, as in
+the example above. Terraform then rejects plans that destroy it, including a
+targeted member destroy or a full destroy, before sending DELETE requests.
+Existing deployments must add this rule to their configuration; updating the
+provider or copying a new template does not change existing configurations.
+The BYOC modules leave the virtual-cluster resource in the caller's
+configuration, so put the rule on that resource rather than on the module.
+
+The provider warns whenever a virtual cluster is planned for deletion. The
+warning does not block deletion, including with `-auto-approve`; use
+`prevent_destroy` for a blocking guard. Review the full plan rather than
+assuming `-target` selects only one resource.
+
+For an intentional deletion, explicitly remove or disable `prevent_destroy`,
+create a new plan, and review every resource marked for destruction before
+applying it. Removing the entire virtual-cluster declaration also removes the
+guard and allows deletion. This is Terraform configuration protection, not a
+Cloud Manager deletion lock.
+
+## Retrying deletion
 
 If deletion times out or fails, Terraform retains the virtual-cluster ID until
 GET confirms that the target no longer exists. Running destroy again submits

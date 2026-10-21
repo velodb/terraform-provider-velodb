@@ -181,3 +181,49 @@ func TestAccVirtualClusterMemberReplacementRecovery(t *testing.T) {
 		t.Fatalf("recovery must retain tracked IDs and destroy cleanly: %v", mock.events)
 	}
 }
+
+func TestAccVirtualClusterPreventTargetedDestroy(t *testing.T) {
+	ts, mock := newVirtualClusterMock(t)
+	defer ts.Close()
+	config := testProviderConfig(ts) +
+		physicalMemberConfig("a", "active", "us-east-1a", true) +
+		physicalMemberConfig("b", "standby", "us-east-1b", true) + `
+resource "velodb_virtual_cluster" "test" {
+  warehouse_id               = "w-test"
+  name                       = "production"
+  desired_active_cluster_id  = velodb_cluster.a.id
+  desired_standby_cluster_id = velodb_cluster.b.id
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+`
+	steps := []resource.TestStep{{Config: config}}
+	for _, target := range []string{"-target=velodb_cluster.a", "-target=velodb_cluster.b", ""} {
+		steps = append(steps, resource.TestStep{
+			PreConfig:   func() { t.Setenv("TF_CLI_ARGS_plan", target) },
+			Config:      config,
+			Destroy:     true,
+			PlanOnly:    true,
+			ExpectError: regexp.MustCompile(`velodb_virtual_cluster.test has lifecycle.prevent_destroy set`),
+		})
+	}
+	steps = append(steps, resource.TestStep{
+		PreConfig: func() {
+			t.Setenv("TF_CLI_ARGS_plan", "")
+			mock.mu.Lock()
+			defer mock.mu.Unlock()
+			if !mock.exists || mock.deletes != 0 || len(mock.clusters) != 2 ||
+				!slices.Equal(mock.events, []string{"create:c-1", "create:c-2"}) {
+				t.Fatalf("protected destroy must not send DELETE requests: %v", mock.events)
+			}
+		},
+		Config: strings.Replace(config, "prevent_destroy = true", "prevent_destroy = false", 1),
+	})
+	resource.Test(t, resource.TestCase{ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(ts), Steps: steps})
+	mock.mu.Lock()
+	defer mock.mu.Unlock()
+	if mock.exists || mock.deletes != 1 || len(mock.clusters) != 0 {
+		t.Fatalf("explicitly disabling protection must allow cleanup: %v", mock.events)
+	}
+}

@@ -108,3 +108,26 @@ func TestVirtualClusterPlanActiveChangeWarning(t *testing.T) {
 		})
 	}
 }
+
+func TestVirtualClusterPlanDestroyWarning(t *testing.T) {
+	ctx := context.Background()
+	state := virtualClusterTestState(t)
+	prior := virtualClusterTestModel()
+	if diags := state.Set(ctx, &prior); diags.HasError() {
+		t.Fatal(diags)
+	}
+	plan := tfsdk.Plan(virtualClusterTestState(t))
+	resp := resource.ModifyPlanResponse{Plan: plan}
+	(&VirtualClusterResource{}).ModifyPlan(ctx, resource.ModifyPlanRequest{State: state, Plan: plan}, &resp)
+	if resp.Diagnostics.HasError() || resp.Diagnostics.WarningsCount() != 1 {
+		t.Fatalf("destroy must warn without blocking: %v", resp.Diagnostics)
+	}
+	for _, want := range []string{`"production"`, `"v-1"`, "endpoint", "failover", "-target", "prevent_destroy", "-auto-approve"} {
+		if !strings.Contains(resp.Diagnostics.Warnings()[0].Detail(), want) {
+			t.Errorf("destroy warning must include %q: %v", want, resp.Diagnostics)
+		}
+	}
+	if !resp.Plan.Raw.IsNull() {
+		t.Fatal("warning must preserve the destroy plan")
+	}
+}
