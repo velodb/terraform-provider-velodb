@@ -3,6 +3,7 @@ package resource
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -17,6 +18,89 @@ import (
 
 	"github.com/velodb/terraform-provider-velodb/internal/client"
 )
+
+func TestVirtualClusterUpdateDetectsSupersededChange(t *testing.T) {
+	for _, rename := range []bool{true, false} {
+		for _, status := range []string{"Running", "AtRisk"} {
+			t.Run(map[bool]string{true: "rename", false: "members"}[rename]+"/"+status, func(t *testing.T) {
+				prior := virtualClusterTestModel()
+				planned := prior
+				planned.Name = types.StringValue("renamed")
+				planned.DesiredStandbyClusterID = types.StringValue("c-c")
+				planned.PairReconcileTrigger = types.Int64Value(1)
+				planned.Timeouts.Object = types.ObjectValueMust(prior.Timeouts.AttributeTypes(context.Background()), map[string]attr.Value{
+					"create": types.StringNull(), "update": types.StringValue("100ms"), "delete": types.StringNull(),
+				})
+				current := client.VirtualCluster{ID: "v-1", WarehouseID: "w-1", Name: "production", Status: "Running", ActiveClusterID: "c-a", StandbyClusterID: "c-b"}
+				var writes []string
+				ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+					w.Header().Set("Content-Type", "application/json")
+					if req.Method == http.MethodGet {
+						_ = json.NewEncoder(w).Encode(client.APIResponse[client.VirtualCluster]{Success: true, Data: current})
+						return
+					}
+					if strings.HasSuffix(req.URL.Path, "/rename") {
+						writes = append(writes, "rename")
+						current.Name = "renamed"
+						if rename {
+							current.Name, current.Status = "other_writer", status
+						}
+					} else {
+						writes = append(writes, "update")
+						current.StandbyClusterID, current.Status = "c-d", status
+					}
+					_ = json.NewEncoder(w).Encode(map[string]any{"success": true})
+				}))
+				defer ts.Close()
+				r := &VirtualClusterResource{client: client.NewFormationClient(strings.TrimPrefix(ts.URL, "http://"), "key", 0, time.Second)}
+				resp, got := runVirtualClusterUpdate(t, r, prior, planned)
+				wantWrites := []string{"rename"}
+				if !rename {
+					wantWrites = append(wantWrites, "update")
+				}
+				if !resp.Diagnostics.HasError() || !strings.Contains(resp.Diagnostics.Errors()[0].Detail(), "concurrent modification") {
+					t.Fatalf("expected a concurrency diagnostic instead of a timeout: %v", resp.Diagnostics)
+				}
+				if got.ID.ValueString() != current.ID || got.Name.ValueString() != current.Name || got.StandbyClusterID.ValueString() != current.StandbyClusterID || got.Status.ValueString() != status || !got.DesiredStandbyClusterID.Equal(prior.DesiredStandbyClusterID) || !got.PairReconcileTrigger.Equal(prior.PairReconcileTrigger) || !reflect.DeepEqual(writes, wantWrites) {
+					t.Fatalf("conflict must preserve observed state and old unverified intent without another write: %+v, %v", got, writes)
+				}
+			})
+		}
+	}
+}
+
+func TestWaitForVirtualClusterUpdateAllowsDelayedCompletion(t *testing.T) {
+	for _, names := range [][]string{{"old", "old", "requested"}, {"other", "requested"}} {
+		calls := 0
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		cluster, err := waitForVirtualCluster(ctx, func(context.Context) (*client.VirtualCluster, error) {
+			name := names[calls]
+			calls++
+			status := "Running"
+			if name == "other" {
+				status = "Updating"
+			}
+			return &client.VirtualCluster{Name: name, Status: status}, nil
+		}, func(cluster *client.VirtualCluster) bool {
+			return cluster.Name == "requested"
+		}, func(cluster *client.VirtualCluster) bool {
+			return cluster.Name == "old"
+		}, false, time.Millisecond)
+		cancel()
+		if err != nil || cluster.Name != "requested" || calls != len(names) {
+			t.Fatalf("normal propagation must keep polling: cluster=%+v err=%v calls=%d", cluster, err, calls)
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	_, err := waitForVirtualCluster(ctx, func(context.Context) (*client.VirtualCluster, error) {
+		return &client.VirtualCluster{Name: "old", Status: "Running"}, nil
+	}, func(cluster *client.VirtualCluster) bool { return cluster.Name == "requested" },
+		func(cluster *client.VirtualCluster) bool { return cluster.Name == "old" }, false, time.Millisecond)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("unchanged state is not proof of a concurrent update: %v", err)
+	}
+}
 
 func runVirtualClusterUpdate(t *testing.T, r *VirtualClusterResource, prior, planned VirtualClusterResourceModel) (resource.UpdateResponse, VirtualClusterResourceModel) {
 	t.Helper()
