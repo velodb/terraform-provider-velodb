@@ -87,6 +87,8 @@ clusters. Change either desired ID to update the pair. Live roles and health
 are read from the virtual-cluster resource; automatic failover does not
 trigger a reversal to the configured pair. Change `pair_reconcile_trigger`
 to explicitly reapply that pair.
+The resource exposes readable health explanations in `risk_messages` alongside
+the unchanged backend codes in `risk_reasons`.
 
 Additional clusters managed by this module use `create_before_destroy` so a
 replacement can be created and attached to the virtual cluster before the old
