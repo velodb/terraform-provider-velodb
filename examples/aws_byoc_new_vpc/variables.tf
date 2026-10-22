@@ -55,7 +55,7 @@ variable "additional_clusters" {
 }
 
 variable "tags" {
-  description = "Additional tags for AWS resources."
+  description = "Additional tags for AWS resources and warehouse-scope defaults. Warehouse tags update in place."
   type        = map(string)
   default     = {}
 }

@@ -37,6 +37,11 @@ resource "velodb_warehouse" "byoc" {
   network_config_id = velodb_byoc_network.aws.id
   admin_password    = var.admin_password
 
+  # Edit or remove keys to update warehouse defaults in place; {} clears them.
+  tags = {
+    team = "analytics"
+  }
+
   # Table-name case sensitivity is immutable after creation.
   table_name_case_sensitive = false
 

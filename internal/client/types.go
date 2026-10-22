@@ -60,7 +60,8 @@ type AutoPauseConfig struct {
 }
 
 type UpdateWarehouseRequest struct {
-	Name *string `json:"name,omitempty"`
+	Name *string            `json:"name,omitempty"`
+	Tags *map[string]string `json:"tags,omitempty"`
 }
 
 type UpgradeWarehouseRequest struct {

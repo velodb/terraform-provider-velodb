@@ -140,7 +140,7 @@ variable "auto_pause" {
 }
 
 variable "tags" {
-  description = "Additional tags for the VeloDB warehouse."
+  description = "Warehouse-scope tag defaults for existing and future clusters. Tags update in place."
   type        = map(string)
   default     = {}
 }
