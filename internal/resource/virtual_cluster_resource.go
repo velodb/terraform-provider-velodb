@@ -51,6 +51,7 @@ type VirtualClusterResourceModel struct {
 	Status                  types.String   `tfsdk:"status"`
 	AtRisk                  types.Bool     `tfsdk:"at_risk"`
 	RiskReasons             types.Set      `tfsdk:"risk_reasons"`
+	RiskMessages            types.Set      `tfsdk:"risk_messages"`
 	CreatedAt               types.String   `tfsdk:"created_at"`
 	UpdatedAt               types.String   `tfsdk:"updated_at"`
 	Timeouts                timeouts.Value `tfsdk:"timeouts"`
@@ -84,6 +85,7 @@ func (r *VirtualClusterResource) Schema(ctx context.Context, _ resource.SchemaRe
 			"status":                     schema.StringAttribute{Computed: true, Description: "Observed virtual-cluster lifecycle status."},
 			"at_risk":                    schema.BoolAttribute{Computed: true, Description: "Whether the virtual cluster is currently reported at risk."},
 			"risk_reasons":               schema.SetAttribute{Computed: true, ElementType: types.StringType, Description: "Current risk reason codes; empty outside Running does not prove health."},
+			"risk_messages":              schema.SetAttribute{Computed: true, ElementType: types.StringType, Description: "Human-readable explanations of risk_reasons. Empty messages do not prove health; check status and at_risk."},
 			"created_at":                 schema.StringAttribute{Computed: true, Description: "Creation time in RFC 3339 format when available."},
 			"updated_at":                 schema.StringAttribute{Computed: true, Description: "Last update time in RFC 3339 format when available."},
 		},
@@ -208,6 +210,7 @@ func (r *VirtualClusterResource) Create(ctx context.Context, req resource.Create
 	plan.ActiveClusterID, plan.StandbyClusterID, plan.Status = types.StringNull(), types.StringNull(), types.StringNull()
 	plan.AtRisk, plan.CreatedAt, plan.UpdatedAt = types.BoolNull(), types.StringNull(), types.StringNull()
 	plan.RiskReasons, diags = types.SetValueFrom(ctx, types.StringType, []string{})
+	plan.RiskMessages = plan.RiskReasons
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -572,7 +575,51 @@ func (state *VirtualClusterResourceModel) setVirtualClusterObserved(ctx context.
 	}
 	var diags diag.Diagnostics
 	state.RiskReasons, diags = types.SetValueFrom(ctx, types.StringType, risks)
+	messages := make([]string, 0, len(risks))
+	for _, reason := range risks {
+		messages = append(messages, virtualClusterRiskMessage(reason))
+	}
+	var messageDiags diag.Diagnostics
+	state.RiskMessages, messageDiags = types.SetValueFrom(ctx, types.StringType, messages)
+	diags.Append(messageDiags...)
 	return diags
+}
+
+func virtualClusterRiskMessage(reason string) string {
+	switch reason {
+	case "CacheResourceLow":
+		return "Standby cache capacity is lower than active cache capacity."
+	case "ComputeResourceLow":
+		return "Standby CPU capacity is lower than active CPU capacity."
+	case "ArchInconsistent":
+		return "Active and standby clusters use different CPU architectures."
+	case "ServiceUnavailable":
+		return "Cloud Manager reports a service availability risk without a specific cause."
+	case "BackendRiskReported":
+		return "Cloud Manager reports an additional risk without a specific public cause."
+	}
+	for _, role := range []string{"Active", "Standby"} {
+		detail, ok := strings.CutPrefix(reason, role)
+		if !ok {
+			continue
+		}
+		switch detail {
+		case "ClusterMissing":
+			return role + " cluster could not be found."
+		case "ClusterStatusUnknown":
+			return role + " cluster status is missing or unrecognized."
+		case "ResourcesMissing":
+			return role + " cluster capacity information is missing."
+		case "ComputeCapacityUnknown":
+			return role + " CPU capacity cannot be evaluated because CPU or node-count information is missing."
+		case "CacheCapacityUnknown":
+			return role + " cache capacity cannot be evaluated because disk or node-count information is missing."
+		}
+		if status, ok := strings.CutPrefix(detail, "Cluster"); ok && status != "" {
+			return fmt.Sprintf("%s cluster is not running (status: %s).", role, status)
+		}
+	}
+	return fmt.Sprintf("Cloud Manager reported risk %q.", reason)
 }
 
 func (r *VirtualClusterResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {

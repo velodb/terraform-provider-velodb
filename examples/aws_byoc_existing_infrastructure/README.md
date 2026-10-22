@@ -78,6 +78,8 @@ member. Copying a new template does not update an existing configuration. See
 for naming, capacity, and recovery requirements.
 
 The `virtual_cluster` output reports its configuration, live roles, and health.
+It includes `risk_messages` with readable explanations and preserves the
+backend codes in `risk_reasons`.
 To delete only the virtual cluster, remove its `resource "velodb_virtual_cluster"
 "main"` block, the `output "virtual_cluster"` block, and the `moved` block from
 `virtual_cluster.tf`. Keep the physical cluster blocks in that file. Run

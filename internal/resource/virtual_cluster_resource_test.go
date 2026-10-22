@@ -41,11 +41,45 @@ func virtualClusterTestModel() VirtualClusterResourceModel {
 		DesiredActiveClusterID: types.StringValue("c-a"), DesiredStandbyClusterID: types.StringValue("c-b"),
 		PairReconcileTrigger: types.Int64Null(),
 		ActiveClusterID:      types.StringNull(), StandbyClusterID: types.StringNull(), Status: types.StringNull(),
-		AtRisk: types.BoolNull(), RiskReasons: types.SetNull(types.StringType),
+		AtRisk: types.BoolNull(), RiskReasons: types.SetNull(types.StringType), RiskMessages: types.SetNull(types.StringType),
 		CreatedAt: types.StringNull(), UpdatedAt: types.StringNull(),
 		Timeouts: timeouts.Value{Object: types.ObjectNull(map[string]attr.Type{
 			"create": types.StringType, "update": types.StringType, "delete": types.StringType,
 		})},
+	}
+}
+
+func TestVirtualClusterRiskMessages(t *testing.T) {
+	for _, tc := range []struct{ reason, message string }{
+		{"CacheResourceLow", "Standby cache capacity is lower than active cache capacity."},
+		{"ComputeResourceLow", "Standby CPU capacity is lower than active CPU capacity."},
+		{"ArchInconsistent", "Active and standby clusters use different CPU architectures."},
+		{"ServiceUnavailable", "Cloud Manager reports a service availability risk without a specific cause."},
+		{"BackendRiskReported", "Cloud Manager reports an additional risk without a specific public cause."},
+		{"StandbyClusterStopped", "Standby cluster is not running (status: Stopped)."},
+		{"ActiveClusterStarting", "Active cluster is not running (status: Starting)."},
+		{"StandbyClusterMissing", "Standby cluster could not be found."},
+		{"ActiveClusterStatusUnknown", "Active cluster status is missing or unrecognized."},
+		{"StandbyResourcesMissing", "Standby cluster capacity information is missing."},
+		{"ActiveComputeCapacityUnknown", "Active CPU capacity cannot be evaluated because CPU or node-count information is missing."},
+		{"StandbyCacheCapacityUnknown", "Standby cache capacity cannot be evaluated because disk or node-count information is missing."},
+		{"FutureRisk", `Cloud Manager reported risk "FutureRisk".`},
+		{"StandbyFutureRisk", `Cloud Manager reported risk "StandbyFutureRisk".`},
+	} {
+		t.Run(tc.reason, func(t *testing.T) {
+			model := virtualClusterTestModel()
+			cluster := client.VirtualCluster{Status: "Running", AtRisk: true, RiskReasons: []string{tc.reason}}
+			if diags := model.setVirtualClusterObserved(context.Background(), &cluster); diags.HasError() {
+				t.Fatal(diags)
+			}
+			if !model.RiskMessages.Equal(types.SetValueMust(types.StringType, []attr.Value{types.StringValue(tc.message)})) {
+				t.Fatalf("risk message: %v", model.RiskMessages)
+			}
+			if !model.RiskReasons.Equal(types.SetValueMust(types.StringType, []attr.Value{types.StringValue(tc.reason)})) ||
+				model.Status.ValueString() != "Running" || !model.AtRisk.ValueBool() {
+				t.Fatalf("changed backend observations: %+v", model)
+			}
+		})
 	}
 }
 
@@ -98,6 +132,9 @@ func TestVirtualClusterImportReadAndFailoverDrift(t *testing.T) {
 	if first.RiskReasons.IsNull() || len(first.RiskReasons.Elements()) != 0 {
 		t.Fatalf("expected empty risk-reason set: %v", first.RiskReasons)
 	}
+	if first.RiskMessages.IsNull() || len(first.RiskMessages.Elements()) != 0 {
+		t.Fatalf("expected empty risk-message set: %v", first.RiskMessages)
+	}
 
 	current.Name = "renamed_elsewhere"
 	current.ActiveClusterID, current.StandbyClusterID = "c-b", "c-a"
@@ -113,9 +150,18 @@ func TestVirtualClusterImportReadAndFailoverDrift(t *testing.T) {
 		len(after.RiskReasons.Elements()) != 2 {
 		t.Fatalf("failover refresh changed intent or missed observations: %+v", after)
 	}
+	if !after.RiskMessages.Equal(types.SetValueMust(types.StringType, []attr.Value{
+		types.StringValue("Standby CPU capacity is lower than active CPU capacity."),
+		types.StringValue("Standby cache capacity is lower than active cache capacity."),
+	})) {
+		t.Fatalf("risk messages not refreshed: %v", after.RiskMessages)
+	}
 	current.RiskReasons = nil
 	current.CreatedAt, current.UpdatedAt = "", ""
 	_, omitted := read(state)
+	if omitted.RiskMessages.IsNull() || len(omitted.RiskMessages.Elements()) != 0 {
+		t.Fatalf("stale risk messages retained: %v", omitted.RiskMessages)
+	}
 	if !omitted.CreatedAt.IsNull() || !omitted.UpdatedAt.IsNull() ||
 		omitted.RiskReasons.IsNull() || len(omitted.RiskReasons.Elements()) != 0 {
 		t.Fatalf("omitted API values should become null timestamps and an empty risk set: %+v", omitted)

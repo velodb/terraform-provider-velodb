@@ -154,7 +154,18 @@ func TestAccVirtualClusterLifecycle(t *testing.T) {
 				resource.TestCheckResourceAttr("velodb_virtual_cluster.test", "status", "Running"),
 				resource.TestCheckResourceAttr("velodb_virtual_cluster.test", "at_risk", "false"),
 				resource.TestCheckResourceAttr("velodb_virtual_cluster.test", "risk_reasons.#", "0"),
+				resource.TestCheckResourceAttr("velodb_virtual_cluster.test", "risk_messages.#", "0"),
 				resource.TestCheckResourceAttr("velodb_virtual_cluster.test", "created_at", "2026-10-13T08:00:00Z"),
+			)},
+			{ResourceName: "velodb_virtual_cluster.test", ImportState: true, ImportStateId: "w-test/v-test", ImportStateVerify: true},
+			{PreConfig: func() {
+				mock.mu.Lock()
+				defer mock.mu.Unlock()
+				mock.current.AtRisk = true
+				mock.current.RiskReasons = []string{"CacheResourceLow"}
+			}, Config: base, Check: resource.ComposeAggregateTestCheckFunc(
+				resource.TestCheckTypeSetElemAttr("velodb_virtual_cluster.test", "risk_reasons.*", "CacheResourceLow"),
+				resource.TestCheckTypeSetElemAttr("velodb_virtual_cluster.test", "risk_messages.*", "Standby cache capacity is lower than active cache capacity."),
 			)},
 			{ResourceName: "velodb_virtual_cluster.test", ImportState: true, ImportStateId: "w-test/v-test", ImportStateVerify: true},
 			{PreConfig: func() {
@@ -168,6 +179,8 @@ func TestAccVirtualClusterLifecycle(t *testing.T) {
 				virtualClusterCheck("renamed", "c-a", "c-b", "c-b", "c-a"),
 				resource.TestCheckResourceAttr("velodb_virtual_cluster.test", "at_risk", "true"),
 				resource.TestCheckResourceAttr("velodb_virtual_cluster.test", "risk_reasons.#", "1"),
+				resource.TestCheckResourceAttr("velodb_virtual_cluster.test", "risk_messages.#", "1"),
+				resource.TestCheckTypeSetElemAttr("velodb_virtual_cluster.test", "risk_messages.*", "Standby CPU capacity is lower than active CPU capacity."),
 			)},
 			{Config: virtualClusterConfig(ts, "renamed", "c-b", "c-a", ""), Check: virtualClusterCheck("renamed", "c-b", "c-a", "c-b", "c-a")},
 			{Config: reconciled, Check: virtualClusterCheck("renamed", "c-a", "c-b", "c-a", "c-b")},

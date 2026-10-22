@@ -170,13 +170,40 @@ These are read from the API on every refresh and cannot be set in configuration:
 - `risk_reasons`: Risk reason codes behind `at_risk`. This set can be empty while
   the virtual cluster is outside `Running`, so an empty set alone does not prove
   health — check `status` as well.
+- `risk_messages`: Human-readable explanations derived from `risk_reasons` by
+  the provider. These do not include capacity numbers or change the backend's
+  health assessment. Use `risk_reasons` for code-based checks.
 - `created_at`, `updated_at`: Creation and last-update times in RFC 3339 format
   when the API returns them.
 
 ## Risk reasons
 
 The backend supplies `risk_reasons`; the provider exposes them as a set of
-strings. Current Cloud Manager deployments report specific causes:
+strings and supplies readable phrases in `risk_messages`. For example:
+
+```hcl
+at_risk       = true
+risk_reasons  = ["CacheResourceLow"]
+risk_messages = ["Standby cache capacity is lower than active cache capacity."]
+```
+
+To show the phrases in your own configuration:
+
+```hcl
+output "virtual_cluster_risk_messages" {
+  value = velodb_virtual_cluster.main.risk_messages
+}
+```
+
+Messages refresh with the observed risks during create, update, import, and
+read. A stopped standby is described as `Standby cluster is not running
+(status: Stopped).` Unknown backend reason codes remain unchanged in
+`risk_reasons` and appear in a message such as `Cloud Manager reported risk
+"FutureRisk".` Empty messages, like empty reasons, do not prove health outside
+`Running`; inspect `status` and `at_risk` too. Existing outputs that select only
+`risk_reasons` must also select `risk_messages` to display the phrases.
+
+Current Cloud Manager deployments report specific causes:
 
 | Reason | Meaning |
 |---|---|
