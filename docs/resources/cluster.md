@@ -22,8 +22,9 @@ Manages a COMPUTE cluster within a VeloDB Cloud warehouse.
 ## Constraints
 
 - Only `cluster_type = "COMPUTE"` is supported (SQL and OBSERVER are blocked at plan time)
-- Arbitrary `compute_vcpu` and `cache_gb` changes cannot be combined; when increasing CPU, set `cache_gb` to the API-implied minimum for the new CPU size
-- `compute_vcpu` minimum is 4, `cache_gb` minimum is `max(100, compute_vcpu * 25)`
+- A CPU resize automatically scales cache from the existing CPU/cache ratio, subject to a minimum. Set `cache_gb` to that resulting value in the same apply; the provider reports the required value if it differs. Apply any additional cache increase separately.
+- The resource validates `compute_vcpu >= 4` and `cache_gb >= 100`; backend sizing rules also apply. The AWS BYOC modules additionally require `cache_gb >= max(100, compute_vcpu * 25)`.
+- Cache-only decreases are not supported.
 
 For members of a virtual cluster, configure `lifecycle { create_before_destroy = true }`
 before replacing or removing their declarations. Bound members cannot be deleted;
@@ -77,13 +78,17 @@ resource "velodb_cluster" "dev" {
 }
 ```
 
-### Resize (one dimension at a time)
+### Resize CPU with its corresponding cache size
+
+Starting from 8 vCPU and 200 GB cache, resizing to 16 vCPU scales cache to
+400 GB. Starting from 8 vCPU and 400 GB instead would require 800 GB, rather
+than a fixed minimum for the target CPU size.
 
 ```terraform
 resource "velodb_cluster" "etl" {
   # ...
-  compute_vcpu = 16   # was 8; apply this first
-  cache_gb     = 400   # API-implied minimum for 16 vCPU
+  compute_vcpu = 16   # was 8
+  cache_gb     = 400  # was 200; scales with the CPU resize
 }
 # After apply completes:
 resource "velodb_cluster" "etl" {
@@ -120,9 +125,9 @@ resource "velodb_cluster" "c" {
 
 ### Required
 
-- `cache_gb` (Number) Cache disk size in GB. Minimum is `max(100, compute_vcpu * 25)`. Changing triggers resize. Arbitrary cache changes cannot be combined with `compute_vcpu`; when increasing CPU, set this to the API-implied minimum for the new CPU size.
+- `cache_gb` (Number) Cache disk size in GB (minimum 100). Changing triggers resize. For a CPU resize, set this to the cache size implied by the existing CPU/cache ratio and backend minimum. Apply additional cache increases separately; cache-only decreases are unsupported. The BYOC modules impose a stricter sizing constraint described above.
 - `cluster_type` (String) Only `COMPUTE` is supported. Changing this forces a new resource.
-- `compute_vcpu` (Number) vCPU capacity (minimum 4). Changing triggers resize. When increasing CPU, set `cache_gb` to the API-implied minimum for the new CPU size.
+- `compute_vcpu` (Number) vCPU capacity (minimum 4). Changing triggers resize. Update `cache_gb` to match the cache size implied by the CPU resize; the provider reports the required value when the configured size differs.
 - `name` (String) Cluster display name. Must start with a letter and contain only letters, numbers, and underscores.
 - `warehouse_id` (String) Parent warehouse identifier. Changing this forces a new resource.
 
