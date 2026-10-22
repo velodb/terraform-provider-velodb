@@ -108,9 +108,9 @@ example.
   not supported yet.
 - [`velodb_cluster`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/resources/cluster) manages `COMPUTE` clusters. `SQL` and `OBSERVER` cluster
   types are blocked at plan time.
-- CPU and cache resize on [`velodb_cluster`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/resources/cluster) are applied one dimension at a time. When increasing
-  `compute_vcpu`, set `cache_gb` to the API-implied minimum for the new CPU
-  size, then apply any additional cache-only change in a later run.
+- A CPU resize on [`velodb_cluster`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/resources/cluster) scales cache from its existing CPU/cache ratio, subject to a
+  minimum. Set the corresponding `cache_gb` in the same apply, then apply any
+  additional cache increase separately. See [cluster resizing](resources/cluster.md#resize-cpu-with-its-corresponding-cache-size).
 - The current Management API does not accept `maintenance_window`,
   `upgrade_policy`, mixed-billing request fields, or legacy
   `advanced_settings` in Terraform [`velodb_warehouse`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/resources/warehouse) or [`velodb_cluster`](https://registry.terraform.io/providers/velodb/velodb/latest/docs/resources/cluster) create/update requests.

@@ -10,6 +10,12 @@ description: |-
 Manages a virtual cluster backed by two physical compute clusters in different
 availability zones. Both must already belong to the same warehouse.
 
+At creation, both members must be `Running` and neither may already belong to
+another virtual cluster. Warehouse eligibility and supported engine-version
+requirements also apply. A rejected create can indicate an occupied or stopped
+member; older Cloud Manager deployments may report only a generic warehouse
+eligibility error for these cases.
+
 The two members are ordinary compute-cluster IDs — any two distinct clusters in
 the warehouse. One takes the active role and the other standby; the role is
 independent of which cluster is the warehouse's initial cluster.
@@ -61,6 +67,10 @@ plan before retrying; the provider does not automatically repeat the write.
 Reads that still show the pre-update value continue polling because they may
 reflect normal propagation delay. This detection does not prevent stale
 writes or detect an intervening update that restores the original value.
+
+A member promoted to active must be `Running`, including when swapping the
+existing pair. A swap can demote a stopped active member while promoting a
+running standby. A replacement standby must also be `Running`.
 
 Deleting the resource unmounts both physical clusters and ends virtual-cluster
 routing and automatic failover. If relevant users have no default cluster,
@@ -162,6 +172,31 @@ These are read from the API on every refresh and cannot be set in configuration:
   health — check `status` as well.
 - `created_at`, `updated_at`: Creation and last-update times in RFC 3339 format
   when the API returns them.
+
+## Risk reasons
+
+The backend supplies `risk_reasons`; the provider exposes them as a set of
+strings. Current Cloud Manager deployments report specific causes:
+
+| Reason | Meaning |
+|---|---|
+| `ActiveCluster<Status>`, `StandbyCluster<Status>` | That member is not running, for example `StandbyClusterStopped`, `StandbyClusterStarting`, or `ActiveClusterSuspended`. |
+| `ActiveClusterMissing`, `StandbyClusterMissing` | The member could not be found. |
+| `ActiveClusterStatusUnknown`, `StandbyClusterStatusUnknown` | The member's status is missing or unrecognized. |
+| `ActiveResourcesMissing`, `StandbyResourcesMissing` | The member has no capacity record. |
+| `ActiveComputeCapacityUnknown`, `StandbyComputeCapacityUnknown` | CPU or node-count information needed to evaluate compute capacity is missing. |
+| `ActiveCacheCapacityUnknown`, `StandbyCacheCapacityUnknown` | Disk or node-count information needed to evaluate cache capacity is missing. |
+| `ArchInconsistent` | The members use different CPU architectures. |
+| `ComputeResourceLow` | Total standby CPU capacity is below active CPU capacity. |
+| `CacheResourceLow` | Total standby cache capacity is below active cache capacity. |
+| `BackendRiskReported` | The backend reports an additional risk without a more specific public cause. |
+
+For example, a stopped standby can produce `at_risk = true` and
+`risk_reasons = ["StandbyClusterStopped"]` while the VC lifecycle remains
+`Running`. Multiple issues can be reported together. These codes depend on the
+deployed backend, not the provider version; older deployments can still return
+the broad `ServiceUnavailable` reason. Accept additional reason strings as the
+backend evolves, and check lifecycle status before interpreting an empty set.
 
 ## Import
 

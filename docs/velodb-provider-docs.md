@@ -56,6 +56,7 @@ environment when `api_key` and `host` are omitted.
 - `velodb_byoc_network`
 - `velodb_encryption_key`
 - `velodb_cluster`
+- `velodb_virtual_cluster`
 - `velodb_warehouse_public_access_policy`
 - `velodb_warehouse_private_endpoint`
 - `velodb_private_link_endpoint_service`
@@ -83,7 +84,9 @@ environment when `api_key` and `host` are omitted.
 - AWS BYOC warehouses can be created with custom infrastructure through the
   advanced setup flow. Guided/template BYOC setup is not supported yet.
 - `velodb_cluster` manages `COMPUTE` clusters only.
-- CPU and cache resize are applied one dimension at a time.
+- A CPU resize scales cache from its existing CPU/cache ratio, subject to a
+  minimum. Set the corresponding `cache_gb` in the same apply, then apply any
+  additional cache increase separately. See [cluster resizing](resources/cluster.md#resize-cpu-with-its-corresponding-cache-size).
 - The current Management API does not accept `maintenance_window`,
   `upgrade_policy`, mixed-billing request fields, or legacy
   `advanced_settings` in Terraform create/update requests.
