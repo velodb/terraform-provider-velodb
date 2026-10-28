@@ -355,11 +355,15 @@ Optional:
 
 Required:
 
-- `cache_gb` (Number) Cache capacity in GB.
-- `compute_vcpu` (Number) Compute capacity in vCPUs.
 - `zone` (String) Availability zone for the initial cluster.
 
+Choose exactly one capacity family below. All settings are creation-only; see [node capacity](../guides/node-capacity.md).
+
 Optional:
+
+- `compute_vcpu` and `cache_gb` (Number) Both required for legacy creation.
+- `cache_type` (Number) Creation-only: `0` for EBS (default), `1` for local NVMe.
+- `node_vcpu`, `node_count`, and `node_cache` (Number) All required for EBS node creation. For local NVMe, set cache_type to 1 and omit node_cache. CPU and cache are per-node values; node_cache is GB. The block retains creation inputs; import the initial cluster separately to observe its applied cache capacity.
 
 - `auto_pause` (Block List, Max: 1) Auto-pause configuration. (see [below for nested schema](#nestedblock--initial_cluster--auto_pause))
 - `ratio` (Number) vCPU-to-memory ratio. Supported values are `4` (1:4) and `8` (1:8). This value is create-only. If omitted, Manager defaults to `8` (1:8).

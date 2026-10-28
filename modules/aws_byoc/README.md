@@ -266,3 +266,24 @@ Known invalid passwords fail configuration validation without including the
 password in error messages. Both BYOC modules require a valid password for warehouse creation.
 
 `region` must not be empty or contain leading or trailing whitespace.
+
+## Node-based capacity
+
+Requires a provider build with node-capacity support and the corresponding Formation API deployment. For an EBS initial cluster, set `node_vcpu`, `node_count`, and `node_cache` together and omit `compute_vcpu`/`cache_gb`. Cache is GB per node. Select local NVMe with `cache_type = 1` and omit `node_cache`; its capacity is package-defined. The same fields apply within each `additional_clusters` entry. Cache type and initial-cluster inputs are creation-only. Without node inputs, the original defaults of 4 vCPUs and 100 GB remain in effect.
+
+```hcl
+# Inputs to this module:
+node_vcpu  = 8
+node_count = 3
+node_cache = 200
+
+additional_clusters = {
+  worker = { name = "worker", node_vcpu = 8, node_count = 2, node_cache = 200 }
+}
+```
+
+Additional clusters accept either legacy or node inputs. Change node count separately from CPU/cache, and keep initial-cluster settings unchanged after warehouse creation. Initial-cluster resizing requires importing the independently verified cluster ID into a separate `velodb_cluster` resource. Explicit `scaling_mode = "MANUAL"` is available for supported additional-cluster node CPU/count updates. Mixed-billing resizing is not supported by this first version.
+
+The legacy module inputs `compute_vcpu` and `cache_gb` now default to null; effective legacy defaults are selected internally when node inputs are absent. Explicitly supplying legacy and node inputs together is rejected.
+
+`ratio` selects 4 or 8 GB RAM per vCPU at creation for both initial and additional clusters; omission uses the API default. Resizing preserves the ratio.

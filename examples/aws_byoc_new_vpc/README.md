@@ -179,3 +179,26 @@ replacing infrastructure already used by the warehouse before planning again.
 
 These checks do not prevent an explicit `terraform destroy` or removal of the
 module from configuration. They are immutability checks, not deletion protection.
+
+## Node capacity and cache type
+
+Use an updated provider build and deploy the corresponding Formation API
+before applying node-based settings. Copy `terraform.tfvars.example` to
+`terraform.tfvars` and uncomment the initial-cluster capacity example:
+
+```hcl
+cache_type = 0
+ratio      = 4
+node_vcpu  = 4
+node_count = 1
+node_cache = 100
+```
+
+For local NVMe, set `cache_type = 1` and omit `node_cache`. Its cache capacity
+comes from the selected package. The same fields are supported in each
+`additional_clusters` entry. Do not combine node inputs with legacy
+`compute_vcpu`/`cache_gb`. Existing configurations keep their defaults.
+
+The initial-cluster inputs, ratio and cache type are creation-only. Additional
+cluster node-count and node-size changes require separate applies. See the
+[node-capacity guide](../../docs/guides/node-capacity.md).

@@ -373,6 +373,10 @@ func initialClusterListForTest(ratio types.Int64) types.List {
 	autoPauseType := types.ObjectType{AttrTypes: autoPauseAttrTypes()}
 	attrTypes := map[string]attr.Type{
 		"zone":         types.StringType,
+		"node_vcpu":    types.Int64Type,
+		"node_count":   types.Int64Type,
+		"node_cache":   types.Int64Type,
+		"cache_type":   types.Int64Type,
 		"compute_vcpu": types.Int64Type,
 		"ratio":        types.Int64Type,
 		"cache_gb":     types.Int64Type,
@@ -380,6 +384,10 @@ func initialClusterListForTest(ratio types.Int64) types.List {
 	}
 	obj := types.ObjectValueMust(attrTypes, map[string]attr.Value{
 		"zone":         types.StringValue("us-east-1a"),
+		"node_vcpu":    types.Int64Null(),
+		"node_count":   types.Int64Null(),
+		"node_cache":   types.Int64Null(),
+		"cache_type":   types.Int64Null(),
 		"compute_vcpu": types.Int64Value(4),
 		"ratio":        ratio,
 		"cache_gb":     types.Int64Value(100),

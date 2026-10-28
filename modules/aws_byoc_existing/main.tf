@@ -13,6 +13,12 @@ terraform {
   }
 }
 
+locals {
+  node_capacity        = var.cache_type == 1 || var.node_vcpu != null || var.node_count != null || var.node_cache != null
+  initial_compute_vcpu = local.node_capacity ? null : coalesce(var.compute_vcpu, 4)
+  initial_cache_gb     = local.node_capacity ? null : coalesce(var.cache_gb, 100)
+}
+
 data "aws_vpc" "selected" {
   id = var.vpc_id
 }
@@ -191,8 +197,13 @@ resource "velodb_warehouse" "this" {
 
   initial_cluster {
     zone         = local.zone
-    compute_vcpu = var.compute_vcpu
-    cache_gb     = var.cache_gb
+    compute_vcpu = local.initial_compute_vcpu
+    cache_gb     = local.initial_cache_gb
+    node_vcpu    = var.node_vcpu
+    node_count   = var.node_count
+    node_cache   = var.node_cache
+    cache_type   = var.cache_type
+    ratio        = var.ratio
 
     auto_pause {
       enabled              = var.auto_pause.enabled
@@ -210,7 +221,11 @@ resource "velodb_warehouse" "this" {
     # precondition rather than a variable validation because it references two
     # variables, which variable validation cannot do before Terraform 1.9.
     precondition {
-      condition     = var.cache_gb >= max(100, var.compute_vcpu * 25)
+      condition     = local.node_capacity ? (var.compute_vcpu == null && var.cache_gb == null && var.node_vcpu != null && var.node_count != null && (var.cache_type == 1 ? var.node_cache == null : var.node_cache != null)) : true
+      error_message = "Set node_vcpu/node_count and omit compute_vcpu/cache_gb for node capacity. EBS requires node_cache; local NVMe requires cache_type=1 and node_cache omitted."
+    }
+    precondition {
+      condition     = local.node_capacity ? true : local.initial_cache_gb >= max(100, local.initial_compute_vcpu * 25)
       error_message = "cache_gb must be at least max(100, compute_vcpu * 25) for the initial cluster."
     }
   }
@@ -225,6 +240,12 @@ resource "velodb_cluster" "additional" {
   zone         = coalesce(each.value.zone, local.zone)
   compute_vcpu = each.value.compute_vcpu
   cache_gb     = each.value.cache_gb
+  node_vcpu    = each.value.node_vcpu
+  node_count   = each.value.node_count
+  node_cache   = each.value.node_cache
+  cache_type   = each.value.cache_type
+  ratio        = each.value.ratio
+  scaling_mode = each.value.scaling_mode
 
   auto_pause {
     enabled              = each.value.auto_pause.enabled

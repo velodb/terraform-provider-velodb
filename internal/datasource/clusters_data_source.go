@@ -92,6 +92,11 @@ func (d *ClustersDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 						"zone":           schema.StringAttribute{Computed: true},
 						"disk_sum_size":  schema.Int64Attribute{Computed: true},
 						"billing_model":  schema.StringAttribute{Computed: true},
+						"cache_type":     schema.Int64Attribute{Computed: true},
+						"capacity_model": schema.StringAttribute{Computed: true},
+						"node_vcpu":      schema.Int64Attribute{Computed: true},
+						"node_count":     schema.Int64Attribute{Computed: true},
+						"node_cache":     schema.Int64Attribute{Computed: true},
 						"auto_pause": schema.ListNestedAttribute{
 							Description: "Auto-pause configuration when returned by the API.",
 							Computed:    true,
@@ -165,6 +170,11 @@ func (d *ClustersDataSource) Read(ctx context.Context, req datasource.ReadReques
 		"zone":           types.StringType,
 		"disk_sum_size":  types.Int64Type,
 		"billing_model":  types.StringType,
+		"cache_type":     types.Int64Type,
+		"capacity_model": types.StringType,
+		"node_vcpu":      types.Int64Type,
+		"node_count":     types.Int64Type,
+		"node_cache":     types.Int64Type,
 		"auto_pause":     types.ListType{ElemType: types.ObjectType{AttrTypes: dataSourceAutoPauseAttrTypes()}},
 		"created_at":     types.StringType,
 		"started_at":     types.StringType,
@@ -211,6 +221,11 @@ func (d *ClustersDataSource) Read(ctx context.Context, req datasource.ReadReques
 			"zone":           stringVal(cl.Zone),
 			"disk_sum_size":  diskSize,
 			"billing_model":  stringVal(cl.BillingModel),
+			"capacity_model": stringVal(cl.CapacityModel),
+			"node_vcpu":      nodeIntValue(cl.NodeVcpu),
+			"node_count":     types.Int64Value(int64(cl.NodeCount)),
+			"node_cache":     nodeIntValue(cl.NodeCache),
+			"cache_type":     nodeIntValue(cl.CacheType),
 			"auto_pause":     autoPause,
 			"created_at":     createdAt,
 			"started_at":     startedAt,
@@ -280,4 +295,11 @@ func dataSourceAutoPauseToList(autoPause *client.AutoPauseConfig, diags *diag.Di
 	list, d := types.ListValue(objectType, []attr.Value{obj})
 	diags.Append(d...)
 	return list
+}
+
+func nodeIntValue(value *int) types.Int64 {
+	if value == nil {
+		return types.Int64Null()
+	}
+	return types.Int64Value(int64(*value))
 }

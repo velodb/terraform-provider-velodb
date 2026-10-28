@@ -29,6 +29,7 @@ var (
 	_ resource.Resource                   = &ClusterResource{}
 	_ resource.ResourceWithImportState    = &ClusterResource{}
 	_ resource.ResourceWithValidateConfig = &ClusterResource{}
+	_ resource.ResourceWithModifyPlan     = &ClusterResource{}
 )
 
 type ClusterResource struct {
@@ -42,6 +43,11 @@ func NewClusterResource() resource.Resource {
 // --- Terraform models ---
 
 type ClusterResourceModel struct {
+	CacheType     types.Int64    `tfsdk:"cache_type"`
+	NodeVcpu      types.Int64    `tfsdk:"node_vcpu"`
+	NodeCache     types.Int64    `tfsdk:"node_cache"`
+	CapacityModel types.String   `tfsdk:"capacity_model"`
+	ScalingMode   types.String   `tfsdk:"scaling_mode"`
 	ID            types.String   `tfsdk:"id"`
 	WarehouseID   types.String   `tfsdk:"warehouse_id"`
 	Name          types.String   `tfsdk:"name"`
@@ -121,12 +127,14 @@ func (r *ClusterResource) Schema(ctx context.Context, _ resource.SchemaRequest, 
 				Optional:    true,
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.RequiresReplace(),
+					stringplanmodifier.UseStateForUnknown(),
+					stringplanmodifier.RequiresReplaceIfConfigured(),
 				},
 			},
 			"compute_vcpu": schema.Int64Attribute{
 				Description: "vCPU capacity: 4, 8, 16, or multiples of 16.",
-				Required:    true,
+				Optional:    true,
+				Computed:    true,
 				Validators:  []validator.Int64{int64validator.AtLeast(4)},
 			},
 			"ratio": schema.Int64Attribute{
@@ -136,7 +144,8 @@ func (r *ClusterResource) Schema(ctx context.Context, _ resource.SchemaRequest, 
 			},
 			"cache_gb": schema.Int64Attribute{
 				Description: "Cache disk size in GB (minimum 100).",
-				Required:    true,
+				Optional:    true,
+				Computed:    true,
 				Validators:  []validator.Int64{int64validator.AtLeast(100)},
 			},
 			"billing_method": schema.StringAttribute{
@@ -170,7 +179,12 @@ func (r *ClusterResource) Schema(ctx context.Context, _ resource.SchemaRequest, 
 			"region":         schema.StringAttribute{Computed: true, Description: "Cloud region."},
 			"total_cpu":      schema.Int64Attribute{Computed: true, Description: "Total CPU."},
 			"total_disk_gb":  schema.Int64Attribute{Computed: true, Description: "Total disk GB."},
-			"node_count":     schema.Int64Attribute{Computed: true, Description: "Total node count."},
+			"cache_type":     schema.Int64Attribute{Optional: true, Computed: true, Description: "Cache type: 0 for EBS (default on creation), 1 for local NVMe. Creation-only; omit node_cache for local storage.", Validators: []validator.Int64{int64validator.OneOf(0, 1)}, PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
+			"node_count":     schema.Int64Attribute{Optional: true, Computed: true, Description: "Total node count for single-billing node capacity. Configure with node_vcpu and, for EBS, node_cache.", Validators: []validator.Int64{int64validator.Between(1, 2147483647)}},
+			"node_vcpu":      schema.Int64Attribute{Optional: true, Computed: true, Description: "vCPUs per node.", Validators: []validator.Int64{int64validator.Between(1, 2147483647)}},
+			"node_cache":     schema.Int64Attribute{Optional: true, Computed: true, Description: "Cache GB per node. Required for EBS node creation; omit for local storage, where the API returns package-defined capacity.", Validators: []validator.Int64{int64validator.Between(1, 2147483647)}},
+			"capacity_model": schema.StringAttribute{Computed: true, Description: "Stored capacity model: NODE_SPEC or LEGACY_TOTAL_CPU. Null when not recorded by the API."},
+			"scaling_mode":   schema.StringAttribute{Optional: true, Description: "Explicit MANUAL intent for node CPU/count updates. Cannot accompany a cache-only update.", Validators: []validator.String{stringvalidator.OneOf("MANUAL")}},
 			"created_at": schema.StringAttribute{
 				Computed: true, Description: "Creation time in RFC 3339 format.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
@@ -213,6 +227,9 @@ func (r *ClusterResource) Schema(ctx context.Context, _ resource.SchemaRequest, 
 }
 
 func (r *ClusterResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var config ClusterResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	validateCapacity(&resp.Diagnostics, config.ComputeVcpu, config.CacheGb, config.NodeVcpu, config.NodeCount, config.NodeCache, config.CacheType)
 	var autoPause types.List
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("auto_pause"), &autoPause)...)
 	validateAutoPauseRequiresTimeout(ctx, &resp.Diagnostics, "cluster", autoPause)
@@ -302,8 +319,17 @@ func buildCreateClusterRequest(plan ClusterResourceModel) *client.CreateClusterR
 	request := &client.CreateClusterRequest{
 		Name:        plan.Name.ValueString(),
 		ClusterType: plan.ClusterType.ValueString(),
-		ComputeVcpu: int(plan.ComputeVcpu.ValueInt64()),
-		CacheGb:     int(plan.CacheGb.ValueInt64()),
+	}
+	setOptionalIntFromInt64(&request.CacheType, plan.CacheType)
+	if knownInt(plan.NodeVcpu) {
+		setOptionalIntFromInt64(&request.NodeVcpu, plan.NodeVcpu)
+		setOptionalIntFromInt64(&request.NodeCount, plan.NodeCount)
+		if !localCache(plan.CacheType) {
+			setOptionalIntFromInt64(&request.NodeCache, plan.NodeCache)
+		}
+	} else {
+		setOptionalIntFromInt64(&request.ComputeVcpu, plan.ComputeVcpu)
+		setOptionalIntFromInt64(&request.CacheGb, plan.CacheGb)
 	}
 	if !plan.Ratio.IsNull() && !plan.Ratio.IsUnknown() {
 		ratio := int(plan.Ratio.ValueInt64())
@@ -353,8 +379,31 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 	warehouseID := state.WarehouseID.ValueString()
 	clusterID := state.ID.ValueString()
 
-	cpuChanged := !plan.ComputeVcpu.Equal(state.ComputeVcpu)
-	diskChanged := !plan.CacheGb.Equal(state.CacheGb)
+	var config ClusterResourceModel
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	validateCacheTypeChange(&resp.Diagnostics, config.CacheType, state.CacheType)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	nodeManaged := nodeCapacityConfigured(config.NodeVcpu, config.NodeCount, config.NodeCache)
+	if nodeManaged {
+		if !r.updateNodeCapacity(ctx, warehouseID, clusterID, config, &plan, state, updateTimeout, &resp.Diagnostics) {
+			// Keep the remote ID and any applied capacity after a partial operation.
+			refreshCtx, cancelRefresh := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+			defer cancelRefresh()
+			r.readClusterIntoState(refreshCtx, warehouseID, clusterID, &state, &resp.Diagnostics)
+			resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+			return
+		}
+	} else if (!plan.ComputeVcpu.Equal(state.ComputeVcpu) || !plan.CacheGb.Equal(state.CacheGb)) && state.CapacityModel.ValueString() == "NODE_SPEC" {
+		resp.Diagnostics.AddError("Legacy capacity cannot resize a NODE_SPEC cluster", "Replace compute_vcpu/cache_gb with node_vcpu/node_count/node_cache on this same resource. Do not destroy the cluster.")
+		return
+	}
+	cpuChanged := !nodeManaged && !plan.ComputeVcpu.Equal(state.ComputeVcpu)
+	diskChanged := !nodeManaged && !plan.CacheGb.Equal(state.CacheGb)
 	validateCreateOnlyRatio(&resp.Diagnostics, plan.Ratio, state.Ratio)
 	if resp.Diagnostics.HasError() {
 		return
@@ -464,7 +513,7 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 
 	// 3. Resize compute_vcpu
-	if !plan.ComputeVcpu.Equal(state.ComputeVcpu) {
+	if cpuChanged {
 		v := int(plan.ComputeVcpu.ValueInt64())
 		updateReq := &client.UpdateClusterRequest{
 			ComputeVcpu: &v,
@@ -480,7 +529,7 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 
 	// 4. Resize cache_gb
-	if !cacheChangeHandledByCPU && !plan.CacheGb.Equal(state.CacheGb) {
+	if !cacheChangeHandledByCPU && diskChanged {
 		v := int(plan.CacheGb.ValueInt64())
 		updateReq := &client.UpdateClusterRequest{
 			CacheGb: &v,
@@ -699,6 +748,10 @@ func (r *ClusterResource) readClusterIntoState(ctx context.Context, warehouseID,
 	state.Region = stringOrNull(cl.Region)
 	state.Zone = stringOrNull(cl.Zone)
 	state.BillingMethod = stringOrNull(cl.BillingModel)
+	state.CapacityModel = stringOrNull(cl.CapacityModel)
+	state.NodeVcpu = optionalNodeValue(cl.NodeVcpu)
+	state.NodeCache = optionalNodeValue(cl.NodeCache)
+	state.CacheType = optionalNodeValue(cl.CacheType)
 
 	// Computed fields from BillingSummary or ClusterItem
 	if cl.BillingSummary != nil {
@@ -725,6 +778,8 @@ func (r *ClusterResource) readClusterIntoState(ctx context.Context, warehouseID,
 
 	if cl.CreatedAt != nil {
 		state.CreatedAt = types.StringValue(cl.CreatedAt.Format(time.RFC3339))
+	} else {
+		state.CreatedAt = types.StringNull()
 	}
 	if cl.StartedAt != nil {
 		state.StartedAt = types.StringValue(cl.StartedAt.Format(time.RFC3339))
