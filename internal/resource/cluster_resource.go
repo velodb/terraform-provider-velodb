@@ -389,16 +389,7 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 	nodeManaged := nodeCapacityConfigured(config.NodeVcpu, config.NodeCount, config.NodeCache)
-	if nodeManaged {
-		if !r.updateNodeCapacity(ctx, warehouseID, clusterID, config, &plan, state, updateTimeout, &resp.Diagnostics) {
-			// Keep the remote ID and any applied capacity after a partial operation.
-			refreshCtx, cancelRefresh := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
-			defer cancelRefresh()
-			r.readClusterIntoState(refreshCtx, warehouseID, clusterID, &state, &resp.Diagnostics)
-			resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
-			return
-		}
-	} else if (!plan.ComputeVcpu.Equal(state.ComputeVcpu) || !plan.CacheGb.Equal(state.CacheGb)) && state.CapacityModel.ValueString() == "NODE_SPEC" {
+	if !nodeManaged && (!plan.ComputeVcpu.Equal(state.ComputeVcpu) || !plan.CacheGb.Equal(state.CacheGb)) && state.CapacityModel.ValueString() == "NODE_SPEC" {
 		resp.Diagnostics.AddError("Legacy capacity cannot resize a NODE_SPEC cluster", "Replace compute_vcpu/cache_gb with node_vcpu/node_count/node_cache on this same resource. Do not destroy the cluster.")
 		return
 	}
@@ -491,9 +482,21 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 					return cl.Status, nil
 				}, targetStatuses, client.FailedStatuses, updateTimeout, 10*time.Second)
 				if err != nil {
-					resp.Diagnostics.AddWarning("Cluster action may still be in progress", err.Error())
+					resp.Diagnostics.AddError("Cluster action incomplete", err.Error())
+					return
 				}
 			}
+		}
+	}
+
+	if nodeManaged {
+		if !r.updateNodeCapacity(ctx, warehouseID, clusterID, config, &plan, state, updateTimeout, &resp.Diagnostics) {
+			// Keep the remote ID and any applied capacity after a partial operation.
+			refreshCtx, cancelRefresh := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+			defer cancelRefresh()
+			r.readClusterIntoState(refreshCtx, warehouseID, clusterID, &state, &resp.Diagnostics)
+			resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+			return
 		}
 	}
 

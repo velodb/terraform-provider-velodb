@@ -167,3 +167,123 @@ func TestNodeUpdateFailureRefreshesAppliedCapacity(t *testing.T) {
 		t.Fatalf("partial progress lost: %+v %v", got, resp.Diagnostics)
 	}
 }
+
+func TestNodeUpdateResumesBeforeResize(t *testing.T) {
+	for _, scenario := range []string{"node_count", "node_vcpu", "node_cache", "resume rejected", "resume timeout"} {
+		t.Run(scenario, func(t *testing.T) {
+			ctx := context.Background()
+			if scenario == "resume timeout" {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithTimeout(ctx, 100*time.Millisecond)
+				defer cancel()
+			}
+			status := "Suspended"
+			cpu, count, cache := 8, 3, 200
+			resumes, resizes := 0, 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				switch {
+				case req.Method == http.MethodPost && strings.HasSuffix(req.URL.Path, "/resume"):
+					resumes++
+					if scenario == "resume rejected" {
+						w.WriteHeader(http.StatusConflict)
+						_, _ = w.Write([]byte(`{"code":"OperationConflict","message":"resume rejected"}`))
+						return
+					}
+					status = "Resuming"
+					_, _ = w.Write([]byte(`{"success":true}`))
+				case req.Method == http.MethodPatch:
+					resizes++
+					if status != "Running" {
+						w.WriteHeader(http.StatusConflict)
+						_, _ = w.Write([]byte(`{"code":"OperationConflict","message":"cluster is not running"}`))
+						return
+					}
+					var update client.UpdateClusterRequest
+					if err := json.NewDecoder(req.Body).Decode(&update); err != nil {
+						t.Error(err)
+					}
+					if update.NodeCount != nil {
+						count = *update.NodeCount
+					}
+					if update.NodeVcpu != nil {
+						cpu = *update.NodeVcpu
+					}
+					if update.NodeCache != nil {
+						cache = *update.NodeCache
+					}
+					_, _ = w.Write([]byte(`{"success":true}`))
+				default:
+					if status == "Resuming" && scenario != "resume timeout" {
+						status = "Running"
+					}
+					_ = json.NewEncoder(w).Encode(map[string]any{"success": true, "data": map[string]any{
+						"clusterId": "c", "warehouseId": "w", "name": "analytics", "clusterType": "COMPUTE",
+						"status": status, "cacheType": 0, "nodeVcpu": cpu, "nodeCount": count,
+						"nodeCache": cache, "capacityModel": "NODE_SPEC",
+					}})
+				}
+			}))
+			defer server.Close()
+			r := &ClusterResource{client: client.NewFormationClient(strings.TrimPrefix(server.URL, "http://"), "test-key", 0, time.Second)}
+			var schemaResponse resource.SchemaResponse
+			r.Schema(ctx, resource.SchemaRequest{}, &schemaResponse)
+			ty := schemaResponse.Schema.Type().TerraformType(ctx).(tftypes.Object)
+			values := map[string]tftypes.Value{}
+			for key, attrType := range ty.AttributeTypes {
+				values[key] = tftypes.NewValue(attrType, nil)
+			}
+			priorState := tfsdk.State{Schema: schemaResponse.Schema, Raw: tftypes.NewValue(ty, values)}
+			var prior ClusterResourceModel
+			if d := priorState.Get(ctx, &prior); d.HasError() {
+				t.Fatal(d)
+			}
+			prior.ID = types.StringValue("c")
+			prior.WarehouseID = types.StringValue("w")
+			prior.Name = types.StringValue("analytics")
+			prior.ClusterType = types.StringValue("COMPUTE")
+			prior.NodeVcpu = types.Int64Value(8)
+			prior.NodeCount = types.Int64Value(3)
+			prior.NodeCache = types.Int64Value(200)
+			prior.CacheType = types.Int64Value(0)
+			prior.CapacityModel = types.StringValue("NODE_SPEC")
+			prior.DesiredState = types.StringValue("paused")
+			if d := priorState.Set(ctx, &prior); d.HasError() {
+				t.Fatal(d)
+			}
+			next := prior
+			next.DesiredState = types.StringValue("running")
+			switch scenario {
+			case "node_count":
+				next.NodeCount = types.Int64Value(4)
+			case "node_vcpu":
+				next.NodeVcpu = types.Int64Value(16)
+			default:
+				next.NodeCache = types.Int64Value(300)
+			}
+			planState := priorState
+			if d := planState.Set(ctx, &next); d.HasError() {
+				t.Fatal(d)
+			}
+			resp := resource.UpdateResponse{State: priorState}
+			r.Update(ctx, resource.UpdateRequest{State: priorState, Plan: tfsdk.Plan(planState), Config: tfsdk.Config{Schema: schemaResponse.Schema, Raw: planState.Raw}}, &resp)
+			failedResume := strings.HasPrefix(scenario, "resume ")
+			wantResizes := 1
+			if failedResume {
+				wantResizes = 0
+			}
+			if resumes != 1 || resizes != wantResizes || resp.Diagnostics.HasError() != failedResume {
+				t.Fatalf("resumes=%d resizes=%d diagnostics=%v", resumes, resizes, resp.Diagnostics)
+			}
+			if !failedResume {
+				var got ClusterResourceModel
+				if d := resp.State.Get(ctx, &got); d.HasError() {
+					t.Fatal(d)
+				}
+				if got.DesiredState.ValueString() != "running" || !got.NodeCount.Equal(next.NodeCount) || !got.NodeVcpu.Equal(next.NodeVcpu) || !got.NodeCache.Equal(next.NodeCache) {
+					t.Fatalf("resume/resize state mismatch: %+v", got)
+				}
+			}
+		})
+	}
+}
