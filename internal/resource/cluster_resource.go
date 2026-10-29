@@ -451,42 +451,48 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
-	// 1. desired_state transitions (pause/resume) — only if cluster isn't already there
-	if !plan.DesiredState.Equal(state.DesiredState) {
-		action := r.resolveAction(plan.DesiredState.ValueString())
-		targetStatuses := desiredStateToStatuses(plan.DesiredState.ValueString())
-		if action != "" {
-			// Check current status — skip action if already in desired state
-			cur, err := r.client.GetCluster(ctx, warehouseID, clusterID)
-			if err != nil {
-				resp.Diagnostics.AddError(userError("reading cluster before action", err))
-				return
-			}
-			alreadyThere := false
-			for _, s := range targetStatuses {
-				if cur.Status == s {
-					alreadyThere = true
-					break
-				}
-			}
-			if !alreadyThere {
-				if err := r.client.OperateCluster(ctx, warehouseID, clusterID, action); err != nil {
-					resp.Diagnostics.AddError(userError("performing cluster action", err))
-					return
-				}
-				_, err := client.WaitForStatus(ctx, func(ctx context.Context) (string, error) {
-					cl, err := r.client.GetCluster(ctx, warehouseID, clusterID)
-					if err != nil {
-						return "", err
-					}
-					return cl.Status, nil
-				}, targetStatuses, client.FailedStatuses, updateTimeout, 10*time.Second)
+	transitionDesiredState := func() bool {
+		if !plan.DesiredState.Equal(state.DesiredState) {
+			action := r.resolveAction(plan.DesiredState.ValueString())
+			targetStatuses := desiredStateToStatuses(plan.DesiredState.ValueString())
+			if action != "" {
+				// Check current status — skip action if already in desired state
+				cur, err := r.client.GetCluster(ctx, warehouseID, clusterID)
 				if err != nil {
-					resp.Diagnostics.AddError("Cluster action incomplete", err.Error())
-					return
+					resp.Diagnostics.AddError(userError("reading cluster before action", err))
+					return false
+				}
+				alreadyThere := false
+				for _, s := range targetStatuses {
+					if cur.Status == s {
+						alreadyThere = true
+						break
+					}
+				}
+				if !alreadyThere {
+					if err := r.client.OperateCluster(ctx, warehouseID, clusterID, action); err != nil {
+						resp.Diagnostics.AddError(userError("performing cluster action", err))
+						return false
+					}
+					_, err := client.WaitForStatus(ctx, func(ctx context.Context) (string, error) {
+						cl, err := r.client.GetCluster(ctx, warehouseID, clusterID)
+						if err != nil {
+							return "", err
+						}
+						return cl.Status, nil
+					}, targetStatuses, client.FailedStatuses, updateTimeout, 10*time.Second)
+					if err != nil {
+						resp.Diagnostics.AddError("Cluster action incomplete", err.Error())
+						return false
+					}
 				}
 			}
 		}
+
+		return true
+	}
+	if (!nodeManaged || plan.DesiredState.ValueString() != "paused") && !transitionDesiredState() {
+		return
 	}
 
 	if nodeManaged {
@@ -565,6 +571,15 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 				return
 			}
 		}
+	}
+
+	// Pause only after updates that require a running cluster have completed.
+	if nodeManaged && plan.DesiredState.ValueString() == "paused" && !transitionDesiredState() {
+		refreshCtx, cancelRefresh := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+		defer cancelRefresh()
+		r.readClusterIntoState(refreshCtx, warehouseID, clusterID, &state, &resp.Diagnostics)
+		resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
+		return
 	}
 
 	r.readClusterIntoState(ctx, warehouseID, clusterID, &plan, &resp.Diagnostics)
