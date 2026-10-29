@@ -99,7 +99,7 @@ func (r *ClusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 	}
 }
 
-func (r *ClusterResource) updateNodeCapacity(ctx context.Context, warehouseID, clusterID string, config ClusterResourceModel, plan *ClusterResourceModel, state ClusterResourceModel, timeout time.Duration, diags *diag.Diagnostics) bool {
+func (r *ClusterResource) updateNodeCapacity(ctx context.Context, warehouseID, clusterID string, config ClusterResourceModel, plan *ClusterResourceModel, state *ClusterResourceModel, timeout time.Duration, diags *diag.Diagnostics) bool {
 	validateCapacity(diags, config.ComputeVcpu, config.CacheGb, config.NodeVcpu, config.NodeCount, config.NodeCache, config.CacheType)
 	validateCreateOnlyRatio(diags, plan.Ratio, state.Ratio)
 	if diags.HasError() {
@@ -172,12 +172,14 @@ func (r *ClusterResource) updateNodeCapacity(ctx context.Context, warehouseID, c
 		if err != nil {
 			return "", err
 		}
+		setClusterState(current, state, diags)
 		return nodeCapacityStatus(current, *plan), nil
 	}, client.StableStatuses, client.FailedStatuses, timeout, 15*time.Second)
 	if err != nil {
 		diags.AddError("Node capacity operation incomplete", fmt.Sprintf("The cluster ID is retained. Refresh before retrying; a submitted operation may still finish: %v", err))
 		return false
 	}
+	state.ScalingMode = plan.ScalingMode
 	return true
 }
 

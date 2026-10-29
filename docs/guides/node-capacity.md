@@ -43,11 +43,15 @@ resource "velodb_cluster" "local" {
 }
 ```
 
+Cluster creation saves the returned ID before waiting for `Running` or pausing. Failed waits stop the apply and retain the last confirmed state. Terraform may mark a failed creation for replacement; inspect the saved cluster and review the next plan before retrying.
+
 ## Update
 
 Change `node_vcpu` and, when required by the selected package, `node_cache` together. Change `node_count` in a separate apply. The provider rejects a single apply that changes both count and node size/cache. Cache-only shrinking is unsupported. For local NVMe, changing node_vcpu selects a new package and the provider reads the resulting node_cache; no cache size or cache_type is sent in update requests. Node count can be changed independently. Resizing preserves the existing memory-to-vCPU ratio.
 
 The provider waits for both a stable status and the requested geometry, so an old `Running` response cannot prematurely complete a resize. On timeout, refresh before retrying: an accepted operation can still finish. Backend cooldowns can require waiting before the next separate apply.
+
+When combining a state change with node resizing, the provider resumes and waits for `Running` before resizing, or completes the resize before pausing. A reboot completion error stops subsequent updates. If a later step fails, Terraform retains confirmed capacity changes and accepted reboot triggers; refresh before retrying.
 
 To explicitly leave Auto/Scheduled scaling during a node CPU or count command, set `scaling_mode = "MANUAL"`. This is an instruction, not a readback of the current mode. A cache-only update cannot switch mode; remove this instruction for that apply or perform a supported mode change first. The provider does not silently disable automatic scaling. Creating and editing autoscaling policies is outside this feature.
 

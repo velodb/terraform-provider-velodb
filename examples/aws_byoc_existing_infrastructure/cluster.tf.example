@@ -1,0 +1,18 @@
+# Copy to cluster.tf and edit the settings.
+resource "velodb_cluster" "extra" {
+  warehouse_id = module.velodb_byoc.warehouse_id
+  name         = "extra_compute"
+  cluster_type = "COMPUTE"
+  zone         = sort(keys(var.subnet_ids_by_zone))[0]
+
+  # Cache type and ratio are creation-only.
+  cache_type = 0 # 0 = EBS; 1 = local NVMe (omit node_cache).
+  ratio      = 4 # GB RAM per vCPU: 4 or 8.
+  node_vcpu  = 4 # Package size, e.g. 4, 8, 16 or 32.
+  node_count = 1
+  node_cache = 100 # GB per node; EBS only.
+}
+
+output "extra_cluster_id" {
+  value = velodb_cluster.extra.id
+}

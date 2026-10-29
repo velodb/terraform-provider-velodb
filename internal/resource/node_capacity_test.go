@@ -86,7 +86,7 @@ func TestNodeCapacityGuardsAndTimeout(t *testing.T) {
 				next.ScalingMode = types.StringValue("MANUAL")
 			}
 			var d diag.Diagnostics
-			if r.updateNodeCapacity(context.Background(), "w", "c", next, &next, prior, 20*time.Millisecond, &d) || !d.HasError() {
+			if r.updateNodeCapacity(context.Background(), "w", "c", next, &next, &prior, 20*time.Millisecond, &d) || !d.HasError() {
 				t.Fatalf("expected rejection/incomplete operation: %v", d)
 			}
 			if mutations != tc.wantMutations {

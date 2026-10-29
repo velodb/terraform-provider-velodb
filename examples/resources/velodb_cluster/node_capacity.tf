@@ -16,7 +16,7 @@ resource "velodb_cluster" "nodes" {
 
 # Local NVMe: fixed per-node cache is computed from the selected package.
 resource "velodb_cluster" "local_nvme" {
-  warehouse_id = var.warehouse_id
+  warehouse_id = var.node_example_warehouse_id
   name         = "local_worker"
   cluster_type = "COMPUTE"
   cache_type   = 1
