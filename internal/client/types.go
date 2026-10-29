@@ -47,11 +47,15 @@ type CreateWarehouseRequest struct {
 }
 
 type InitialClusterRequest struct {
+	CacheType   *int             `json:"cacheType,omitempty"`
 	Zone        string           `json:"zone"`
-	ComputeVcpu int              `json:"computeVcpu"`
+	ComputeVcpu *int             `json:"computeVcpu,omitempty"`
 	Ratio       *int             `json:"ratio,omitempty"`
-	CacheGb     int              `json:"cacheGb"`
+	CacheGb     *int             `json:"cacheGb,omitempty"`
 	AutoPause   *AutoPauseConfig `json:"autoPause,omitempty"`
+	NodeVcpu    *int             `json:"nodeVcpu,omitempty"`
+	NodeCount   *int             `json:"nodeCount,omitempty"`
+	NodeCache   *int             `json:"nodeCache,omitempty"`
 }
 
 type AutoPauseConfig struct {
@@ -135,13 +139,17 @@ type RegisterWarehousePrivateEndpointRequest struct {
 // --- Cluster ---
 
 type CreateClusterRequest struct {
+	CacheType   *int             `json:"cacheType,omitempty"`
 	Name        string           `json:"name"`
 	ClusterType string           `json:"clusterType"`
 	Zone        *string          `json:"zone,omitempty"`
-	ComputeVcpu int              `json:"computeVcpu"`
+	ComputeVcpu *int             `json:"computeVcpu,omitempty"`
 	Ratio       *int             `json:"ratio,omitempty"`
-	CacheGb     int              `json:"cacheGb"`
+	CacheGb     *int             `json:"cacheGb,omitempty"`
 	AutoPause   *AutoPauseConfig `json:"autoPause,omitempty"`
+	NodeVcpu    *int             `json:"nodeVcpu,omitempty"`
+	NodeCount   *int             `json:"nodeCount,omitempty"`
+	NodeCache   *int             `json:"nodeCache,omitempty"`
 }
 
 type UpdateClusterRequest struct {
@@ -149,6 +157,10 @@ type UpdateClusterRequest struct {
 	ComputeVcpu *int             `json:"computeVcpu,omitempty"`
 	CacheGb     *int             `json:"cacheGb,omitempty"`
 	AutoPause   *AutoPauseConfig `json:"autoPause,omitempty"`
+	NodeVcpu    *int             `json:"nodeVcpu,omitempty"`
+	NodeCount   *int             `json:"nodeCount,omitempty"`
+	NodeCache   *int             `json:"nodeCache,omitempty"`
+	ScalingMode string           `json:"scalingMode,omitempty"`
 }
 
 type ClusterConnectionInfo struct {
@@ -158,6 +170,7 @@ type ClusterConnectionInfo struct {
 }
 
 type ClusterItem struct {
+	CacheType             *int                   `json:"cacheType,omitempty"`
 	ClusterID             string                 `json:"clusterId"`
 	WarehouseID           string                 `json:"warehouseId"`
 	Name                  string                 `json:"name"`
@@ -178,6 +191,9 @@ type ClusterItem struct {
 	ExpireTime            *time.Time             `json:"expireTime,omitempty"`
 	AutoPause             *AutoPauseConfig       `json:"autoPause,omitempty"`
 	ConnectionInfo        *ClusterConnectionInfo `json:"connectionInfo,omitempty"`
+	CapacityModel         string                 `json:"capacityModel,omitempty"`
+	NodeVcpu              *int                   `json:"nodeVcpu,omitempty"`
+	NodeCache             *int                   `json:"nodeCache,omitempty"`
 }
 
 // ClusterDetail — GET /clusters/{id} returns richer mixed-billing info

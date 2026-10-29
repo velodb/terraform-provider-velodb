@@ -43,9 +43,9 @@ func (m *virtualClusterMock) servePhysicalCluster(t *testing.T, w http.ResponseW
 				ClusterType: body.ClusterType, Zone: *body.Zone, CloudProvider: "aws",
 				Region: "us-east-1", BillingModel: "on_demand", CreatedAt: &now,
 			},
-			BillingSummary: &client.ClusterBillingSummary{NodeCount: 1, TotalCpu: body.ComputeVcpu, TotalDiskSizeGb: body.CacheGb},
+			BillingSummary: &client.ClusterBillingSummary{NodeCount: 1, TotalCpu: *body.ComputeVcpu, TotalDiskSizeGb: *body.CacheGb},
 			BillingPools: &client.ClusterBillingPools{OnDemand: &client.ClusterBillingPool{
-				NodeCount: 1, Cpu: body.ComputeVcpu, DiskSizeGb: body.CacheGb,
+				NodeCount: 1, Cpu: *body.ComputeVcpu, DiskSizeGb: *body.CacheGb,
 			}},
 		}
 		m.events = append(m.events, "create:"+id)

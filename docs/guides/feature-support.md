@@ -128,3 +128,7 @@ modules) does not yet surface them. Listed so parity gaps stay visible.
 | `maintenanceWindow` (start/end hour UTC) | warehouse settings update | Upgrade maintenance window. |
 | `crashReportEnabled` | crash-report status update | Toggle crash reporting. |
 | `initialCluster.billingModel` / `period` / `periodUnit` | warehouse create | Reserved/committed billing for the initial cluster. |
+
+Node-based capacity is available on `velodb_cluster`, `velodb_warehouse.initial_cluster`, `velodb_clusters` observations, and both AWS BYOC modules. See [node capacity](node-capacity.md) for the deployment requirement and first-release limits.
+
+Node capacity supports EBS and local NVMe through the creation-only `cache_type` attribute. Omit `node_cache` for local NVMe; its applied capacity is read from the API.

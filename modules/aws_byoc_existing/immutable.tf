@@ -2,6 +2,15 @@
 # the warehouse. JSON preserves nulls and heterogeneous input types.
 resource "terraform_data" "warehouse_infrastructure_guard" {
   for_each = {
+    initial_cluster_capacity = jsonencode({
+      compute_vcpu = local.initial_compute_vcpu
+      cache_gb     = local.initial_cache_gb
+      node_vcpu    = var.node_vcpu
+      node_count   = var.node_count
+      node_cache   = var.node_cache
+      cache_type   = var.cache_type
+      ratio        = var.ratio
+    })
     region                    = jsonencode(var.region)
     bucket_name               = jsonencode(var.bucket_name)
     create_tde_encryption_key = jsonencode(var.create_tde_encryption_key)

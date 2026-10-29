@@ -48,8 +48,18 @@ variable "additional_clusters" {
   type = map(object({
     name         = string
     zone         = optional(string)
-    compute_vcpu = number
-    cache_gb     = number
+    compute_vcpu = optional(number)
+    cache_gb     = optional(number)
+    cache_type   = optional(number)
+    ratio        = optional(number)
+    node_vcpu    = optional(number)
+    node_count   = optional(number)
+    node_cache   = optional(number)
+    scaling_mode = optional(string)
+    auto_pause = optional(object({
+      enabled              = bool
+      idle_timeout_minutes = optional(number)
+    }))
   }))
   default = {}
 }
@@ -110,5 +120,47 @@ variable "create_ebs_encryption_key" {
 variable "ebs_kms_key_arn" {
   description = "ARN of an existing AWS KMS key to register for warehouse EBS encryption. Mutually exclusive with create_ebs_encryption_key."
   type        = string
+  default     = null
+}
+
+variable "compute_vcpu" {
+  description = "Legacy initial-cluster vCPUs. Leave null when using node inputs; defaults to 4 when no capacity is configured."
+  type        = number
+  default     = null
+}
+
+variable "cache_gb" {
+  description = "Legacy initial-cluster cache GB. Leave null when using node inputs; defaults to 100 when no capacity is configured."
+  type        = number
+  default     = null
+}
+
+variable "cache_type" {
+  description = "Initial-cluster cache type: 0 for EBS (default), 1 for local NVMe. Creation-only."
+  type        = number
+  default     = null
+}
+
+variable "ratio" {
+  description = "Initial-cluster RAM GB per vCPU: 4 or 8. Creation-only; null uses the API default."
+  type        = number
+  default     = null
+}
+
+variable "node_vcpu" {
+  description = "Initial-cluster vCPUs per node. Creation-only."
+  type        = number
+  default     = null
+}
+
+variable "node_count" {
+  description = "Initial-cluster number of nodes. Creation-only."
+  type        = number
+  default     = null
+}
+
+variable "node_cache" {
+  description = "Initial-cluster cache GB per node. Required for EBS node creation; omit for local NVMe. Creation-only."
+  type        = number
   default     = null
 }

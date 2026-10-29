@@ -20,6 +20,7 @@ crash.log
 *.tfvars
 examples/**/.terraform.lock.hcl
 examples/**/virtual_cluster.tf
+examples/**/cluster.tf
 override.tf
 override.tf.json
 *_override.tf

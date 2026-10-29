@@ -103,28 +103,78 @@ variable "deployment_credential_arn" {
 }
 
 variable "compute_vcpu" {
-  description = "vCPUs for the initial cluster."
+  description = "Legacy vCPUs for the initial cluster. Defaults to 4 when no node settings are supplied."
   type        = number
-  default     = 4
+  default     = null
 
   # Same rule the API enforces for additional clusters; keep the two in sync.
   validation {
-    condition     = contains([4, 8, 16], var.compute_vcpu) || (var.compute_vcpu > 16 && var.compute_vcpu % 16 == 0)
+    condition     = var.compute_vcpu == null ? true : contains([4, 8, 16], var.compute_vcpu) || (var.compute_vcpu > 16 && var.compute_vcpu % 16 == 0)
     error_message = "compute_vcpu must be 4, 8, 16, or a multiple of 16 greater than 16."
   }
 }
 
 variable "cache_gb" {
-  description = "Cache size in GB for the initial cluster."
+  description = "Legacy cache GB for the initial cluster. Defaults to 100 when no node settings are supplied."
   type        = number
-  default     = 100
+  default     = null
 
   # Baseline floor only. The full rule (cache_gb >= max(100, compute_vcpu * 25))
   # is cross-variable, which variable validation cannot express before Terraform
   # 1.9; it is enforced as a precondition on velodb_warehouse.this in main.tf.
   validation {
-    condition     = var.cache_gb >= 100
+    condition     = var.cache_gb == null ? true : var.cache_gb >= 100
     error_message = "cache_gb must be at least 100."
+  }
+}
+
+variable "ratio" {
+  description = "Initial cluster memory GB per vCPU: 4 or 8. Creation-only; null uses the API default."
+  type        = number
+  default     = null
+  validation {
+    condition     = var.ratio == null ? true : contains([4, 8], var.ratio)
+    error_message = "ratio must be 4 or 8."
+  }
+}
+
+variable "cache_type" {
+  description = "Initial cluster cache type: 0 for EBS (default), 1 for local NVMe. Creation-only; omit node_cache for local storage."
+  type        = number
+  default     = null
+  validation {
+    condition     = var.cache_type == null ? true : contains([0, 1], var.cache_type)
+    error_message = "cache_type must be 0 (EBS) or 1 (local NVMe)."
+  }
+}
+
+variable "node_vcpu" {
+  description = "vCPUs per node. Set node_vcpu/node_count and omit legacy compute_vcpu/cache_gb. EBS also requires node_cache; omit it for local NVMe. Creation-only for the initial cluster."
+  type        = number
+  default     = null
+  validation {
+    condition     = var.node_vcpu == null ? true : var.node_vcpu >= 1 && var.node_vcpu <= 2147483647 && floor(var.node_vcpu) == var.node_vcpu
+    error_message = "node_vcpu must be a positive integer no greater than 2147483647."
+  }
+}
+
+variable "node_count" {
+  description = "Initial node count. Set node_vcpu/node_count and omit legacy compute_vcpu/cache_gb. EBS also requires node_cache; omit it for local NVMe. Creation-only for the initial cluster."
+  type        = number
+  default     = null
+  validation {
+    condition     = var.node_count == null ? true : var.node_count >= 1 && var.node_count <= 2147483647 && floor(var.node_count) == var.node_count
+    error_message = "node_count must be a positive integer no greater than 2147483647."
+  }
+}
+
+variable "node_cache" {
+  description = "Cache GB per node. Set node_vcpu/node_count and omit legacy compute_vcpu/cache_gb. EBS also requires node_cache; omit it for local NVMe. Creation-only for the initial cluster."
+  type        = number
+  default     = null
+  validation {
+    condition     = var.node_cache == null ? true : var.node_cache >= 1 && var.node_cache <= 2147483647 && floor(var.node_cache) == var.node_cache
+    error_message = "node_cache must be a positive integer no greater than 2147483647."
   }
 }
 
@@ -196,8 +246,14 @@ variable "additional_clusters" {
   type = map(object({
     name         = string
     zone         = optional(string)
-    compute_vcpu = number
-    cache_gb     = number
+    compute_vcpu = optional(number)
+    cache_gb     = optional(number)
+    node_vcpu    = optional(number)
+    node_count   = optional(number)
+    node_cache   = optional(number)
+    cache_type   = optional(number)
+    ratio        = optional(number)
+    scaling_mode = optional(string)
     auto_pause = optional(object({
       enabled              = bool
       idle_timeout_minutes = optional(number)
@@ -221,7 +277,7 @@ variable "additional_clusters" {
   validation {
     condition = alltrue([
       for cluster in values(var.additional_clusters) :
-      contains([4, 8, 16], cluster.compute_vcpu) || (cluster.compute_vcpu > 16 && cluster.compute_vcpu % 16 == 0)
+      cluster.compute_vcpu == null ? true : contains([4, 8, 16], cluster.compute_vcpu) || (cluster.compute_vcpu > 16 && cluster.compute_vcpu % 16 == 0)
     ])
     error_message = "Each additional cluster compute_vcpu must be 4, 8, 16, or a multiple of 16 greater than 16."
   }
@@ -229,9 +285,30 @@ variable "additional_clusters" {
   validation {
     condition = alltrue([
       for cluster in values(var.additional_clusters) :
-      cluster.cache_gb >= max(100, cluster.compute_vcpu * 25)
+      cluster.compute_vcpu == null || cluster.cache_gb == null ? true : cluster.cache_gb >= max(100, cluster.compute_vcpu * 25)
     ])
     error_message = "Each additional cluster cache_gb must be at least max(100, compute_vcpu * 25)."
+  }
+  validation {
+    condition = alltrue([
+      for cluster in values(var.additional_clusters) :
+      (cluster.cache_type == 1 || cluster.node_vcpu != null || cluster.node_count != null || cluster.node_cache != null) ?
+      (cluster.compute_vcpu == null && cluster.cache_gb == null && alltrue([for v in concat([cluster.node_vcpu, cluster.node_count], cluster.cache_type == 1 ? [] : [cluster.node_cache]) : v == null ? false : v >= 1 && v <= 2147483647 && floor(v) == v]) && (cluster.cache_type == 1 ? cluster.node_cache == null : true)) :
+      (cluster.compute_vcpu != null && cluster.cache_gb != null)
+    ])
+    error_message = "Each additional cluster requires legacy compute_vcpu/cache_gb or node_vcpu/node_count with node_cache for EBS. Omit node_cache for local NVMe; do not mix formats."
+  }
+  validation {
+    condition     = alltrue([for cluster in values(var.additional_clusters) : cluster.ratio == null ? true : contains([4, 8], cluster.ratio)])
+    error_message = "Each additional cluster ratio must be 4 or 8."
+  }
+  validation {
+    condition     = alltrue([for cluster in values(var.additional_clusters) : cluster.cache_type == null ? true : contains([0, 1], cluster.cache_type)])
+    error_message = "Each additional cluster cache_type must be 0 (EBS) or 1 (local NVMe)."
+  }
+  validation {
+    condition     = alltrue([for cluster in values(var.additional_clusters) : cluster.scaling_mode == null ? true : cluster.scaling_mode == "MANUAL" && cluster.node_vcpu != null])
+    error_message = "scaling_mode supports MANUAL only with node-based capacity. Cache-only mode switches are rejected by the provider."
   }
 }
 

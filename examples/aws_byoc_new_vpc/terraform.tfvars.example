@@ -43,3 +43,33 @@ tags = {
 # existing one — the two options are mutually exclusive.
 # create_ebs_encryption_key = true
 # ebs_kms_key_arn           = "arn:aws:kms:us-east-1:111122223333:key/00000000-0000-0000-0000-000000000000"
+
+# Initial cluster cache storage (choose before creation):
+#   cache_type = 0 -> EBS: set node_cache to the cache GB per node.
+#   cache_type = 1 -> Local NVMe: OMIT node_cache; capacity is fixed by the package.
+# For either option, set node_vcpu and node_count; ratio selects RAM GB per vCPU.
+# The commented example below selects EBS. For NVMe, change cache_type to 1
+# and leave node_cache unset. Cache type cannot be changed after creation.
+# Leave all capacity fields unset to retain the legacy default of 4 vCPUs
+# and 100 GB of EBS cache.
+# cache_type = 0
+# ratio      = 4
+# node_vcpu  = 4
+# node_count = 1
+# node_cache = 100
+
+# For a local NVMe initial cluster instead, set cache_type = 1 with ratio,
+# node_vcpu and node_count above, and OMIT node_cache. Manager selects its size.
+# Never combine node fields with legacy compute_vcpu/cache_gb.
+
+# Additional clusters can use either capacity family. Replace the existing
+# additional_clusters assignment above to try this local NVMe example:
+# additional_clusters = {
+#   local_worker = {
+#     name       = "local_worker"
+#     cache_type = 1
+#     ratio      = 4
+#     node_vcpu  = 4
+#     node_count = 1
+#   }
+# }

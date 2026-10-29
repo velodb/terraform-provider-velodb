@@ -32,14 +32,14 @@ func TestCreateCluster(t *testing.T) {
 		if req.ClusterType != "COMPUTE" {
 			t.Errorf("expected clusterType 'COMPUTE', got %q", req.ClusterType)
 		}
-		if req.ComputeVcpu != 4 {
-			t.Errorf("expected computeVcpu 4, got %d", req.ComputeVcpu)
+		if req.ComputeVcpu == nil || *req.ComputeVcpu != 4 {
+			t.Errorf("expected computeVcpu 4, got %v", req.ComputeVcpu)
 		}
 		if req.Ratio == nil || *req.Ratio != 4 {
 			t.Errorf("expected ratio 4, got %v", req.Ratio)
 		}
-		if req.CacheGb != 100 {
-			t.Errorf("expected cacheGb 100, got %d", req.CacheGb)
+		if req.CacheGb == nil || *req.CacheGb != 100 {
+			t.Errorf("expected cacheGb 100, got %v", req.CacheGb)
 		}
 		if req.AutoPause == nil || req.AutoPause.Enabled != false {
 			t.Error("expected autoPause.enabled=false")
@@ -61,9 +61,9 @@ func TestCreateCluster(t *testing.T) {
 		Name:        "compute-etl",
 		ClusterType: "COMPUTE",
 		Zone:        &zone,
-		ComputeVcpu: 4,
+		ComputeVcpu: testInt(4),
 		Ratio:       &ratio,
-		CacheGb:     100,
+		CacheGb:     testInt(100),
 		AutoPause: &AutoPauseConfig{
 			Enabled:            false,
 			IdleTimeoutMinutes: &timeout,
@@ -301,8 +301,8 @@ func TestConflictError(t *testing.T) {
 	_, err := client.CreateCluster(context.Background(), "WH-001", &CreateClusterRequest{
 		Name:        "test",
 		ClusterType: "COMPUTE",
-		ComputeVcpu: 4,
-		CacheGb:     100,
+		ComputeVcpu: testInt(4),
+		CacheGb:     testInt(100),
 	})
 	if err == nil {
 		t.Fatal("expected error for conflict")

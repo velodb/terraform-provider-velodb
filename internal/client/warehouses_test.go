@@ -45,8 +45,8 @@ func TestCreateWarehouse(t *testing.T) {
 		if req.InitialCluster == nil {
 			t.Fatal("expected initialCluster to be set")
 		}
-		if req.InitialCluster.ComputeVcpu != 4 {
-			t.Errorf("expected computeVcpu 4, got %d", req.InitialCluster.ComputeVcpu)
+		if req.InitialCluster.ComputeVcpu == nil || *req.InitialCluster.ComputeVcpu != 4 {
+			t.Errorf("expected computeVcpu 4, got %v", req.InitialCluster.ComputeVcpu)
 		}
 		if req.InitialCluster.Ratio == nil || *req.InitialCluster.Ratio != 8 {
 			t.Errorf("expected ratio 8, got %v", req.InitialCluster.Ratio)
@@ -70,9 +70,9 @@ func TestCreateWarehouse(t *testing.T) {
 		Region:         "us-east-1",
 		InitialCluster: &InitialClusterRequest{
 			Zone:        zone,
-			ComputeVcpu: 4,
+			ComputeVcpu: testInt(4),
 			Ratio:       &ratio,
-			CacheGb:     1000,
+			CacheGb:     testInt(1000),
 			AutoPause:   &AutoPauseConfig{Enabled: false},
 		},
 	})
@@ -137,7 +137,7 @@ func TestCreateWarehouseWithVersionAndAccessPolicy(t *testing.T) {
 			PublicAccessPolicy: "ALLOWLIST_ONLY",
 			Rules:              []WarehouseAllowlistRule{{CIDR: "203.0.113.0/24", Description: "office"}},
 		},
-		InitialCluster: &InitialClusterRequest{Zone: "us-east-1a", ComputeVcpu: 8, CacheGb: 400},
+		InitialCluster: &InitialClusterRequest{Zone: "us-east-1a", ComputeVcpu: testInt(8), CacheGb: testInt(400)},
 	})
 	if err != nil {
 		t.Fatalf("CreateWarehouse: %v", err)
@@ -224,8 +224,8 @@ func TestCreateWarehouseBYOC(t *testing.T) {
 		AdminPassword:   &pw,
 		InitialCluster: &InitialClusterRequest{
 			Zone:        zone,
-			ComputeVcpu: 8,
-			CacheGb:     400,
+			ComputeVcpu: testInt(8),
+			CacheGb:     testInt(400),
 		},
 	})
 	if err != nil {

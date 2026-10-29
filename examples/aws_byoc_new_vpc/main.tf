@@ -30,6 +30,13 @@ module "velodb_byoc" {
   zones                     = var.zones
   subnet_cidrs              = var.subnet_cidrs
   warehouse_client_cidrs    = var.warehouse_client_cidrs
+  compute_vcpu              = var.compute_vcpu
+  cache_gb                  = var.cache_gb
+  cache_type                = var.cache_type
+  ratio                     = var.ratio
+  node_vcpu                 = var.node_vcpu
+  node_count                = var.node_count
+  node_cache                = var.node_cache
   additional_clusters       = var.additional_clusters
   tags                      = var.tags
   core_version              = var.core_version

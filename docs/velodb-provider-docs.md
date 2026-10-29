@@ -90,3 +90,9 @@ environment when `api_key` and `host` are omitted.
 - The current Management API does not accept `maintenance_window`,
   `upgrade_policy`, mixed-billing request fields, or legacy
   `advanced_settings` in Terraform create/update requests.
+
+## Node-based cluster capacity
+
+Configure `node_vcpu`, `node_count`, and `node_cache` together, or keep legacy `compute_vcpu`/`cache_gb`. See [creation, resizing, and in-place migration](guides/node-capacity.md). Requires a matching Formation API deployment.
+
+Node capacity supports EBS and local NVMe through the creation-only `cache_type` attribute. Omit `node_cache` for local NVMe; its applied capacity is read from the API.

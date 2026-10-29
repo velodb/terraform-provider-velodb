@@ -145,3 +145,48 @@ replacing infrastructure already used by the warehouse before planning again.
 
 These checks do not prevent an explicit `terraform destroy` or removal of the
 module from configuration. They are immutability checks, not deletion protection.
+
+## Node capacity and cache type
+
+Use an updated provider build and deploy the corresponding Formation API
+before applying node-based settings. Copy `terraform.tfvars.example` to
+`terraform.tfvars` and uncomment the initial-cluster capacity example:
+
+```hcl
+cache_type = 0
+ratio      = 4
+node_vcpu  = 4
+node_count = 1
+node_cache = 100
+```
+
+For local NVMe, set `cache_type = 1` and omit `node_cache`. Its cache capacity
+comes from the selected package. The same fields are supported in each
+`additional_clusters` entry. Do not combine node inputs with legacy
+`compute_vcpu`/`cache_gb`. Existing configurations keep their defaults.
+
+The initial-cluster inputs, ratio and cache type are creation-only. Additional
+cluster node-count and node-size changes require separate applies. See the
+[node-capacity guide](../../docs/guides/node-capacity.md).
+
+## Use the cluster resource directly
+
+To add a cluster with its own resource block, copy the optional template in
+this example directory:
+
+```bash
+cp cluster.tf.example cluster.tf
+```
+
+Edit `cluster.tf` to choose the cluster name, cache type, ratio, CPU, node count
+and EBS cache size. The warehouse reference is already connected to this
+example's module. Local NVMe requires `cache_type = 1` with `node_cache` omitted.
+Use a distinct cluster name. Each physical cluster must be managed by one
+resource: do not also declare the same cluster in `additional_clusters`.
+The template creates a new cluster; it does not adopt the initial cluster.
+Run `terraform plan` to inspect it. Applying node capacity requires the matching
+Formation API deployment. Removing `cluster.tf` later plans deletion of this
+extra cluster while keeping the module's warehouse configuration.
+
+CPU sizes must match a package available for the region, cache type and ratio.
+Change node count separately from node CPU/cache size.

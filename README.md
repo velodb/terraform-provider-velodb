@@ -203,3 +203,9 @@ go test ./...
 
 Live tests require `VELODB_API_KEY`. Set `VELODB_HOST` only when overriding the
 default `api.velodb.cloud` host.
+
+## Node-based cluster capacity
+
+Configure `node_vcpu`, `node_count`, and `node_cache` for EBS, or keep legacy `compute_vcpu`/`cache_gb`. See [creation, resizing, and in-place migration](docs/guides/node-capacity.md). Requires a matching Formation API deployment.
+
+Node capacity supports EBS and local NVMe through the creation-only `cache_type` attribute. Omit `node_cache` for local NVMe; its applied capacity is read from the API.

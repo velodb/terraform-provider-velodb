@@ -124,3 +124,9 @@ example.
 
 - `api_key` (String, Sensitive) API key for authentication. Can also be set via the `VELODB_API_KEY` environment variable.
 - `host` (String) VeloDB Cloud Management API host, without `https://`. Defaults to `api.velodb.cloud`. Can also be set via the `VELODB_HOST` environment variable.
+
+## Node-based cluster capacity
+
+Configure `node_vcpu`, `node_count`, and `node_cache` together, or keep legacy `compute_vcpu`/`cache_gb`. See [creation, resizing, and in-place migration](guides/node-capacity.md). Requires a matching Formation API deployment.
+
+Node capacity also supports `cache_type`: `0` for EBS (creation default), `1` for local NVMe. Local cache is package-defined: omit `node_cache` and read the applied value from the cluster resource or clusters data source. See [node capacity](guides/node-capacity.md).

@@ -13,16 +13,18 @@ Manages a COMPUTE cluster within a VeloDB Cloud warehouse.
 
 | Feature | Notes |
 |---|---|
-| Capacity | Configure `compute_vcpu` and `cache_gb` as top-level attributes. |
+| Capacity | Configure legacy `compute_vcpu`/`cache_gb`, or `node_vcpu`/`node_count` plus `node_cache` for EBS. For local NVMe, set `cache_type = 1` and omit `node_cache`. Never combine formats. |
 | Lifecycle state | Set `desired_state` to `running` or `paused`. |
 | Auto-pause | Configure idle timeout for automatic pause. |
 | Billing | `billing_method` is read from the API. Billing selection is not part of the current create/update schema. |
 | Connection info | Public and private endpoints are exposed as computed attributes. |
 
+See [Node-based capacity and migration](../guides/node-capacity.md) for per-node units, updates, imports, and deployment requirements.
+
 ## Constraints
 
 - Only `cluster_type = "COMPUTE"` is supported (SQL and OBSERVER are blocked at plan time)
-- A CPU resize automatically scales cache from the existing CPU/cache ratio, subject to a minimum. Set `cache_gb` to that resulting value in the same apply; the provider reports the required value if it differs. Apply any additional cache increase separately.
+- A legacy CPU resize automatically scales cache from the existing CPU/cache ratio, subject to a minimum. Set `cache_gb` to that resulting value in the same apply; the provider reports the required value if it differs. Apply any additional cache increase separately.
 - The resource validates `compute_vcpu >= 4` and `cache_gb >= 100`; backend sizing rules also apply. The AWS BYOC modules additionally require `cache_gb >= max(100, compute_vcpu * 25)`.
 - Cache-only decreases are not supported.
 
@@ -125,13 +127,20 @@ resource "velodb_cluster" "c" {
 
 ### Required
 
-- `cache_gb` (Number) Cache disk size in GB (minimum 100). Changing triggers resize. For a CPU resize, set this to the cache size implied by the existing CPU/cache ratio and backend minimum. Apply additional cache increases separately; cache-only decreases are unsupported. The BYOC modules impose a stricter sizing constraint described above.
 - `cluster_type` (String) Only `COMPUTE` is supported. Changing this forces a new resource.
-- `compute_vcpu` (Number) vCPU capacity (minimum 4). Changing triggers resize. Update `cache_gb` to match the cache size implied by the CPU resize; the provider reports the required value when the configured size differs.
 - `name` (String) Cluster display name. Must start with a letter and contain only letters, numbers, and underscores.
 - `warehouse_id` (String) Parent warehouse identifier. Changing this forces a new resource.
 
+
 ### Optional
+
+- `compute_vcpu` (Number, Optional/Computed) Legacy vCPU input; configure with `cache_gb` only. Otherwise an observed value.
+- `cache_gb` (Number, Optional/Computed) Legacy cache GB input; configure with `compute_vcpu` only. Otherwise an observed value.
+- `cache_type` (Number, Optional/Computed) Creation-only: `0` for EBS (creation default), `1` for local NVMe. Reads the applied type; null if unavailable. Changes are rejected without replacement.
+- `node_vcpu` (Number, Optional/Computed) vCPUs per node; configure with `node_count`. EBS also requires `node_cache`; omit it for local NVMe.
+- `node_count` (Number, Optional/Computed) Whole-cluster node count; configurable for single-billing node capacity. Must be positive.
+- `node_cache` (Number, Optional/Computed) Cache GB per node; required for EBS node creation. Omit for local NVMe; the API returns fixed package capacity, including after node-size changes.
+- `scaling_mode` (String) Explicit `MANUAL` instruction for node CPU/count updates; cannot accompany a cache-only change.
 
 - `auto_pause` (Block List, Max: 1) Auto-pause configuration. (see [below for nested schema](#nestedblock--auto_pause))
 - `desired_state` (String) `running` or `paused`. Changing triggers the corresponding action.
@@ -142,13 +151,14 @@ resource "velodb_cluster" "c" {
 
 ### Read-Only
 
+- `capacity_model` (String) Stored model when returned by the API; null when unrecorded.
+
 - `cloud_provider` (String) Cloud provider inherited from warehouse.
 - `billing_method` (String) Observed billing method.
 - `connection_info` (Attributes List) Connection endpoints. (see [below for nested schema](#nestedatt--connection_info))
 - `created_at` (String) Creation time in RFC 3339 format.
 - `expire_time` (String) Expiration time when applicable.
 - `id` (String) Cluster identifier.
-- `node_count` (Number) Total node count.
 - `region` (String) Cloud region inherited from warehouse.
 - `started_at` (String) Start time in RFC 3339 format.
 - `status` (String) Current cluster status.
