@@ -1,14 +1,7 @@
-# Example: Manage and later delete the initial cluster
-#
-# The VeloDB API requires an initial_cluster at warehouse creation — a warehouse
-# cannot exist without at least one cluster. The initial_cluster block on
-# velodb_warehouse is create-only (changes to it after creation are ignored).
-#
-# To manage the initial cluster post-creation (resize, pause, destroy), import
-# it into a separate velodb_cluster resource using an independently verified
-# physical ID. initial_cluster_id is best effort at creation and null after
-# warehouse import; values cached by older providers may be incorrect.
-# Create the warehouse first, then add the physical import/resource blocks.
+# Manage the initial cluster through a separate velodb_cluster resource.
+# Create the warehouse first, then verify the physical ID before importing.
+# initial_cluster manages capacity after creation; initial_cluster_id is best effort and
+# is unavailable after warehouse import. Older cached IDs need verification.
 
 variable "admin_password" {
   type      = string
@@ -50,7 +43,8 @@ variable "verified_initial_cluster_id" {
   type        = string
 }
 
-# 3. After verifying the ID and current settings, import the physical cluster.
+# 3. Remove initial_cluster from the existing warehouse configuration to relinquish
+# capacity management. Then verify the ID/settings and import the physical cluster.
 import {
   to = velodb_cluster.initial
   id = "${velodb_warehouse.main.id}/${var.verified_initial_cluster_id}"
@@ -65,11 +59,5 @@ resource "velodb_cluster" "initial" {
   cache_gb     = 100
 }
 
-# 4. Day-N: destroy the initial cluster by removing both blocks above
-#    (resource "velodb_cluster" "initial" and the import block).
-#    Then run `terraform apply`.
-#
-#    Constraints:
-#    - The warehouse must still have at least one other cluster
-#      (velodb_cluster.etl in this example).
-#    - Prepaid (subscription) clusters cannot be deleted until expiration.
+# To delete the initial cluster, remove its resource and import blocks.
+# Keep at least one other cluster; prepaid clusters require expiration.

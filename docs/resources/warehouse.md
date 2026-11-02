@@ -184,8 +184,36 @@ applying; the inline block now actively reconciles the policy.
 ## Managing the Initial Cluster
 
 The VeloDB API requires an `initial_cluster` block at warehouse creation.
-The `initial_cluster` block is create-only. To manage or delete the initial
-cluster later, import it into a separate `velodb_cluster` resource.
+For warehouses created by Terraform with a saved `initial_cluster_id`, this
+block manages CPU/cache capacity after creation. Change legacy `compute_vcpu`
+and `cache_gb`, or node `node_vcpu`/`node_cache` at fixed `node_count`. Change
+`node_count` in a separate apply. The provider rejects a plan that changes
+both node size/cache and count. Zone, ratio, cache type and auto-pause remain
+creation-only in this block.
+
+Existing states must adopt capacity management once before resizing. The provider compares explicit CPU, cache and node-count inputs with API values. A mismatch stops the plan with the current and configured values; align the configuration and apply once. This adoption only records provider state and does not resize the cluster. The provider rechecks at apply, including saved plans and plans created with refresh disabled. `initial_cluster_capacity_adopted` is a computed status, not a configuration flag. Older states without a reliable cluster ID cannot adopt automatically.
+
+If a separate `velodb_cluster` already owns capacity, remove the warehouse's `initial_cluster` block instead of adopting it. The provider cannot detect owners in other Terraform states. This safeguard protects the first migration; after adoption, console changes are ordinary drift and the configuration remains authoritative.
+
+After confirmed warehouse creation, a failed initial-cluster capacity read emits a warning and preserves the saved IDs and creation inputs. Capacity management remains unadopted until a successful refresh and alignment. Later permission or transient read failures still fail refresh. API-reported `CreateFailed` remains a provisioning error, not a warning.
+
+Refresh reads actual capacity from the saved cluster ID. Apply waits for the
+requested capacity and a stable status; timeouts and API errors fail the apply
+and retain confirmed progress. Refresh before retrying because an accepted
+operation may still finish. A missing ID, deleted cluster or mismatched identity
+cannot be replaced by guessing another member. A confirmed cluster 404 clears
+the cached initial-cluster ID with a warning and preserves the warehouse and
+last known capacity. Parent-only changes, block removal, and warehouse deletion
+remain available; capacity edits are rejected. Other read failures remain errors.
+Node management requires the
+new API response fields. Legacy edits cannot resize a NODE_SPEC cluster; switch
+to node inputs on the same warehouse instead. See [node capacity](../guides/node-capacity.md).
+
+Do not also manage this cluster's capacity through a separate `velodb_cluster`.
+To transfer management or delete it separately, remove `initial_cluster` from
+the existing warehouse configuration first. Removing this block relinquishes
+management without deleting the physical cluster. Then import its verified ID
+into `velodb_cluster`. The block cannot be added back to adopt a cluster.
 
 The warehouse exposes `initial_cluster_id` as a best-effort, creation-time
 computed output. The current API does not return an authoritative association
@@ -205,16 +233,16 @@ resource only if you want Terraform to manage its settings and lifecycle.
 Virtual-cluster membership can reference managed cluster IDs, explicitly select
 a cluster with the [`velodb_clusters` data source](../data-sources/clusters.md),
 or use a verified physical ID; physical-cluster import is not required just to
-reference a member. The `initial_cluster` block describes warehouse creation
-only; omit it when importing an existing warehouse.
+reference a member. Omit `initial_cluster` when importing an existing warehouse; import does not adopt it for resizing.
 
 Names, list position, and the oldest surviving cluster do not establish
 historical identity. Existing nonnull values cached
 by older providers are preserved for compatibility and are not automatically
 verified or repaired; confirm the target before using them.
 
-Create the warehouse first. After verifying the physical ID and current settings,
-add the separate cluster resource and import block shown below:
+Create the warehouse first. To transfer management, remove its `initial_cluster`
+block, verify the physical ID and settings, then add the separate resource and
+import block below:
 
 ```terraform
 resource "velodb_warehouse" "main" {
@@ -224,16 +252,7 @@ resource "velodb_warehouse" "main" {
   region          = "us-east-1"
   admin_password  = var.admin_password
 
-  initial_cluster {
-    zone         = "us-east-1a"
-    compute_vcpu = 4
-    cache_gb     = 100
-
-    auto_pause {
-      enabled              = true
-      idle_timeout_minutes = 30
-    }
-  }
+  # initial_cluster was removed after creation to transfer management.
 }
 
 # Add a second cluster before deleting the initial cluster.
@@ -308,7 +327,7 @@ To destroy the initial cluster later:
 - `setup_mode` (String) BYOC setup mode. Set to `advanced` for AWS custom-infrastructure creation. Guided/template setup is not supported. Changes after creation are rejected.
 - `credential_id` (Number) Registered credential configuration ID for advanced AWS BYOC. Read from the API when available. Changes are rejected; omission retains the existing binding.
 - `ebs_encryption_key_id` (Number) Registered encryption key ID used to encrypt the warehouse's EBS volumes. Create the key with `velodb_encryption_key` (`use_ebs = true`). Changes after creation are rejected.
-- `initial_cluster` (Block List, Max: 1) Initial cluster created together with the warehouse. This is a create-only configuration. After creation, manage the cluster lifecycle by importing it as a `velodb_cluster` resource. (see [below for nested schema](#nestedblock--initial_cluster))
+- `initial_cluster` (Block List, Max: 1) Initial cluster created together with the warehouse. Capacity is managed after creation through the saved initial_cluster_id. Omit after warehouse import. Remove this block before transferring management to a separate velodb_cluster resource. (see [below for nested schema](#nestedblock--initial_cluster))
 - `network_config_id` (Number) Registered network configuration ID for advanced AWS BYOC. Read from the API when available. Changes are rejected; omission retains the existing binding.
 - `tde_encryption_key_id` (Number) Registered encryption key ID used for transparent data encryption (TDE) of warehouse data. Create the key with `velodb_encryption_key` (`use_tde = true`). Changes after creation are rejected.
 - `tags` (Map of String) Warehouse tags as key/value pairs. Create-only: the management API accepts tags only at creation and does not return or update them, so changing tags after creation is rejected.
@@ -321,6 +340,7 @@ To destroy the initial cluster later:
 - `created_at` (String) Warehouse creation time in ISO 8601 / RFC 3339 format.
 - `expire_time` (String) Warehouse expiration time when available.
 - `id` (String) Warehouse identifier (e.g., `ALBJ07YE`).
+- `initial_cluster_capacity_adopted` (Boolean) Computed migration status. Existing capacity must match configuration before the first warehouse-side resize; not a configuration option.
 - `initial_cluster_id` (String) Best-effort initial compute-cluster ID captured at creation; null after warehouse import or unresolved creation-time discovery. Existing cached values are not automatically verified. See [Managing the Initial Cluster](#managing-the-initial-cluster).
 - `endpoint_service_id` (String) PrivateLink endpoint service ID when available.
 - `endpoint_service_name` (String) PrivateLink endpoint service name when available.
@@ -357,14 +377,15 @@ Required:
 
 - `zone` (String) Availability zone for the initial cluster.
 
-Choose exactly one capacity family below. All settings are creation-only; see [node capacity](../guides/node-capacity.md).
+Choose exactly one capacity family below. Capacity can be updated for Terraform-created warehouses; see [node capacity](../guides/node-capacity.md).
 
 Optional:
 
 - `compute_vcpu` and `cache_gb` (Number) Both required for legacy creation.
 - `cache_type` (Number) Creation-only: `0` for EBS (default), `1` for local NVMe.
-- `node_vcpu`, `node_count`, and `node_cache` (Number) All required for EBS node creation. For local NVMe, set cache_type to 1 and omit node_cache. CPU and cache are per-node values; node_cache is GB. The block retains creation inputs; import the initial cluster separately to observe its applied cache capacity.
+- `node_vcpu`, `node_count`, and `node_cache` (Number) All required for EBS node creation. For local NVMe, set cache_type to 1 and omit node_cache. CPU and cache are per-node values; node_cache is GB. Capacity is refreshed from the saved cluster ID; local node_cache is computed from the applied package. Change node count separately from node size/cache.
 
+- `capacity_model` (String, Computed) Applied API capacity model. A pending node-model promotion remains visible in the next plan after a failed apply.
 - `auto_pause` (Block List, Max: 1) Auto-pause configuration. (see [below for nested schema](#nestedblock--initial_cluster--auto_pause))
 - `ratio` (Number) vCPU-to-memory ratio. Supported values are `4` (1:4) and `8` (1:8). This value is create-only. If omitted, Manager defaults to `8` (1:8).
 
@@ -419,7 +440,7 @@ import {
 }
 ```
 
-~> **Note:** The `tde_encryption_key_id` and `ebs_encryption_key_id` attributes are populated from the API after import. `credential_id` and `network_config_id` are also recovered when the backend returns `credentialId` and `networkConfigId`. Older backends that omit these fields preserve known state values; after import, supply the existing IDs if needed. Missing fields cannot be used to detect association removal. The API cannot return `admin_password`, `admin_password_version`, or the `initial_cluster` creation settings. Terraform cannot reconstruct those values on import; if you configure them, use the actual existing values. Manage the initial cluster after creation by importing it as a separate `velodb_cluster` resource.
+~> **Note:** The `tde_encryption_key_id` and `ebs_encryption_key_id` attributes are populated from the API after import. `credential_id` and `network_config_id` are also recovered when the backend returns `credentialId` and `networkConfigId`. Older backends that omit these fields preserve known state values; after import, supply the existing IDs if needed. Missing fields cannot be used to detect association removal. The API cannot return `admin_password` or `admin_password_version`. Warehouse import does not reconstruct `initial_cluster`; omit that block. Physical clusters can be imported separately as `velodb_cluster` resources.
 
 ## Immutable infrastructure
 

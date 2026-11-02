@@ -49,6 +49,8 @@ func TestWarehouseCreateCapturesOnlyNewWarehouseIdentity(t *testing.T) {
 						return
 					}
 					_ = json.NewEncoder(w).Encode(client.PageResponse[client.ClusterItem]{Success: true, Data: []client.ClusterItem{{ClusterID: "c-new", WarehouseID: "w-new", ClusterType: "COMPUTE"}}, Total: 1})
+				case req.Method == http.MethodGet && req.URL.Path == "/v1/warehouses/w-new/clusters/c-new":
+					_ = json.NewEncoder(w).Encode(map[string]any{"success": true, "data": map[string]any{"clusterId": "c-new", "warehouseId": "w-new", "clusterType": "COMPUTE", "status": "Running", "billingSummary": map[string]int{"totalCpu": 4, "totalDiskSizeGb": 100}}})
 				default:
 					t.Errorf("unexpected request: %s %s", req.Method, req.URL.Path)
 					w.WriteHeader(http.StatusBadRequest)

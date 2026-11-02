@@ -48,15 +48,13 @@ run "node_inputs_suppress_legacy_defaults" {
 run "additional_cluster_missing_node_cache" {
   command = plan
   variables { additional_clusters = { worker = { name = "worker", node_vcpu = 8, node_count = 2 } } }
-  # Mock providers leave the computed zone collection empty. Require the
-  # capacity diagnostic as well as the unrelated credential-zone diagnostic.
+  # Require capacity validation and the unrelated empty-zone mock diagnostic.
   expect_failures = [var.additional_clusters, velodb_byoc_credential.this]
 }
 run "additional_cluster_mixed_capacity" {
   command = plan
   variables { additional_clusters = { worker = { name = "worker", compute_vcpu = 16, cache_gb = 400, node_vcpu = 8, node_count = 2, node_cache = 200 } } }
-  # Mock providers leave the computed zone collection empty. Require the
-  # capacity diagnostic as well as the unrelated credential-zone diagnostic.
+  # Require capacity validation and the unrelated empty-zone mock diagnostic.
   expect_failures = [var.additional_clusters, velodb_byoc_credential.this]
 }
 
@@ -77,8 +75,7 @@ run "local_nodes" {
 run "local_cache_configuration_rejected" {
   command = plan
   variables { additional_clusters = { worker = { name = "worker", cache_type = 1, node_vcpu = 8, node_count = 2, node_cache = 474 } } }
-  # Mock providers leave the computed zone collection empty. Require the
-  # capacity diagnostic as well as the unrelated credential-zone diagnostic.
+  # Require capacity validation and the unrelated empty-zone mock diagnostic.
   expect_failures = [var.additional_clusters, velodb_byoc_credential.this]
 }
 run "invalid_cache_type" {
@@ -86,4 +83,43 @@ run "invalid_cache_type" {
   plan_options { target = [terraform_data.warehouse_infrastructure_guard] }
   variables { cache_type = 2 }
   expect_failures = [var.cache_type]
+}
+
+# Persist only the local guard so these checks exercise updates without cloud operations.
+run "save_initial_capacity_guard" {
+  command = apply
+  plan_options { target = [terraform_data.warehouse_infrastructure_guard] }
+}
+run "allow_initial_legacy_resize" {
+  command = plan
+  plan_options { target = [terraform_data.warehouse_infrastructure_guard] }
+  variables {
+    compute_vcpu = 8
+    cache_gb     = 200
+  }
+}
+run "allow_initial_node_resize" {
+  command = plan
+  plan_options { target = [terraform_data.warehouse_infrastructure_guard] }
+  variables {
+    node_vcpu  = 8
+    node_count = 3
+    node_cache = 200
+  }
+}
+run "keep_initial_ratio_immutable" {
+  command = plan
+  plan_options { target = [terraform_data.warehouse_infrastructure_guard] }
+  variables { ratio = 4 }
+  expect_failures = [terraform_data.warehouse_infrastructure_guard["initial_cluster_capacity"]]
+}
+run "keep_initial_cache_type_immutable" {
+  command = plan
+  plan_options { target = [terraform_data.warehouse_infrastructure_guard] }
+  variables {
+    cache_type = 1
+    node_vcpu  = 8
+    node_count = 2
+  }
+  expect_failures = [terraform_data.warehouse_infrastructure_guard["initial_cluster_capacity"]]
 }

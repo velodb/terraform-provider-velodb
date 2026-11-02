@@ -197,29 +197,3 @@ func nodeCapacityStatus(cl *client.ClusterDetail, plan ClusterResourceModel) str
 	}
 	return cl.Status
 }
-
-func validateInitialNodeCapacityChange(ctx context.Context, diags *diag.Diagnostics, plan, state types.List) {
-	if plan.IsUnknown() || state.IsUnknown() || plan.IsNull() && state.IsNull() {
-		return
-	}
-	var next, prior []InitialClusterModel
-	if !plan.IsNull() {
-		diags.Append(plan.ElementsAs(ctx, &next, false)...)
-	}
-	if !state.IsNull() {
-		diags.Append(state.ElementsAs(ctx, &prior, false)...)
-	}
-	if diags.HasError() {
-		return
-	}
-	var a, b InitialClusterModel
-	if len(next) > 0 {
-		a = next[0]
-	}
-	if len(prior) > 0 {
-		b = prior[0]
-	}
-	if (nodeCapacityConfigured(a.NodeVcpu, a.NodeCount, a.NodeCache) || nodeCapacityConfigured(b.NodeVcpu, b.NodeCount, b.NodeCache) || !a.CacheType.Equal(b.CacheType)) && !plan.Equal(state) {
-		diags.AddError("initial_cluster is creation-only", "Keep the initial_cluster creation inputs unchanged. Import its known ID into a velodb_cluster resource to manage later resizing; do not replace the warehouse.")
-	}
-}

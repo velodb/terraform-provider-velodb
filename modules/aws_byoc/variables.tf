@@ -153,7 +153,7 @@ variable "cache_type" {
 }
 
 variable "node_vcpu" {
-  description = "vCPUs per node. Set node_vcpu/node_count and omit legacy compute_vcpu/cache_gb. EBS also requires node_cache; omit it for local NVMe. Creation-only for the initial cluster."
+  description = "vCPUs per node. Set node_vcpu/node_count and omit legacy compute_vcpu/cache_gb. EBS also requires node_cache; omit it for local NVMe. Managed after creation when the warehouse has a saved initial_cluster_id; change node count separately from node size/cache."
   type        = number
   default     = null
   validation {
@@ -163,7 +163,7 @@ variable "node_vcpu" {
 }
 
 variable "node_count" {
-  description = "Initial node count. Set node_vcpu/node_count and omit legacy compute_vcpu/cache_gb. EBS also requires node_cache; omit it for local NVMe. Creation-only for the initial cluster."
+  description = "Initial node count. Set node_vcpu/node_count and omit legacy compute_vcpu/cache_gb. EBS also requires node_cache; omit it for local NVMe. Managed after creation when the warehouse has a saved initial_cluster_id; change node count separately from node size/cache."
   type        = number
   default     = null
   validation {
@@ -173,7 +173,7 @@ variable "node_count" {
 }
 
 variable "node_cache" {
-  description = "Cache GB per node. Set node_vcpu/node_count and omit legacy compute_vcpu/cache_gb. EBS also requires node_cache; omit it for local NVMe. Creation-only for the initial cluster."
+  description = "Cache GB per node. Set node_vcpu/node_count and omit legacy compute_vcpu/cache_gb. EBS also requires node_cache; omit it for local NVMe. Managed after creation when the warehouse has a saved initial_cluster_id; change node count separately from node size/cache."
   type        = number
   default     = null
   validation {

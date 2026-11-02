@@ -28,6 +28,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 	byocWarehouseCreated := false
 	byocWarehouseDeleted := false
 	byocNetworkZoneMappings := []map[string]any{{"zoneId": "us-east-1a", "subnetId": "subnet-aaa"}}
+	var initialCapacity map[string]any
 	publicPolicy := "DENY_ALL"
 	publicPolicyRules := []map[string]any{}
 
@@ -201,6 +202,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 				t.Errorf("decode warehouse request: %v", err)
 			}
+			initialCapacity, _ = body["initialCluster"].(map[string]any)
 			if body["deploymentMode"] == "BYOC" {
 				if body["cloudProvider"] != "aws" || body["setupMode"] != "advanced" || body["credentialId"] != float64(123) || body["networkConfigId"] != float64(456) {
 					t.Errorf("unexpected advanced BYOC warehouse request: %#v", body)
@@ -549,7 +551,49 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 		})
 	}
 
-	return httptest.NewServer(mux)
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if initialCapacity != nil && (req.URL.Path == "/v1/warehouses/WH-MOCK-001/clusters/CL-MOCK-001" || req.URL.Path == "/v1/warehouses/WH-BYOC-CREATE-001/clusters/CL-BYOC-CREATE-001") {
+			if req.Method == http.MethodPatch {
+				var update map[string]any
+				if err := json.NewDecoder(req.Body).Decode(&update); err != nil {
+					t.Error(err)
+				}
+				if cpu, ok := update["computeVcpu"].(float64); ok {
+					initialCapacity["cacheGb"] = initialCapacity["cacheGb"].(float64) * cpu / initialCapacity["computeVcpu"].(float64)
+				}
+				for key, value := range update {
+					initialCapacity[key] = value
+				}
+				if initialCapacity["cacheType"] == float64(1) && update["nodeVcpu"] != nil {
+					initialCapacity["nodeCache"] = 777
+				}
+				writeJSONResponse(t, w, map[string]any{"success": true})
+				return
+			}
+
+			parts := strings.Split(req.URL.Path, "/")
+			data := map[string]any{"clusterId": parts[5], "warehouseId": parts[3], "clusterType": "COMPUTE", "status": "Running"}
+			for _, key := range []string{"nodeVcpu", "nodeCount", "nodeCache", "cacheType"} {
+				if value, ok := initialCapacity[key]; ok {
+					data[key] = value
+				}
+			}
+			if data["nodeVcpu"] != nil {
+				data["capacityModel"] = "NODE_SPEC"
+				if data["cacheType"] == nil {
+					data["cacheType"] = 0
+				}
+				if data["nodeCache"] == nil {
+					data["nodeCache"] = 474
+				}
+			} else {
+				data["billingSummary"] = map[string]any{"totalCpu": initialCapacity["computeVcpu"], "totalDiskSizeGb": initialCapacity["cacheGb"]}
+			}
+			writeJSONResponse(t, w, map[string]any{"success": true, "data": data})
+			return
+		}
+		mux.ServeHTTP(w, req)
+	}))
 }
 
 func testAccProtoV6ProviderFactories(ts *httptest.Server) map[string]func() (tfprotov6.ProviderServer, error) {

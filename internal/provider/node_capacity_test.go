@@ -197,6 +197,23 @@ func TestAccWarehouseNodeInitialCluster(t *testing.T) {
 						t.Errorf("EBS request: %s", raw)
 					}
 				}
+				if r.Method == http.MethodPatch && strings.Contains(r.URL.Path, "/clusters/") {
+					raw, err := io.ReadAll(r.Body)
+					if err != nil {
+						t.Fatal(err)
+					}
+					r.Body = io.NopCloser(bytes.NewReader(raw))
+					var body map[string]any
+					if err := json.Unmarshal(raw, &body); err != nil {
+						t.Error(err)
+					}
+					if body["nodeCount"] != nil && (body["nodeVcpu"] != nil || body["nodeCache"] != nil) {
+						t.Errorf("combined dimensions: %s", raw)
+					}
+					if body["computeVcpu"] != nil || body["cacheGb"] != nil || local && body["nodeCache"] != nil {
+						t.Errorf("invalid node request: %s", raw)
+					}
+				}
 				original.ServeHTTP(w, r)
 			})
 			capacity := "node_vcpu=8\nnode_count=2\nnode_cache=200"
@@ -214,10 +231,15 @@ func TestAccWarehouseNodeInitialCluster(t *testing.T) {
  ` + capacity + `
  }
 }`
+			vertical := strings.Replace(config, "node_vcpu=8", "node_vcpu=16", 1)
+			horizontal := strings.Replace(vertical, "node_count=2", "node_count=3", 1)
 			resource.Test(t, resource.TestCase{ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(ts), Steps: []resource.TestStep{
 				{Config: config, Check: resource.TestCheckResourceAttr("velodb_warehouse.test", "initial_cluster.0.node_count", "2")},
 				{Config: config, PlanOnly: true},
-				{Config: strings.Replace(config, "node_count=2", "node_count=3", 1), PlanOnly: true, ExpectError: regexp.MustCompile("initial_cluster is creation-only")},
+				{Config: horizontal, PlanOnly: true, ExpectError: regexp.MustCompile("Separate node count and size changes")},
+				{Config: vertical, Check: resource.TestCheckResourceAttr("velodb_warehouse.test", "initial_cluster.0.node_vcpu", "16")},
+				{Config: horizontal, Check: resource.TestCheckResourceAttr("velodb_warehouse.test", "initial_cluster.0.node_count", "3")},
+				{Config: horizontal, PlanOnly: true},
 				{ResourceName: "velodb_warehouse.test", ImportState: true, ImportStateVerify: true, ImportStateVerifyIgnore: []string{"admin_password", "admin_password_version", "initial_cluster", "initial_cluster_id", "timeouts"}},
 			}})
 		})
