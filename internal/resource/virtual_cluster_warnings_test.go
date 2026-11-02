@@ -108,3 +108,26 @@ func TestVirtualClusterPlanActiveChangeWarning(t *testing.T) {
 		})
 	}
 }
+
+func TestVirtualClusterPlanDestroyWarning(t *testing.T) {
+	ctx := context.Background()
+	state := virtualClusterTestState(t)
+	prior := virtualClusterTestModel()
+	prior.ID = types.StringValue("v-1")
+	prior.ActiveClusterID = types.StringValue("c-a")
+	prior.StandbyClusterID = types.StringValue("c-b")
+	if diags := state.Set(ctx, &prior); diags.HasError() {
+		t.Fatal(diags)
+	}
+	resp := resource.ModifyPlanResponse{}
+	(&VirtualClusterResource{}).ModifyPlan(ctx, resource.ModifyPlanRequest{State: state, Plan: tfsdk.Plan{}}, &resp)
+	if resp.Diagnostics.HasError() || resp.Diagnostics.WarningsCount() != 1 {
+		t.Fatalf("expected destroy warning: %v", resp.Diagnostics)
+	}
+	detail := resp.Diagnostics.Warnings()[0].Detail()
+	for _, want := range []string{`"v-1"`, `active "c-a"`, `standby "c-b"`, "targeted physical-cluster destroy"} {
+		if !strings.Contains(detail, want) {
+			t.Fatalf("warning missing %q: %s", want, detail)
+		}
+	}
+}
