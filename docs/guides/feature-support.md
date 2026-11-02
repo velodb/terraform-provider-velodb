@@ -42,7 +42,7 @@ only — SaaS warehouses use the `velodb_warehouse` resource directly.
 | `vpc_mode` | ✅ | 🚫 Create-only | BYOC | `auto` |
 | `admin_password` | ✅ | ✅ In-place (change the value or bump `admin_password_version`) | Both | ✅ `admin_password` |
 | `table_name_case_sensitive` | ✅ | 🚫 Create-only | Both | ✅ `table_name_case_sensitive` |
-| `tags` | ✅ | 🚫 Create-only | Both | ✅ `tags` |
+| `tags` | ✅ | ✅ In-place | BYOC | ✅ `tags` |
 
 ¹ Advanced BYOC (what the modules use) requires `aws`. VeloDB Cloud SaaS also
 runs on Azure, but this Terraform provider has only been tested with `aws`.

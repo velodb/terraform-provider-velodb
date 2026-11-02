@@ -80,6 +80,10 @@ resource "velodb_warehouse" "production" {
   network_config_id = velodb_byoc_network.production.id
   admin_password    = var.admin_password
 
+  tags = {
+    team = "analytics"
+  }
+
   initial_cluster {
     zone         = "us-east-1a"
     compute_vcpu = 4
@@ -91,6 +95,23 @@ resource "velodb_warehouse" "production" {
 Use three unique `zone_mappings` entries for a multi-AZ network. The VeloDB API
 validates the IAM roles, bucket, subnet-to-zone relationship, security group,
 and optional VPC endpoint during registration.
+
+## Warehouse Tags
+
+`tags` manages the warehouse-scope source map. Add, change, or remove keys
+without replacing the warehouse. Set `tags = {}` or remove the attribute to
+clear that map. The warehouse ID remains unchanged.
+
+Organization tags take precedence over cluster overrides, which take precedence
+over warehouse defaults. Cloud Manager applies the effective changes to existing
+clusters and uses warehouse defaults for future clusters. Terraform reads only
+warehouse source tags, including after import, so inherited tags and unrelated
+AWS tags do not enter this map.
+
+Refresh detects changes to the stored warehouse tags, not direct AWS edits.
+This requires Formation's tag update and readback API. If an older API or a list
+fallback omits tags or returns null, existing tag state is retained rather than
+assuming the tags were removed; drift detection is unavailable for that read.
 
 ## Password Rotation
 
@@ -311,7 +332,7 @@ To destroy the initial cluster later:
 - `initial_cluster` (Block List, Max: 1) Initial cluster created together with the warehouse. This is a create-only configuration. After creation, manage the cluster lifecycle by importing it as a `velodb_cluster` resource. (see [below for nested schema](#nestedblock--initial_cluster))
 - `network_config_id` (Number) Registered network configuration ID for advanced AWS BYOC. Read from the API when available. Changes are rejected; omission retains the existing binding.
 - `tde_encryption_key_id` (Number) Registered encryption key ID used for transparent data encryption (TDE) of warehouse data. Create the key with `velodb_encryption_key` (`use_tde = true`). Changes after creation are rejected.
-- `tags` (Map of String) Warehouse tags as key/value pairs. Create-only: the management API accepts tags only at creation and does not return or update them, so changing tags after creation is rejected.
+- `tags` (Map of String) BYOC warehouse-scope tags as key/value pairs. Additions, changes, and removals update the warehouse in place. Organization tags take precedence, and cluster overrides remain separate. Readback reflects stored warehouse tags, not live cloud tags.
 - `timeouts` (Block, Optional) (see [below for nested schema](#nestedblock--timeouts))
 - `vpc_mode` (String) VPC consistency hint for Template mode: `existing` or `new`. Changes after creation are rejected.
 
