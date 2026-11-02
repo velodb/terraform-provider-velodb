@@ -75,7 +75,8 @@ running standby. A replacement standby must also be `Running`.
 Deleting the resource unmounts both physical clusters and ends virtual-cluster
 routing and automatic failover. If relevant users have no default cluster,
 their requests through the deleted virtual cluster will fail. Review the
-destroy plan before applying.
+destroy plan before applying. The provider warns on planned deletion, including
+deletion pulled in by `-target`; the warning does not stop `-auto-approve`.
 
 If deletion times out or fails, Terraform retains the virtual-cluster ID until
 GET confirms that the target no longer exists. Running destroy again submits

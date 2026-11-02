@@ -105,7 +105,15 @@ func (r *VirtualClusterResource) ValidateConfig(ctx context.Context, req resourc
 }
 
 func (r *VirtualClusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+	if req.State.Raw.IsNull() {
+		return
+	}
+	if req.Plan.Raw.IsNull() {
+		var prior VirtualClusterResourceModel
+		resp.Diagnostics.Append(req.State.Get(ctx, &prior)...)
+		if !resp.Diagnostics.HasError() {
+			resp.Diagnostics.AddWarning("Virtual cluster will be deleted", fmt.Sprintf("Virtual cluster %q (active %q, standby %q) will be deleted. A targeted physical-cluster destroy can include this deletion. Review the plan before applying.", prior.ID.ValueString(), prior.ActiveClusterID.ValueString(), prior.StandbyClusterID.ValueString()))
+		}
 		return
 	}
 	var planned, prior VirtualClusterResourceModel

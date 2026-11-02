@@ -19,7 +19,7 @@ network registrations, and a warehouse with an initial cluster.
 
 - Terraform 1.5 or newer.
 - AWS provider 6.24.0 or newer (required for the regional NAT gateway).
-- VeloDB provider 1.1.8 or newer for normal user installations.
+- VeloDB provider 1.2.0 or newer.
 - AWS credentials with permission to create the resources above.
 - A VeloDB API key with permission to manage BYOC warehouses.
 - One or three availability zones returned by the VeloDB BYOC discovery API.
