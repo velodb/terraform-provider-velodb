@@ -199,7 +199,7 @@ comes from the selected package. The same fields are supported in each
 `additional_clusters` entry. Do not combine node inputs with legacy
 `compute_vcpu`/`cache_gb`. Existing configurations keep their defaults.
 
-The initial-cluster inputs, ratio and cache type are creation-only. Additional
+Initial-cluster capacity supports resizing through its saved creation-time ID. Change node count separately from node size/cache. Ratio and cache type are creation-only. Additional
 cluster node-count and node-size changes require separate applies. See the
 [node-capacity guide](../../docs/guides/node-capacity.md).
 

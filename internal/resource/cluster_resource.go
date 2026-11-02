@@ -414,6 +414,7 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 	validateCacheTypeChange(&resp.Diagnostics, config.CacheType, state.CacheType)
+	validateCreateOnlyRatio(&resp.Diagnostics, plan.Ratio, state.Ratio)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -422,62 +423,12 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 		resp.Diagnostics.AddError("Legacy capacity cannot resize a NODE_SPEC cluster", "Replace compute_vcpu/cache_gb with node_vcpu/node_count/node_cache on this same resource. Do not destroy the cluster.")
 		return
 	}
-	cpuChanged := !nodeManaged && !plan.ComputeVcpu.Equal(state.ComputeVcpu)
-	diskChanged := !nodeManaged && !plan.CacheGb.Equal(state.CacheGb)
-	validateCreateOnlyRatio(&resp.Diagnostics, plan.Ratio, state.Ratio)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	cacheChangeHandledByCPU := false
-	apiCacheAfterCPUResize := int64(0)
-	hasAPIResizeCache := cpuChanged &&
-		!plan.ComputeVcpu.IsUnknown() && !state.ComputeVcpu.IsUnknown() &&
-		!plan.CacheGb.IsUnknown() && !state.CacheGb.IsUnknown()
-	if hasAPIResizeCache {
-		apiCacheAfterCPUResize = cacheGbAfterCPUResize(
-			state.ComputeVcpu.ValueInt64(),
-			state.CacheGb.ValueInt64(),
-			plan.ComputeVcpu.ValueInt64(),
-		)
-	}
-	if cpuChanged && diskChanged && hasAPIResizeCache && plan.CacheGb.ValueInt64() == apiCacheAfterCPUResize {
-		cacheChangeHandledByCPU = true
-	} else if diskChanged && !plan.CacheGb.IsUnknown() && !state.CacheGb.IsUnknown() &&
-		plan.CacheGb.ValueInt64() < state.CacheGb.ValueInt64() {
-		resp.Diagnostics.AddError(
-			"cache_gb cannot be decreased",
-			"VeloDB does not support shrinking cluster cache_gb. "+
-				"Increase cache_gb only, or recreate the cluster if you need a smaller disk.",
-		)
-		return
-	} else if cpuChanged && diskChanged {
-		resp.Diagnostics.AddError(
-			"Simultaneous compute_vcpu and cache_gb changes are not supported",
-			fmt.Sprintf(
-				"VeloDB automatically adjusts cache_gb to %d when resizing compute_vcpu from %d to %d. "+
-					"Set cache_gb to %d for the CPU resize, then apply any additional cache_gb change in a later apply.",
-				apiCacheAfterCPUResize,
-				state.ComputeVcpu.ValueInt64(),
-				plan.ComputeVcpu.ValueInt64(),
-				apiCacheAfterCPUResize,
-			),
-		)
-		return
-	}
-	if cpuChanged && !diskChanged && hasAPIResizeCache && apiCacheAfterCPUResize != plan.CacheGb.ValueInt64() {
-		resp.Diagnostics.AddError(
-			"compute_vcpu resize requires cache_gb update",
-			fmt.Sprintf(
-				"VeloDB automatically adjusts cache_gb to %d when resizing compute_vcpu from %d to %d. "+
-					"Set cache_gb to %d and apply again. Keeping cache_gb at %d requires a later cache-only apply after the API cooldown.",
-				apiCacheAfterCPUResize,
-				state.ComputeVcpu.ValueInt64(),
-				plan.ComputeVcpu.ValueInt64(),
-				apiCacheAfterCPUResize,
-				plan.CacheGb.ValueInt64(),
-			),
-		)
-		return
+	var capacityUpdates []client.UpdateClusterRequest
+	if !nodeManaged {
+		capacityUpdates = legacyCapacityUpdates(plan, state, &resp.Diagnostics)
+		if resp.Diagnostics.HasError() {
+			return
+		}
 	}
 
 	// Recover remote progress on every error, including after a successful resize.
@@ -563,33 +514,8 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 		}
 	}
 
-	// 3. Resize compute_vcpu
-	if cpuChanged {
-		v := int(plan.ComputeVcpu.ValueInt64())
-		updateReq := &client.UpdateClusterRequest{
-			ComputeVcpu: &v,
-		}
-		if err := r.client.UpdateCluster(ctx, warehouseID, clusterID, updateReq); err != nil {
-			resp.Diagnostics.AddError(userError("resizing compute_vcpu", err))
-			return
-		}
-		r.waitStable(ctx, warehouseID, clusterID, updateTimeout, &resp.Diagnostics)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-	}
-
-	// 4. Resize cache_gb
-	if !cacheChangeHandledByCPU && diskChanged {
-		v := int(plan.CacheGb.ValueInt64())
-		updateReq := &client.UpdateClusterRequest{
-			CacheGb: &v,
-		}
-		if err := r.client.UpdateCluster(ctx, warehouseID, clusterID, updateReq); err != nil {
-			resp.Diagnostics.AddError(userError("resizing cache_gb", err))
-			return
-		}
-		r.waitStable(ctx, warehouseID, clusterID, updateTimeout, &resp.Diagnostics)
+	if !r.applyLegacyCapacity(ctx, warehouseID, clusterID, capacityUpdates, plan, &state, updateTimeout, &resp.Diagnostics) {
+		return
 	}
 
 	// 5. Name change
@@ -719,19 +645,6 @@ func (r *ClusterResource) ImportState(ctx context.Context, req resource.ImportSt
 }
 
 // --- Helpers ---
-
-func (r *ClusterResource) waitStable(ctx context.Context, warehouseID, clusterID string, timeout time.Duration, diags *diag.Diagnostics) {
-	_, err := client.WaitForStatus(ctx, func(ctx context.Context) (string, error) {
-		cl, err := r.client.GetCluster(ctx, warehouseID, clusterID)
-		if err != nil {
-			return "", err
-		}
-		return cl.Status, nil
-	}, client.StableStatuses, client.FailedStatuses, timeout, 15*time.Second)
-	if err != nil {
-		diags.AddWarning("Cluster operation may still be in progress", err.Error())
-	}
-}
 
 func (r *ClusterResource) resolveAction(newDesired string) string {
 	switch newDesired {

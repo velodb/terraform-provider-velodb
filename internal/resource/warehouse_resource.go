@@ -71,29 +71,31 @@ type WarehouseResourceModel struct {
 	AccessPolicy            types.List     `tfsdk:"public_access_policy"`
 	Timeouts                timeouts.Value `tfsdk:"timeouts"`
 	// Computed
-	Status             types.String `tfsdk:"status"`
-	Zone               types.String `tfsdk:"zone"`
-	PayType            types.String `tfsdk:"pay_type"`
-	CreatedAt          types.String `tfsdk:"created_at"`
-	ExpireTime         types.String `tfsdk:"expire_time"`
-	ByocSetup          types.List   `tfsdk:"byoc_setup"`
-	InitialClusterID   types.String `tfsdk:"initial_cluster_id"`
-	TdeEncryptionKeyId types.Int64  `tfsdk:"tde_encryption_key_id"`
-	EbsEncryptionKeyId types.Int64  `tfsdk:"ebs_encryption_key_id"`
-	EnableTls          types.Bool   `tfsdk:"enable_tls"`
-	EnableHttps        types.Bool   `tfsdk:"enable_https"`
+	Status                 types.String `tfsdk:"status"`
+	Zone                   types.String `tfsdk:"zone"`
+	PayType                types.String `tfsdk:"pay_type"`
+	CreatedAt              types.String `tfsdk:"created_at"`
+	ExpireTime             types.String `tfsdk:"expire_time"`
+	ByocSetup              types.List   `tfsdk:"byoc_setup"`
+	InitialClusterID       types.String `tfsdk:"initial_cluster_id"`
+	InitialCapacityAdopted types.Bool   `tfsdk:"initial_cluster_capacity_adopted"`
+	TdeEncryptionKeyId     types.Int64  `tfsdk:"tde_encryption_key_id"`
+	EbsEncryptionKeyId     types.Int64  `tfsdk:"ebs_encryption_key_id"`
+	EnableTls              types.Bool   `tfsdk:"enable_tls"`
+	EnableHttps            types.Bool   `tfsdk:"enable_https"`
 }
 
 type InitialClusterModel struct {
-	CacheType   types.Int64  `tfsdk:"cache_type"`
-	NodeVcpu    types.Int64  `tfsdk:"node_vcpu"`
-	NodeCount   types.Int64  `tfsdk:"node_count"`
-	NodeCache   types.Int64  `tfsdk:"node_cache"`
-	Zone        types.String `tfsdk:"zone"`
-	ComputeVcpu types.Int64  `tfsdk:"compute_vcpu"`
-	Ratio       types.Int64  `tfsdk:"ratio"`
-	CacheGb     types.Int64  `tfsdk:"cache_gb"`
-	AutoPause   types.List   `tfsdk:"auto_pause"`
+	CapacityModel types.String `tfsdk:"capacity_model"`
+	CacheType     types.Int64  `tfsdk:"cache_type"`
+	NodeVcpu      types.Int64  `tfsdk:"node_vcpu"`
+	NodeCount     types.Int64  `tfsdk:"node_count"`
+	NodeCache     types.Int64  `tfsdk:"node_cache"`
+	Zone          types.String `tfsdk:"zone"`
+	ComputeVcpu   types.Int64  `tfsdk:"compute_vcpu"`
+	Ratio         types.Int64  `tfsdk:"ratio"`
+	CacheGb       types.Int64  `tfsdk:"cache_gb"`
+	AutoPause     types.List   `tfsdk:"auto_pause"`
 }
 
 type AutoPauseModel struct {
@@ -333,6 +335,10 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
+			"initial_cluster_capacity_adopted": schema.BoolAttribute{
+				Computed:    true,
+				Description: "Provider-maintained migration status. Existing capacity must match configuration before warehouse-side resizing is adopted. Not a configuration option.",
+			},
 			"initial_cluster_id": schema.StringAttribute{
 				Description: "Best-effort compute-cluster ID captured only when this provider creates the warehouse. Null after warehouse import. To manage an existing physical cluster, import it separately as a velodb_cluster resource.",
 				Computed:    true,
@@ -373,13 +379,14 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 		},
 		Blocks: map[string]schema.Block{
 			"initial_cluster": schema.ListNestedBlock{
-				Description: "Initial cluster created with the warehouse. Create-only.",
+				Description: "Initial cluster created with the warehouse. Capacity is managed through its creation-time ID; omit after warehouse import.",
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
-						"cache_type": schema.Int64Attribute{Optional: true, Description: "Cache type: 0 for EBS (default), 1 for local NVMe. Creation-only; omit node_cache for local storage.", Validators: []validator.Int64{int64validator.OneOf(0, 1)}},
-						"node_vcpu":  schema.Int64Attribute{Optional: true, Description: "vCPUs per node; creation-only.", Validators: []validator.Int64{int64validator.Between(1, 2147483647)}},
-						"node_count": schema.Int64Attribute{Optional: true, Description: "Initial node count; creation-only.", Validators: []validator.Int64{int64validator.Between(1, 2147483647)}},
-						"node_cache": schema.Int64Attribute{Optional: true, Description: "Cache GB per node; required for EBS node creation. Omit for package-defined local cache.", Validators: []validator.Int64{int64validator.Between(1, 2147483647)}},
+						"capacity_model": schema.StringAttribute{Computed: true, Description: "Applied capacity model returned by the API."},
+						"cache_type":     schema.Int64Attribute{Optional: true, Description: "Cache type: 0 for EBS (default), 1 for local NVMe. Creation-only; omit node_cache for local storage.", Validators: []validator.Int64{int64validator.OneOf(0, 1)}},
+						"node_vcpu":      schema.Int64Attribute{Optional: true, Description: "vCPUs per node. Change separately from node_count.", Validators: []validator.Int64{int64validator.Between(1, 2147483647)}},
+						"node_count":     schema.Int64Attribute{Optional: true, Description: "Node count. Change separately from node_vcpu/node_cache.", Validators: []validator.Int64{int64validator.Between(1, 2147483647)}},
+						"node_cache":     schema.Int64Attribute{Optional: true, Computed: true, Description: "Cache GB per node; required for EBS node creation. Omit for package-defined local cache.", Validators: []validator.Int64{int64validator.Between(1, 2147483647)}},
 						"zone": schema.StringAttribute{
 							Description:   "Availability zone.",
 							Required:      true,
@@ -544,7 +551,29 @@ func (r *WarehouseResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 		if resp.Diagnostics.HasError() {
 			return
 		}
-		validateInitialNodeCapacityChange(ctx, &resp.Diagnostics, plan.InitialCluster, state.InitialCluster)
+		var configuredInitial types.List
+		resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("initial_cluster"), &configuredInitial)...)
+		validateInitialCapacityPlan(ctx, &resp.Diagnostics, plan, state, configuredInitial)
+		adopted := types.BoolValue(state.InitialCapacityAdopted.ValueBool())
+		if !adopted.ValueBool() && !state.InitialClusterID.IsNull() && !state.InitialClusterID.IsUnknown() && state.InitialClusterID.ValueString() != "" {
+			adopted = types.BoolValue(initialCapacityMatches(ctx, configuredInitial, state.InitialCluster, &resp.Diagnostics))
+			if raw, err := configuredInitial.ToTerraformValue(ctx); err == nil && !raw.IsFullyKnown() && !adopted.ValueBool() {
+				adopted = types.BoolUnknown()
+			}
+		}
+		resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("initial_cluster_capacity_adopted"), adopted)...)
+		var localDiags diag.Diagnostics
+		next := initialCapacity(ctx, plan.InitialCluster, &localDiags)
+		prior := initialCapacity(ctx, state.InitialCluster, &localDiags)
+		if next != nil && prior != nil && localCache(prior.CacheType) && !next.NodeVcpu.Equal(prior.NodeVcpu) {
+			resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("initial_cluster").AtListIndex(0).AtName("node_cache"), types.Int64Unknown())...)
+		}
+		configured := initialCapacity(ctx, configuredInitial, &localDiags)
+		hasInitialClusterID := !state.InitialClusterID.IsNull() && !state.InitialClusterID.IsUnknown() && state.InitialClusterID.ValueString() != ""
+		if hasInitialClusterID && configured != nil && prior != nil && nodeCapacityConfigured(configured.NodeVcpu, configured.NodeCount, configured.NodeCache) && prior.CapacityModel.ValueString() != "NODE_SPEC" {
+			resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("initial_cluster").AtListIndex(0).AtName("capacity_model"), types.StringUnknown())...)
+		}
+		resp.Diagnostics.Append(localDiags...)
 		var configuredCoreVersion types.String
 		resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("core_version"), &configuredCoreVersion)...)
 		if configuredCoreVersion.IsNull() && !state.CoreVersion.IsNull() && !state.CoreVersion.IsUnknown() && strings.Count(state.CoreVersion.ValueString(), ".") == 1 {
@@ -717,6 +746,7 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 
 	plan.ID = types.StringValue(result.WarehouseID)
 	plan.InitialClusterID = types.StringNull()
+	plan.InitialCapacityAdopted = types.BoolValue(false)
 
 	// Store BYOC setup if returned
 	r.setByocSetup(ctx, &plan, result.SetupGuide, &resp.Diagnostics)
@@ -772,6 +802,40 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 		plan.InitialClusterID = types.StringValue(initialClusterID)
 	}
 
+	if block := initialCapacity(ctx, plan.InitialCluster, &resp.Diagnostics); block != nil {
+		if block.NodeCache.IsUnknown() {
+			block.NodeCache = types.Int64Null()
+		}
+		if block.CapacityModel.IsUnknown() {
+			block.CapacityModel = types.StringNull()
+		}
+		var d diag.Diagnostics
+		plan.InitialCluster, d = types.ListValueFrom(ctx, plan.InitialCluster.ElementType(ctx), []InitialClusterModel{*block})
+		resp.Diagnostics.Append(d...)
+	}
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
+	if plan.Status.ValueString() == "CreateFailed" {
+		resp.Diagnostics.AddError("Warehouse provisioning failed", "The API reports CreateFailed. The warehouse ID is retained for recovery.")
+		return
+	}
+	// A failed observation after successful provisioning must not taint the warehouse.
+	var capacityDiags diag.Diagnostics
+	observed := plan
+	r.readInitialCapacity(ctx, &observed, &capacityDiags)
+	if capacityDiags.HasError() {
+		for _, d := range capacityDiags {
+			if d.Summary() == "Initial cluster provisioning failed" {
+				resp.Diagnostics.Append(d)
+				continue
+			}
+			resp.Diagnostics.AddWarning("Initial cluster capacity read deferred", d.Summary()+": "+d.Detail()+" The warehouse was created and its saved IDs are retained. Capacity management requires a successful refresh.")
+		}
+	} else {
+		plan = observed
+		plan.InitialCapacityAdopted = types.BoolValue(!plan.InitialClusterID.IsNull() && initialCapacity(ctx, plan.InitialCluster, &resp.Diagnostics) != nil)
+		resp.Diagnostics.Append(capacityDiags...)
+	}
+
 	// Preserve admin_password from plan (can't be read from API)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
@@ -783,10 +847,13 @@ func (r *WarehouseResource) Read(ctx context.Context, req resource.ReadRequest, 
 		return
 	}
 
+	if state.InitialCapacityAdopted.IsNull() || state.InitialCapacityAdopted.IsUnknown() {
+		state.InitialCapacityAdopted = types.BoolValue(false)
+	}
+
 	// Preserve admin_password and admin_password_version from prior state (can't read from API)
 	priorPassword := state.AdminPassword
 	priorPasswordVersion := state.AdminPasswordVersion
-	priorInitialCluster := state.InitialCluster
 	priorTimeouts := state.Timeouts
 
 	r.readWarehouseIntoState(ctx, state.ID.ValueString(), &state, &resp.Diagnostics)
@@ -794,9 +861,15 @@ func (r *WarehouseResource) Read(ctx context.Context, req resource.ReadRequest, 
 		return
 	}
 
+	if !state.ID.IsNull() {
+		r.readInitialCapacity(ctx, &state, &resp.Diagnostics)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
+
 	state.AdminPassword = priorPassword
 	state.AdminPasswordVersion = priorPasswordVersion
-	state.InitialCluster = priorInitialCluster
 	state.Timeouts = priorTimeouts
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
@@ -819,8 +892,9 @@ func (r *WarehouseResource) Update(ctx context.Context, req resource.UpdateReque
 	defer cancel()
 
 	warehouseID := state.ID.ValueString()
-	validateInitialNodeCapacityChange(ctx, &resp.Diagnostics, plan.InitialCluster, state.InitialCluster)
-	validateInitialClusterCreateOnlyRatio(ctx, &resp.Diagnostics, plan.InitialCluster, state.InitialCluster)
+	var configuredInitial types.List
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("initial_cluster"), &configuredInitial)...)
+	validateInitialCapacityPlan(ctx, &resp.Diagnostics, plan, state, configuredInitial)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -835,6 +909,31 @@ func (r *WarehouseResource) Update(ctx context.Context, req resource.UpdateReque
 		resp.Diagnostics.AddError("Invalid core version upgrade", err.Error())
 		return
 	}
+
+	defer func() {
+		if !resp.Diagnostics.HasError() {
+			return
+		}
+		refreshCtx, cancelRefresh := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+		defer cancelRefresh()
+		var recovery diag.Diagnostics
+		r.readWarehouseIntoState(refreshCtx, warehouseID, &state, &recovery)
+		if !state.ID.IsNull() {
+			r.readInitialCapacity(refreshCtx, &state, &recovery)
+		}
+		resp.Diagnostics.Append(recovery...)
+		resp.Diagnostics.Append(resp.State.Set(refreshCtx, &state)...)
+	}()
+	r.updateInitialCapacity(ctx, configuredInitial, plan, &state, updateTimeout, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.InitialCluster = state.InitialCluster
+	if configuredInitial.IsNull() || len(configuredInitial.Elements()) == 0 {
+		plan.InitialCluster = configuredInitial
+	}
+	plan.InitialClusterID = state.InitialClusterID
+	plan.InitialCapacityAdopted = state.InitialCapacityAdopted
 
 	// Rename via PATCH /warehouses/{id}
 	if !plan.Name.Equal(state.Name) {
@@ -903,6 +1002,10 @@ func (r *WarehouseResource) Update(ctx context.Context, req resource.UpdateReque
 
 	// Read back state, preserving plan values for write-only/config-only fields
 	r.readWarehouseIntoState(ctx, warehouseID, &plan, &resp.Diagnostics)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	r.readInitialCapacity(ctx, &plan, &resp.Diagnostics)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -989,6 +1092,7 @@ func (r *WarehouseResource) ImportState(ctx context.Context, req resource.Import
 
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), warehouseID)...)
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("initial_cluster_id"), types.StringNull())...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("initial_cluster_capacity_adopted"), false)...)
 	resp.Diagnostics.AddWarning("Warehouse import does not import physical clusters",
 		"Only the warehouse is imported. initial_cluster_id remains null and no physical cluster is assigned an initial role. "+
 			"To manage an existing compute cluster, import it separately as a velodb_cluster resource. "+
