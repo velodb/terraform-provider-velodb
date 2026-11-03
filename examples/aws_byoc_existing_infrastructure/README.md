@@ -11,7 +11,7 @@ network registrations and the warehouse.
 ## Prerequisites
 
 - Terraform 1.5 or newer.
-- VeloDB provider 1.1.8 or newer.
+- VeloDB provider 1.2.0 or newer.
 - AWS credentials that can read the referenced resources.
 - A VeloDB API key that can manage BYOC warehouses.
 - An existing S3 bucket, VPC, one or three private subnets with working NAT

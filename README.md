@@ -44,7 +44,7 @@ terraform {
   required_providers {
     velodb = {
       source  = "velodb/velodb"
-      version = "~> 1.1"
+      version = "~> 1.2"
     }
   }
 }
