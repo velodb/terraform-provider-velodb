@@ -82,3 +82,32 @@ resource "velodb_warehouse" "test" {
 		t.Fatalf("import/read/update must not create warehouses or discover a cluster: lists=%d creates=%d deletes=%d", lists, creates, deletes)
 	}
 }
+
+func TestAccWarehouseInitialCapacityResize(t *testing.T) {
+	ts := mockAPIServer(t)
+	defer ts.Close()
+	config := func(cpu, cache int) string {
+		return testProviderConfig(ts) + fmt.Sprintf(`
+resource "velodb_warehouse" "test" {
+ name="advanced-byoc"
+ deployment_mode="BYOC"
+ setup_mode="advanced"
+ credential_id=123
+ network_config_id=456
+ cloud_provider="aws"
+ region="us-east-1"
+ admin_password="TestPass@123"
+ initial_cluster {
+  zone="us-east-1a"
+  compute_vcpu=%d
+  cache_gb=%d
+ }
+}`, cpu, cache)
+	}
+	resource.Test(t, resource.TestCase{ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(ts), Steps: []resource.TestStep{
+		{Config: config(4, 100)},
+		{Config: config(8, 200), Check: resource.ComposeAggregateTestCheckFunc(resource.TestCheckResourceAttr("velodb_warehouse.test", "initial_cluster.0.compute_vcpu", "8"), resource.TestCheckResourceAttr("velodb_warehouse.test", "initial_cluster.0.cache_gb", "200"))},
+		{Config: config(8, 300), Check: resource.TestCheckResourceAttr("velodb_warehouse.test", "initial_cluster.0.cache_gb", "300")},
+		{Config: config(8, 300), PlanOnly: true},
+	}})
+}

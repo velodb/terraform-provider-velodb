@@ -148,19 +148,19 @@ variable "ratio" {
 }
 
 variable "node_vcpu" {
-  description = "Initial-cluster vCPUs per node. Creation-only."
+  description = "Initial-cluster vCPUs per node; change separately from node_count."
   type        = number
   default     = null
 }
 
 variable "node_count" {
-  description = "Initial-cluster number of nodes. Creation-only."
+  description = "Initial-cluster number of nodes; change separately from node_vcpu/node_cache."
   type        = number
   default     = null
 }
 
 variable "node_cache" {
-  description = "Initial-cluster cache GB per node. Required for EBS node creation; omit for local NVMe. Creation-only."
+  description = "Initial-cluster cache GB per node. Required for EBS node creation; omit for local NVMe. Change separately from node_count."
   type        = number
   default     = null
 }
