@@ -46,16 +46,16 @@ variable "warehouse_client_cidrs" {
 variable "additional_clusters" {
   description = "Additional compute clusters keyed by a stable Terraform identifier."
   type = map(object({
-    name         = string
-    zone         = optional(string)
-    compute_vcpu = optional(number)
-    cache_gb     = optional(number)
-    cache_type   = optional(number)
-    ratio        = optional(number)
-    node_vcpu    = optional(number)
-    node_count   = optional(number)
-    node_cache   = optional(number)
-    scaling_mode = optional(string)
+    name               = string
+    zone               = optional(string)
+    compute_vcpu       = optional(number)
+    cache_gb           = optional(number)
+    cache_storage_type = optional(number)
+    ratio              = optional(number)
+    node_vcpu          = optional(number)
+    node_count         = optional(number)
+    node_cache         = optional(number)
+    scaling_mode       = optional(string)
     auto_pause = optional(object({
       enabled              = bool
       idle_timeout_minutes = optional(number)
@@ -135,8 +135,8 @@ variable "cache_gb" {
   default     = null
 }
 
-variable "cache_type" {
-  description = "Initial-cluster cache type: 0 for EBS (default), 1 for local NVMe. Creation-only."
+variable "cache_storage_type" {
+  description = "Initial-cluster cache storage type: 0 for EBS (default), 1 for local NVMe. Creation-only."
   type        = number
   default     = null
 }

@@ -203,9 +203,9 @@ trailing whitespace.
 
 Requires a provider build with node-capacity support and the corresponding Formation API deployment. For an EBS initial cluster, set `node_vcpu`, `node_count`, and `node_cache` together and omit `compute_vcpu`/`cache_gb`. Cache is GB per node.
 
-For Local storage (`cache_type = 1`), omit `node_cache`, even if it matches the current size. Cache capacity is determined automatically by the node package. For vertical scaling, change only `node_vcpu` and leave `node_count` unchanged; change `node_count` in a separate apply. The same fields apply within each `additional_clusters` entry.
+For Local storage (`cache_storage_type = 1`), omit `node_cache`, even if it matches the current size. Cache capacity is determined automatically by the node package. For vertical scaling, change only `node_vcpu` and leave `node_count` unchanged; change `node_count` in a separate apply. The same fields apply within each `additional_clusters` entry.
 
-Initial-cluster capacity can be resized for Terraform-created warehouses with a saved initial_cluster_id. For EBS, change `node_count` in a separate apply from `node_vcpu`/`node_cache`. Ratio, cache type, zone and auto-pause stay creation-only. Refresh reads actual capacity; API failures and timeouts retain confirmed progress. Warehouse import does not adopt the initial cluster. Do not also manage its capacity in a separate velodb_cluster resource. Without node inputs, the original defaults of 4 vCPUs and 100 GB remain in effect.
+Initial-cluster capacity can be resized for Terraform-created warehouses with a saved initial_cluster_id. For EBS, change `node_count` in a separate apply from `node_vcpu`/`node_cache`. Ratio, cache storage type, zone and auto-pause stay creation-only. Refresh reads actual capacity; API failures and timeouts retain confirmed progress. Warehouse import does not adopt the initial cluster. Do not also manage its capacity in a separate velodb_cluster resource. Without node inputs, the original defaults of 4 vCPUs and 100 GB remain in effect.
 
 ```hcl
 # Inputs to this module:

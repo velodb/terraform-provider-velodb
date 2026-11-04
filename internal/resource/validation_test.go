@@ -372,28 +372,28 @@ func autoPauseListForTest(enabled types.Bool, idleTimeout types.Int64) types.Lis
 func initialClusterListForTest(ratio types.Int64) types.List {
 	autoPauseType := types.ObjectType{AttrTypes: autoPauseAttrTypes()}
 	attrTypes := map[string]attr.Type{
-		"capacity_model": types.StringType,
-		"zone":           types.StringType,
-		"node_vcpu":      types.Int64Type,
-		"node_count":     types.Int64Type,
-		"node_cache":     types.Int64Type,
-		"cache_type":     types.Int64Type,
-		"compute_vcpu":   types.Int64Type,
-		"ratio":          types.Int64Type,
-		"cache_gb":       types.Int64Type,
-		"auto_pause":     types.ListType{ElemType: autoPauseType},
+		"capacity_model":     types.StringType,
+		"zone":               types.StringType,
+		"node_vcpu":          types.Int64Type,
+		"node_count":         types.Int64Type,
+		"node_cache":         types.Int64Type,
+		"cache_storage_type": types.Int64Type,
+		"compute_vcpu":       types.Int64Type,
+		"ratio":              types.Int64Type,
+		"cache_gb":           types.Int64Type,
+		"auto_pause":         types.ListType{ElemType: autoPauseType},
 	}
 	obj := types.ObjectValueMust(attrTypes, map[string]attr.Value{
-		"capacity_model": types.StringNull(),
-		"zone":           types.StringValue("us-east-1a"),
-		"node_vcpu":      types.Int64Null(),
-		"node_count":     types.Int64Null(),
-		"node_cache":     types.Int64Null(),
-		"cache_type":     types.Int64Null(),
-		"compute_vcpu":   types.Int64Value(4),
-		"ratio":          ratio,
-		"cache_gb":       types.Int64Value(100),
-		"auto_pause":     types.ListNull(autoPauseType),
+		"capacity_model":     types.StringNull(),
+		"zone":               types.StringValue("us-east-1a"),
+		"node_vcpu":          types.Int64Null(),
+		"node_count":         types.Int64Null(),
+		"node_cache":         types.Int64Null(),
+		"cache_storage_type": types.Int64Null(),
+		"compute_vcpu":       types.Int64Value(4),
+		"ratio":              ratio,
+		"cache_gb":           types.Int64Value(100),
+		"auto_pause":         types.ListNull(autoPauseType),
 	})
 	return types.ListValueMust(types.ObjectType{AttrTypes: attrTypes}, []attr.Value{obj})
 }

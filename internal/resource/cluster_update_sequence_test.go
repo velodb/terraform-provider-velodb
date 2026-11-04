@@ -112,7 +112,7 @@ func TestNodeUpdatePreservesCompletedOperations(t *testing.T) {
 			prior.NodeVcpu = types.Int64Value(8)
 			prior.NodeCount = types.Int64Value(3)
 			prior.NodeCache = types.Int64Value(200)
-			prior.CacheType = types.Int64Value(0)
+			prior.CacheStorageType = types.Int64Value(0)
 			prior.CapacityModel = types.StringValue("NODE_SPEC")
 			if d := priorState.Set(ctx, &prior); d.HasError() {
 				t.Fatal(d)

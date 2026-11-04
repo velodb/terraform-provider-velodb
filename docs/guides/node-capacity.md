@@ -9,10 +9,10 @@ A node is one compute machine. `node_vcpu` and `node_cache` describe each machin
 Use exactly one capacity input family:
 
 - Legacy: `compute_vcpu` and `cache_gb`.
-- EBS nodes: `node_vcpu`, `node_count`, and `node_cache`; optionally set `cache_type = 0`.
-- Local NVMe nodes: `cache_type = 1`, `node_vcpu`, and `node_count`; omit `node_cache`.
+- EBS nodes: `node_vcpu`, `node_count`, and `node_cache`; optionally set `cache_storage_type = 0`.
+- Local NVMe nodes: `cache_storage_type = 1`, `node_vcpu`, and `node_count`; omit `node_cache`.
 
-EBS is the creation default when cache_type is omitted. Capacity values must be positive integers; package sizing, cache steps and stock remain server-validated. For local NVMe, `node_cache` is computed from the selected package and cannot be configured, even if it matches the current size. The API ignores supplied local cache sizes; the provider rejects them to prevent an ignored configuration from disagreeing with Terraform state. Cache type is creation-only; changing it is rejected without proposing replacement.
+EBS is the creation default when cache_storage_type is omitted. Capacity values must be positive integers; package sizing, cache steps and stock remain server-validated. For local NVMe, `node_cache` is computed from the selected package and cannot be configured, even if it matches the current size. The API ignores supplied local cache sizes; the provider rejects them to prevent an ignored configuration from disagreeing with Terraform state. Cache storage type is creation-only; changing it is rejected without proposing replacement.
 
 ```terraform
 resource "velodb_cluster" "analytics" {
@@ -35,7 +35,7 @@ resource "velodb_cluster" "local" {
   warehouse_id = var.warehouse_id
   name         = "local_worker"
   cluster_type = "COMPUTE"
-  cache_type   = 1
+  cache_storage_type   = 1
   ratio        = 4
   node_vcpu    = 4
   node_count   = 2
@@ -49,7 +49,7 @@ Cluster creation saves the returned ID before waiting for `Running` or pausing. 
 
 For EBS, change `node_vcpu` and, when required by the selected package, `node_cache` together. Change `node_count` in a separate apply. The provider rejects a single apply that changes both count and node size/cache. Cache-only shrinking is unsupported.
 
-For Local storage (`cache_type = 1`), omit `node_cache`, even if it matches the current size. Cache capacity is determined automatically by the node package. For vertical scaling, change only `node_vcpu` and leave `node_count` unchanged; change `node_count` in a separate apply. The provider reads the resulting `node_cache` from the API; no cache size or cache type is sent in Local-storage update requests. Resizing preserves the existing memory-to-vCPU ratio.
+For Local storage (`cache_storage_type = 1`), omit `node_cache`, even if it matches the current size. Cache capacity is determined automatically by the node package. For vertical scaling, change only `node_vcpu` and leave `node_count` unchanged; change `node_count` in a separate apply. The provider reads the resulting `node_cache` from the API; no cache size or cache storage type is sent in Local-storage update requests. Resizing preserves the existing memory-to-vCPU ratio.
 
 The provider waits for both a stable status and the requested geometry, so an old `Running` response cannot prematurely complete a resize. On timeout, refresh before retrying: an accepted operation can still finish. Backend cooldowns can require waiting before the next separate apply.
 
@@ -80,8 +80,8 @@ Import uses the existing `warehouse_id/cluster_id` format. Readback populates re
 
 ## Warehouse and module inputs
 
-`velodb_warehouse.initial_cluster` accepts the same two creation families. For Terraform-created warehouses with a saved initial_cluster_id, CPU/cache and node count can be resized through this block using the same separate-apply rules above. Applied capacity is read from that exact cluster, including package-defined local node_cache. Zone, ratio, cache type and auto-pause stay creation-only. Errors retain confirmed capacity and the warehouse/cluster IDs; refresh before retrying. If refresh confirms the initial cluster was deleted (HTTP 404), its cached ID is cleared with a warning while the warehouse and last known capacity are retained. Warehouse changes and deletion remain available; capacity edits fail until a verified cluster is managed separately. Permission and temporary API failures still return errors. Warehouse import does not reconstruct or adopt an initial cluster. Remove the block before transferring management to a separate velodb_cluster resource, then import its independently verified ID.
+`velodb_warehouse.initial_cluster` accepts the same two creation families. For Terraform-created warehouses with a saved initial_cluster_id, CPU/cache and node count can be resized through this block using the same separate-apply rules above. Applied capacity is read from that exact cluster, including package-defined local node_cache. Zone, ratio, cache storage type and auto-pause stay creation-only. Errors retain confirmed capacity and the warehouse/cluster IDs; refresh before retrying. If refresh confirms the initial cluster was deleted (HTTP 404), its cached ID is cleared with a warning while the warehouse and last known capacity are retained. Warehouse changes and deletion remain available; capacity edits fail until a verified cluster is managed separately. Permission and temporary API failures still return errors. Warehouse import does not reconstruct or adopt an initial cluster. Remove the block before transferring management to a separate velodb_cluster resource, then import its independently verified ID.
 
-Both `modules/aws_byoc` and `modules/aws_byoc_existing` expose `cache_type`, `node_vcpu`, `node_count`, and `node_cache` for the initial cluster and for `additional_clusters` entries. Omit `compute_vcpu` and `cache_gb` when selecting node capacity. Existing configurations that omit node inputs retain the legacy defaults of 4 vCPUs and 100 GB. Legacy cache/CPU rules are not applied to per-node capacity.
+Both `modules/aws_byoc` and `modules/aws_byoc_existing` expose `cache_storage_type`, `node_vcpu`, `node_count`, and `node_cache` for the initial cluster and for `additional_clusters` entries. Omit `compute_vcpu` and `cache_gb` when selecting node capacity. Existing configurations that omit node inputs retain the legacy defaults of 4 vCPUs and 100 GB. Legacy cache/CPU rules are not applied to per-node capacity.
 
 Existing warehouse states require a one-time capacity adoption before initial-cluster resizing. Match CPU/cache/node inputs to API values and apply once; this records adoption without a resize. The provider rejects mismatches at plan and rechecks at apply. No configuration flag is required. Do not adopt capacity already owned by a separate `velodb_cluster`; remove the warehouse block to relinquish ownership. After adoption, console changes are ordinary drift. A post-create capacity-read failure warns and preserves IDs; later refresh must succeed before adoption. Missing IDs are never inferred during migration.

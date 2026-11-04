@@ -44,24 +44,24 @@ func NewClusterResource() resource.Resource {
 // --- Terraform models ---
 
 type ClusterResourceModel struct {
-	CacheType     types.Int64    `tfsdk:"cache_type"`
-	NodeVcpu      types.Int64    `tfsdk:"node_vcpu"`
-	NodeCache     types.Int64    `tfsdk:"node_cache"`
-	CapacityModel types.String   `tfsdk:"capacity_model"`
-	ScalingMode   types.String   `tfsdk:"scaling_mode"`
-	ID            types.String   `tfsdk:"id"`
-	WarehouseID   types.String   `tfsdk:"warehouse_id"`
-	Name          types.String   `tfsdk:"name"`
-	ClusterType   types.String   `tfsdk:"cluster_type"`
-	Zone          types.String   `tfsdk:"zone"`
-	ComputeVcpu   types.Int64    `tfsdk:"compute_vcpu"`
-	Ratio         types.Int64    `tfsdk:"ratio"`
-	CacheGb       types.Int64    `tfsdk:"cache_gb"`
-	BillingMethod types.String   `tfsdk:"billing_method"`
-	DesiredState  types.String   `tfsdk:"desired_state"`
-	RebootTrigger types.Int64    `tfsdk:"reboot_trigger"`
-	AutoPause     types.List     `tfsdk:"auto_pause"`
-	Timeouts      timeouts.Value `tfsdk:"timeouts"`
+	CacheStorageType types.Int64    `tfsdk:"cache_storage_type"`
+	NodeVcpu         types.Int64    `tfsdk:"node_vcpu"`
+	NodeCache        types.Int64    `tfsdk:"node_cache"`
+	CapacityModel    types.String   `tfsdk:"capacity_model"`
+	ScalingMode      types.String   `tfsdk:"scaling_mode"`
+	ID               types.String   `tfsdk:"id"`
+	WarehouseID      types.String   `tfsdk:"warehouse_id"`
+	Name             types.String   `tfsdk:"name"`
+	ClusterType      types.String   `tfsdk:"cluster_type"`
+	Zone             types.String   `tfsdk:"zone"`
+	ComputeVcpu      types.Int64    `tfsdk:"compute_vcpu"`
+	Ratio            types.Int64    `tfsdk:"ratio"`
+	CacheGb          types.Int64    `tfsdk:"cache_gb"`
+	BillingMethod    types.String   `tfsdk:"billing_method"`
+	DesiredState     types.String   `tfsdk:"desired_state"`
+	RebootTrigger    types.Int64    `tfsdk:"reboot_trigger"`
+	AutoPause        types.List     `tfsdk:"auto_pause"`
+	Timeouts         timeouts.Value `tfsdk:"timeouts"`
 	// Computed
 	Status         types.String `tfsdk:"status"`
 	CloudProvider  types.String `tfsdk:"cloud_provider"`
@@ -176,16 +176,16 @@ func (r *ClusterResource) Schema(ctx context.Context, _ resource.SchemaRequest, 
 				Description: "Observed cluster status.",
 				Computed:    true,
 			},
-			"cloud_provider": schema.StringAttribute{Computed: true, Description: "Cloud provider."},
-			"region":         schema.StringAttribute{Computed: true, Description: "Cloud region."},
-			"total_cpu":      schema.Int64Attribute{Computed: true, Description: "Total CPU."},
-			"total_disk_gb":  schema.Int64Attribute{Computed: true, Description: "Total disk GB."},
-			"cache_type":     schema.Int64Attribute{Optional: true, Computed: true, Description: "Cache type: 0 for EBS (default on creation), 1 for local NVMe. Creation-only; omit node_cache for local storage.", Validators: []validator.Int64{int64validator.OneOf(0, 1)}, PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
-			"node_count":     schema.Int64Attribute{Optional: true, Computed: true, Description: "Total node count for single-billing node capacity. Configure with node_vcpu and, for EBS, node_cache.", Validators: []validator.Int64{int64validator.Between(1, 2147483647)}},
-			"node_vcpu":      schema.Int64Attribute{Optional: true, Computed: true, Description: "vCPUs per node.", Validators: []validator.Int64{int64validator.Between(1, 2147483647)}},
-			"node_cache":     schema.Int64Attribute{Optional: true, Computed: true, Description: "Cache GB per node. Required for EBS node creation. For Local storage (cache_type = 1), omit even if it matches the current size; capacity is determined automatically. For vertical scaling, change only node_vcpu.", Validators: []validator.Int64{int64validator.Between(1, 2147483647)}},
-			"capacity_model": schema.StringAttribute{Computed: true, Description: "Stored capacity model: NODE_SPEC or LEGACY_TOTAL_CPU. Null when not recorded by the API."},
-			"scaling_mode":   schema.StringAttribute{Optional: true, Description: "Explicit MANUAL intent for node CPU/count updates. Cannot accompany a cache-only update.", Validators: []validator.String{stringvalidator.OneOf("MANUAL")}},
+			"cloud_provider":     schema.StringAttribute{Computed: true, Description: "Cloud provider."},
+			"region":             schema.StringAttribute{Computed: true, Description: "Cloud region."},
+			"total_cpu":          schema.Int64Attribute{Computed: true, Description: "Total CPU."},
+			"total_disk_gb":      schema.Int64Attribute{Computed: true, Description: "Total disk GB."},
+			"cache_storage_type": schema.Int64Attribute{Optional: true, Computed: true, Description: "Cache storage type: 0 for EBS (default on creation), 1 for local NVMe. Creation-only; omit node_cache for local storage.", Validators: []validator.Int64{int64validator.OneOf(0, 1)}, PlanModifiers: []planmodifier.Int64{int64planmodifier.UseStateForUnknown()}},
+			"node_count":         schema.Int64Attribute{Optional: true, Computed: true, Description: "Total node count for single-billing node capacity. Configure with node_vcpu and, for EBS, node_cache.", Validators: []validator.Int64{int64validator.Between(1, 2147483647)}},
+			"node_vcpu":          schema.Int64Attribute{Optional: true, Computed: true, Description: "vCPUs per node.", Validators: []validator.Int64{int64validator.Between(1, 2147483647)}},
+			"node_cache":         schema.Int64Attribute{Optional: true, Computed: true, Description: "Cache GB per node. Required for EBS node creation. For Local storage (cache_storage_type = 1), omit even if it matches the current size; capacity is determined automatically. For vertical scaling, change only node_vcpu.", Validators: []validator.Int64{int64validator.Between(1, 2147483647)}},
+			"capacity_model":     schema.StringAttribute{Computed: true, Description: "Stored capacity model: NODE_SPEC or LEGACY_TOTAL_CPU. Null when not recorded by the API."},
+			"scaling_mode":       schema.StringAttribute{Optional: true, Description: "Explicit MANUAL intent for node CPU/count updates. Cannot accompany a cache-only update.", Validators: []validator.String{stringvalidator.OneOf("MANUAL")}},
 			"created_at": schema.StringAttribute{
 				Computed: true, Description: "Creation time in RFC 3339 format.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
@@ -230,7 +230,7 @@ func (r *ClusterResource) Schema(ctx context.Context, _ resource.SchemaRequest, 
 func (r *ClusterResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
 	var config ClusterResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
-	validateCapacity(&resp.Diagnostics, config.ComputeVcpu, config.CacheGb, config.NodeVcpu, config.NodeCount, config.NodeCache, config.CacheType)
+	validateCapacity(&resp.Diagnostics, config.ComputeVcpu, config.CacheGb, config.NodeVcpu, config.NodeCount, config.NodeCache, config.CacheStorageType)
 	var autoPause types.List
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("auto_pause"), &autoPause)...)
 	validateAutoPauseRequiresTimeout(ctx, &resp.Diagnostics, "cluster", autoPause)
@@ -349,11 +349,11 @@ func buildCreateClusterRequest(plan ClusterResourceModel) *client.CreateClusterR
 		Name:        plan.Name.ValueString(),
 		ClusterType: plan.ClusterType.ValueString(),
 	}
-	setOptionalIntFromInt64(&request.CacheType, plan.CacheType)
+	setOptionalIntFromInt64(&request.CacheStorageType, plan.CacheStorageType)
 	if knownInt(plan.NodeVcpu) {
 		setOptionalIntFromInt64(&request.NodeVcpu, plan.NodeVcpu)
 		setOptionalIntFromInt64(&request.NodeCount, plan.NodeCount)
-		if !localCache(plan.CacheType) {
+		if !localCache(plan.CacheStorageType) {
 			setOptionalIntFromInt64(&request.NodeCache, plan.NodeCache)
 		}
 	} else {
@@ -413,7 +413,7 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	validateCacheTypeChange(&resp.Diagnostics, config.CacheType, state.CacheType)
+	validateCacheStorageTypeChange(&resp.Diagnostics, config.CacheStorageType, state.CacheStorageType)
 	validateCreateOnlyRatio(&resp.Diagnostics, plan.Ratio, state.Ratio)
 	if resp.Diagnostics.HasError() {
 		return
@@ -726,7 +726,7 @@ func setClusterState(cl *client.ClusterDetail, state *ClusterResourceModel, diag
 	state.CapacityModel = stringOrNull(cl.CapacityModel)
 	state.NodeVcpu = optionalNodeValue(cl.NodeVcpu)
 	state.NodeCache = optionalNodeValue(cl.NodeCache)
-	state.CacheType = optionalNodeValue(cl.CacheType)
+	state.CacheStorageType = optionalNodeValue(cl.CacheStorageType)
 
 	// Computed fields from BillingSummary or ClusterItem
 	if cl.BillingSummary != nil {

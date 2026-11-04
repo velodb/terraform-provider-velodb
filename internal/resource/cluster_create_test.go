@@ -87,7 +87,7 @@ func TestClusterCreateRetainsIdentityAndWaits(t *testing.T) {
 				planValues[key] = tftypes.NewValue(ty.AttributeTypes[key], tftypes.UnknownValue)
 			}
 			plan := tfsdk.Plan{Schema: sch.Schema, Raw: tftypes.NewValue(ty, planValues)}
-			for key, value := range map[string]any{"warehouse_id": "w", "name": "analytics", "cluster_type": "COMPUTE", "node_vcpu": int64(8), "node_count": int64(2), "node_cache": int64(200), "cache_type": int64(0)} {
+			for key, value := range map[string]any{"warehouse_id": "w", "name": "analytics", "cluster_type": "COMPUTE", "node_vcpu": int64(8), "node_count": int64(2), "node_cache": int64(200), "cache_storage_type": int64(0)} {
 				if d := plan.SetAttribute(ctx, path.Root(key), value); d.HasError() {
 					t.Fatal(d)
 				}

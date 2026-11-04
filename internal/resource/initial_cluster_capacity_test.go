@@ -146,11 +146,11 @@ func TestInitialClusterCapacityUpdate(t *testing.T) {
 				}
 			}
 			if node {
-				for key, value := range map[string]types.Int64{"compute_vcpu": types.Int64Null(), "cache_gb": types.Int64Null(), "node_vcpu": types.Int64Value(8), "node_count": types.Int64Value(2), "node_cache": types.Int64Value(int64(cache)), "cache_type": types.Int64Value(0)} {
+				for key, value := range map[string]types.Int64{"compute_vcpu": types.Int64Null(), "cache_gb": types.Int64Null(), "node_vcpu": types.Int64Value(8), "node_count": types.Int64Value(2), "node_cache": types.Int64Value(int64(cache)), "cache_storage_type": types.Int64Value(0)} {
 					set(&prior, key, value)
 				}
 				if local {
-					set(&prior, "cache_type", types.Int64Value(1))
+					set(&prior, "cache_storage_type", types.Int64Value(1))
 				}
 			}
 			if scenario == "missing ID" {
@@ -249,7 +249,7 @@ func TestInitialClusterCapacityUpdate(t *testing.T) {
 }
 
 func TestInitialClusterCapacityPlan(t *testing.T) {
-	for _, scenario := range []string{"both dimensions", "unknown count", "import adoption", "remove block", "ratio", "cache type", "default cache type"} {
+	for _, scenario := range []string{"both dimensions", "unknown count", "import adoption", "remove block", "ratio", "cache storage type", "default cache storage type"} {
 		t.Run(scenario, func(t *testing.T) {
 			ctx := context.Background()
 			state := warehouseIdentityTestState(t)
@@ -258,7 +258,7 @@ func TestInitialClusterCapacityPlan(t *testing.T) {
 					t.Fatal(d)
 				}
 			}
-			for name, value := range map[string]int64{"node_vcpu": 8, "node_count": 2, "node_cache": 200, "cache_type": 0} {
+			for name, value := range map[string]int64{"node_vcpu": 8, "node_count": 2, "node_cache": 200, "cache_storage_type": 0} {
 				if d := state.SetAttribute(ctx, path.Root("initial_cluster").AtListIndex(0).AtName(name), types.Int64Value(value)); d.HasError() {
 					t.Fatal(d)
 				}
@@ -277,10 +277,10 @@ func TestInitialClusterCapacityPlan(t *testing.T) {
 				set("node_count", types.Int64Unknown())
 			case "ratio":
 				set("ratio", types.Int64Value(4))
-			case "cache type":
-				set("cache_type", types.Int64Value(1))
-			case "default cache type":
-				if d := state.SetAttribute(ctx, path.Root("initial_cluster").AtListIndex(0).AtName("cache_type"), types.Int64Null()); d.HasError() {
+			case "cache storage type":
+				set("cache_storage_type", types.Int64Value(1))
+			case "default cache storage type":
+				if d := state.SetAttribute(ctx, path.Root("initial_cluster").AtListIndex(0).AtName("cache_storage_type"), types.Int64Null()); d.HasError() {
 					t.Fatal(d)
 				}
 			}
@@ -301,7 +301,7 @@ func TestInitialClusterCapacityPlan(t *testing.T) {
 			}
 			result := resource.ModifyPlanResponse{Plan: tfsdk.Plan(planned)}
 			(&WarehouseResource{}).ModifyPlan(ctx, resource.ModifyPlanRequest{State: state, Plan: tfsdk.Plan(planned), Config: tfsdk.Config(planned)}, &result)
-			wantError := scenario != "unknown count" && scenario != "remove block" && scenario != "default cache type"
+			wantError := scenario != "unknown count" && scenario != "remove block" && scenario != "default cache storage type"
 			if result.Diagnostics.HasError() != wantError || len(result.RequiresReplace) != 0 {
 				t.Fatalf("diagnostics=%v replacement=%v", result.Diagnostics, result.RequiresReplace)
 			}

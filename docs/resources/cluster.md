@@ -13,7 +13,7 @@ Manages a COMPUTE cluster within a VeloDB Cloud warehouse.
 
 | Feature | Notes |
 |---|---|
-| Capacity | Configure legacy `compute_vcpu`/`cache_gb`, or `node_vcpu`/`node_count` plus `node_cache` for EBS. For local NVMe, set `cache_type = 1` and omit `node_cache`. Never combine formats. |
+| Capacity | Configure legacy `compute_vcpu`/`cache_gb`, or `node_vcpu`/`node_count` plus `node_cache` for EBS. For local NVMe, set `cache_storage_type = 1` and omit `node_cache`. Never combine formats. |
 | Lifecycle state | Set `desired_state` to `running` or `paused`. |
 | Auto-pause | Configure idle timeout for automatic pause. |
 | Billing | `billing_method` is read from the API. Billing selection is not part of the current create/update schema. |
@@ -136,10 +136,10 @@ resource "velodb_cluster" "c" {
 
 - `compute_vcpu` (Number, Optional/Computed) Legacy vCPU input; configure with `cache_gb` only. Otherwise an observed value.
 - `cache_gb` (Number, Optional/Computed) Legacy cache GB input; configure with `compute_vcpu` only. Otherwise an observed value.
-- `cache_type` (Number, Optional/Computed) Creation-only: `0` for EBS (creation default), `1` for local NVMe. Reads the applied type; null if unavailable. Changes are rejected without replacement.
+- `cache_storage_type` (Number, Optional/Computed) Creation-only: `0` for EBS (creation default), `1` for local NVMe. Reads the applied type; null if unavailable. Changes are rejected without replacement.
 - `node_vcpu` (Number, Optional/Computed) vCPUs per node; configure with `node_count`. EBS also requires `node_cache`; omit it for local NVMe.
 - `node_count` (Number, Optional/Computed) Whole-cluster node count; configurable for single-billing node capacity. Must be positive.
-- `node_cache` (Number, Optional/Computed) Cache GB per node; required for EBS node creation. For Local storage (`cache_type = 1`), omit this input even if it matches the current size. The API returns the package-defined cache capacity. For vertical scaling, change only `node_vcpu`; change `node_count` separately.
+- `node_cache` (Number, Optional/Computed) Cache GB per node; required for EBS node creation. For Local storage (`cache_storage_type = 1`), omit this input even if it matches the current size. The API returns the package-defined cache capacity. For vertical scaling, change only `node_vcpu`; change `node_count` separately.
 - `scaling_mode` (String) Explicit `MANUAL` instruction for node CPU/count updates; cannot accompany a cache-only change.
 
 - `auto_pause` (Block List, Max: 1) Auto-pause configuration. (see [below for nested schema](#nestedblock--auto_pause))

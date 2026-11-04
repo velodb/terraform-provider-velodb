@@ -129,4 +129,4 @@ example.
 
 Configure `node_vcpu`, `node_count`, and `node_cache` together, or keep legacy `compute_vcpu`/`cache_gb`. See [creation, resizing, and in-place migration](guides/node-capacity.md). Requires a matching Formation API deployment.
 
-Node capacity also supports `cache_type`: `0` for EBS (creation default), `1` for local NVMe. Local cache is package-defined: omit `node_cache` and read the applied value from the cluster resource or clusters data source. See [node capacity](guides/node-capacity.md).
+Node capacity also supports `cache_storage_type`: `0` for EBS (creation default), `1` for local NVMe. Local cache is package-defined: omit `node_cache` and read the applied value from the cluster resource or clusters data source. See [node capacity](guides/node-capacity.md).

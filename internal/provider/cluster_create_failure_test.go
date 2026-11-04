@@ -73,7 +73,7 @@ resource "velodb_cluster" "test" {
  node_vcpu=8
  node_count=2
  node_cache=200
- cache_type=0
+ cache_storage_type=0
  desired_state="` + desired + `"
 }`
 			resource.Test(t, resource.TestCase{

@@ -22,9 +22,9 @@ func TestAccNodeCapacityLifecycle(t *testing.T) {
 			var mu sync.Mutex
 			cpu, count, cache := 8, 3, 200
 			model := "NODE_SPEC"
-			cacheType := 0
+			cacheStorageType := 0
 			if local {
-				cacheType = 1
+				cacheStorageType = 1
 				cache = 474
 			}
 			packageCache := map[int]int{8: 474, 16: 777, 32: 1555}
@@ -103,7 +103,7 @@ func TestAccNodeCapacityLifecycle(t *testing.T) {
 					writeJSONResponse(t, w, map[string]any{"code": "ClusterNotFound"})
 					return
 				}
-				data := map[string]any{"clusterId": "c-nodes", "warehouseId": "w-nodes", "name": "analytics", "clusterType": "COMPUTE", "zone": "us-east-1a", "status": "Running", "cacheType": cacheType, "nodeVcpu": cpu, "nodeCount": count, "nodeCache": cache, "billingModel": "on_demand", "onDemandNodeCount": count, "capacityModel": model, "billingSummary": map[string]any{"nodeCount": count, "totalCpu": cpu * count, "totalDiskSizeGb": cache * count}, "billingPools": map[string]any{"onDemand": map[string]any{"nodeCount": count, "cpu": cpu * count, "diskSizeGb": cache * count}}}
+				data := map[string]any{"clusterId": "c-nodes", "warehouseId": "w-nodes", "name": "analytics", "clusterType": "COMPUTE", "zone": "us-east-1a", "status": "Running", "cacheType": cacheStorageType, "nodeVcpu": cpu, "nodeCount": count, "nodeCache": cache, "billingModel": "on_demand", "onDemandNodeCount": count, "capacityModel": model, "billingSummary": map[string]any{"nodeCount": count, "totalCpu": cpu * count, "totalDiskSizeGb": cache * count}, "billingPools": map[string]any{"onDemand": map[string]any{"nodeCount": count, "cpu": cpu * count, "diskSizeGb": cache * count}}}
 				writeJSONResponse(t, w, map[string]any{"success": true, "data": data})
 			}))
 			defer server.Close()
@@ -116,7 +116,7 @@ func TestAccNodeCapacityLifecycle(t *testing.T) {
 			}
 			node := func(cpu, count, cache int) string {
 				if local {
-					return config(fmt.Sprintf("cache_type=1\nnode_vcpu=%d\nnode_count=%d", cpu, count))
+					return config(fmt.Sprintf("cache_storage_type=1\nnode_vcpu=%d\nnode_count=%d", cpu, count))
 				}
 				return config(fmt.Sprintf("node_vcpu=%d\nnode_count=%d\nnode_cache=%d", cpu, count, cache))
 			}
@@ -146,7 +146,7 @@ func TestAccNodeCapacityLifecycle(t *testing.T) {
 				resource.TestStep{ResourceName: "velodb_cluster.test", ImportState: true, ImportStateId: "w-nodes/c-nodes", ImportStateVerify: true, ImportStateVerifyIgnore: []string{"timeouts"}},
 				resource.TestStep{Config: node(32, 5, 800), PlanOnly: true, ExpectError: regexp.MustCompile("Separate node count and size changes")},
 				resource.TestStep{Config: node(16, 4, 400) + "\n", PlanOnly: true},
-				resource.TestStep{Config: config("cache_type=" + fmt.Sprint(1-cacheType) + "\nnode_vcpu=16\nnode_count=4" + map[bool]string{true: "\nnode_cache=400", false: ""}[local]), PlanOnly: true, ExpectError: regexp.MustCompile("cache_type is creation-only")},
+				resource.TestStep{Config: config("cache_storage_type=" + fmt.Sprint(1-cacheStorageType) + "\nnode_vcpu=16\nnode_count=4" + map[bool]string{true: "\nnode_cache=400", false: ""}[local]), PlanOnly: true, ExpectError: regexp.MustCompile("cache_storage_type is creation-only")},
 			)
 			resource.Test(t, resource.TestCase{ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(server), Steps: steps})
 			mu.Lock()
@@ -218,7 +218,7 @@ func TestAccWarehouseNodeInitialCluster(t *testing.T) {
 			})
 			capacity := "node_vcpu=8\nnode_count=2\nnode_cache=200"
 			if local {
-				capacity = "cache_type=1\nnode_vcpu=8\nnode_count=2"
+				capacity = "cache_storage_type=1\nnode_vcpu=8\nnode_count=2"
 			}
 			config := testProviderConfig(ts) + `resource "velodb_warehouse" "test" {
  name="mock-warehouse"
@@ -259,10 +259,10 @@ func TestAccNodeCapacityDataSource(t *testing.T) {
 	resource.Test(t, resource.TestCase{ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(ts), Steps: []resource.TestStep{{
 		Config: testProviderConfig(ts) + `data "velodb_clusters" "test" { warehouse_id="w" }`,
 		Check: resource.ComposeAggregateTestCheckFunc(
-			resource.TestCheckResourceAttr("data.velodb_clusters.test", "clusters.0.cache_type", "0"),
-			resource.TestCheckResourceAttr("data.velodb_clusters.test", "clusters.1.cache_type", "1"),
+			resource.TestCheckResourceAttr("data.velodb_clusters.test", "clusters.0.cache_storage_type", "0"),
+			resource.TestCheckResourceAttr("data.velodb_clusters.test", "clusters.1.cache_storage_type", "1"),
 			resource.TestCheckResourceAttr("data.velodb_clusters.test", "clusters.1.node_cache", "237"),
-			resource.TestCheckNoResourceAttr("data.velodb_clusters.test", "clusters.2.cache_type"),
+			resource.TestCheckNoResourceAttr("data.velodb_clusters.test", "clusters.2.cache_storage_type"),
 			resource.TestCheckNoResourceAttr("data.velodb_clusters.test", "clusters.2.node_cache"),
 		),
 	}}})

@@ -5,8 +5,8 @@ resource "velodb_cluster" "extra" {
   cluster_type = "COMPUTE"
   zone         = var.zones[0]
 
-  # Cache type and ratio are creation-only.
-  cache_type = 0 # 0 = EBS; 1 = local NVMe (omit node_cache).
+  # Cache storage type and ratio are creation-only.
+  cache_storage_type = 0 # 0 = EBS; 1 = local NVMe (omit node_cache).
   ratio      = 4 # GB RAM per vCPU: 4 or 8.
   node_vcpu  = 4 # Package size, e.g. 4, 8, 16 or 32.
   node_count = 1

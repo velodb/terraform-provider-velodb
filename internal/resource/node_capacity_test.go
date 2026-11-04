@@ -57,7 +57,7 @@ func TestLocalCacheDiagnostic(t *testing.T) {
 			}
 			continue
 		}
-		if len(d) != 1 || d[0].Summary() != "node_cache conflicts with Local storage" || d[0].Detail() != "Omit node_cache when cache_type = 1; cache size is determined automatically. For vertical scaling, change only node_vcpu." {
+		if len(d) != 1 || d[0].Summary() != "node_cache conflicts with Local storage" || d[0].Detail() != "Omit node_cache when cache_storage_type = 1; cache size is determined automatically. For vertical scaling, change only node_vcpu." {
 			t.Fatalf("unexpected local cache diagnostic: %v", d)
 		}
 	}
@@ -162,7 +162,7 @@ func TestNodeUpdateFailureRefreshesAppliedCapacity(t *testing.T) {
 	prior.NodeVcpu = types.Int64Value(8)
 	prior.NodeCount = types.Int64Value(3)
 	prior.NodeCache = types.Int64Value(200)
-	prior.CacheType = types.Int64Value(0)
+	prior.CacheStorageType = types.Int64Value(0)
 	prior.CapacityModel = types.StringValue("NODE_SPEC")
 	if d := priorState.Set(ctx, &prior); d.HasError() {
 		t.Fatal(d)
@@ -271,7 +271,7 @@ func TestNodeUpdateStateTransitionOrdering(t *testing.T) {
 				prior.NodeVcpu = types.Int64Value(8)
 				prior.NodeCount = types.Int64Value(3)
 				prior.NodeCache = types.Int64Value(200)
-				prior.CacheType = types.Int64Value(0)
+				prior.CacheStorageType = types.Int64Value(0)
 				prior.CapacityModel = types.StringValue("NODE_SPEC")
 				prior.DesiredState = types.StringValue("paused")
 				if action == "pause" {

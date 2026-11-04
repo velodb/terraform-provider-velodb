@@ -14,7 +14,7 @@ terraform {
 }
 
 locals {
-  node_capacity        = var.cache_type == 1 || var.node_vcpu != null || var.node_count != null || var.node_cache != null
+  node_capacity        = var.cache_storage_type == 1 || var.node_vcpu != null || var.node_count != null || var.node_cache != null
   initial_compute_vcpu = local.node_capacity ? null : coalesce(var.compute_vcpu, 4)
   initial_cache_gb     = local.node_capacity ? null : coalesce(var.cache_gb, 100)
 }
@@ -420,14 +420,14 @@ resource "velodb_warehouse" "this" {
   }
 
   initial_cluster {
-    zone         = local.zone
-    compute_vcpu = local.initial_compute_vcpu
-    cache_gb     = local.initial_cache_gb
-    node_vcpu    = var.node_vcpu
-    node_count   = var.node_count
-    node_cache   = var.node_cache
-    cache_type   = var.cache_type
-    ratio        = var.ratio
+    zone               = local.zone
+    compute_vcpu       = local.initial_compute_vcpu
+    cache_gb           = local.initial_cache_gb
+    node_vcpu          = var.node_vcpu
+    node_count         = var.node_count
+    node_cache         = var.node_cache
+    cache_storage_type = var.cache_storage_type
+    ratio              = var.ratio
     auto_pause {
       enabled              = var.auto_pause.enabled
       idle_timeout_minutes = var.auto_pause.idle_timeout_minutes
@@ -444,8 +444,8 @@ resource "velodb_warehouse" "this" {
     # precondition rather than a variable validation because it references two
     # variables, which variable validation cannot do before Terraform 1.9.
     precondition {
-      condition     = local.node_capacity ? (var.compute_vcpu == null && var.cache_gb == null && var.node_vcpu != null && var.node_count != null && (var.cache_type == 1 ? var.node_cache == null : var.node_cache != null)) : true
-      error_message = "Set node_vcpu/node_count and omit compute_vcpu/cache_gb for node capacity. EBS requires node_cache; local NVMe requires cache_type=1 and node_cache omitted."
+      condition     = local.node_capacity ? (var.compute_vcpu == null && var.cache_gb == null && var.node_vcpu != null && var.node_count != null && (var.cache_storage_type == 1 ? var.node_cache == null : var.node_cache != null)) : true
+      error_message = "Set node_vcpu/node_count and omit compute_vcpu/cache_gb for node capacity. EBS requires node_cache; local NVMe requires cache_storage_type=1 and node_cache omitted."
     }
     precondition {
       condition     = local.node_capacity ? true : local.initial_cache_gb >= max(100, local.initial_compute_vcpu * 25)
@@ -457,18 +457,18 @@ resource "velodb_warehouse" "this" {
 resource "velodb_cluster" "additional" {
   for_each = var.additional_clusters
 
-  warehouse_id = velodb_warehouse.this.id
-  name         = each.value.name
-  cluster_type = "COMPUTE"
-  zone         = coalesce(each.value.zone, local.zone)
-  compute_vcpu = each.value.compute_vcpu
-  cache_gb     = each.value.cache_gb
-  node_vcpu    = each.value.node_vcpu
-  node_count   = each.value.node_count
-  node_cache   = each.value.node_cache
-  cache_type   = each.value.cache_type
-  ratio        = each.value.ratio
-  scaling_mode = each.value.scaling_mode
+  warehouse_id       = velodb_warehouse.this.id
+  name               = each.value.name
+  cluster_type       = "COMPUTE"
+  zone               = coalesce(each.value.zone, local.zone)
+  compute_vcpu       = each.value.compute_vcpu
+  cache_gb           = each.value.cache_gb
+  node_vcpu          = each.value.node_vcpu
+  node_count         = each.value.node_count
+  node_cache         = each.value.node_cache
+  cache_storage_type = each.value.cache_storage_type
+  ratio              = each.value.ratio
+  scaling_mode       = each.value.scaling_mode
 
   auto_pause {
     enabled              = each.value.auto_pause.enabled
