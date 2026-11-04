@@ -186,10 +186,12 @@ applying; the inline block now actively reconciles the policy.
 The VeloDB API requires an `initial_cluster` block at warehouse creation.
 For warehouses created by Terraform with a saved `initial_cluster_id`, this
 block manages CPU/cache capacity after creation. Change legacy `compute_vcpu`
-and `cache_gb`, or node `node_vcpu`/`node_cache` at fixed `node_count`. Change
+and `cache_gb`, or EBS node `node_vcpu`/`node_cache` at fixed `node_count`. Change
 `node_count` in a separate apply. The provider rejects a plan that changes
 both node size/cache and count. Zone, ratio, cache type and auto-pause remain
 creation-only in this block.
+
+For Local storage (`cache_type = 1`), omit `node_cache`, even if it matches the current size. Cache capacity is determined automatically by the node package. For vertical scaling, change only `node_vcpu` and leave `node_count` unchanged; change `node_count` in a separate apply.
 
 Existing states must adopt capacity management once before resizing. The provider compares explicit CPU, cache and node-count inputs with API values. A mismatch stops the plan with the current and configured values; align the configuration and apply once. This adoption only records provider state and does not resize the cluster. The provider rechecks at apply, including saved plans and plans created with refresh disabled. `initial_cluster_capacity_adopted` is a computed status, not a configuration flag. Older states without a reliable cluster ID cannot adopt automatically.
 
@@ -383,7 +385,7 @@ Optional:
 
 - `compute_vcpu` and `cache_gb` (Number) Both required for legacy creation.
 - `cache_type` (Number) Creation-only: `0` for EBS (default), `1` for local NVMe.
-- `node_vcpu`, `node_count`, and `node_cache` (Number) All required for EBS node creation. For local NVMe, set cache_type to 1 and omit node_cache. CPU and cache are per-node values; node_cache is GB. Capacity is refreshed from the saved cluster ID; local node_cache is computed from the applied package. Change node count separately from node size/cache.
+- `node_vcpu`, `node_count`, and `node_cache` (Number) All required for EBS node creation. For Local storage, set `cache_type = 1` and omit `node_cache`, even if it matches the current size. For vertical scaling, change only `node_vcpu`. CPU and cache are per-node values; node_cache is GB. Capacity is refreshed from the saved cluster ID; local node_cache is computed from the applied package. Change node count separately from node size/cache.
 
 - `capacity_model` (String, Computed) Applied API capacity model. A pending node-model promotion remains visible in the next plan after a failed apply.
 - `auto_pause` (Block List, Max: 1) Auto-pause configuration. (see [below for nested schema](#nestedblock--initial_cluster--auto_pause))

@@ -12,7 +12,7 @@ Use exactly one capacity input family:
 - EBS nodes: `node_vcpu`, `node_count`, and `node_cache`; optionally set `cache_type = 0`.
 - Local NVMe nodes: `cache_type = 1`, `node_vcpu`, and `node_count`; omit `node_cache`.
 
-EBS is the creation default when cache_type is omitted. Capacity values must be positive integers; package sizing, cache steps and stock remain server-validated. For local NVMe, node_cache is computed from the selected package and cannot be configured. The API ignores supplied local cache sizes; the provider rejects them to prevent an ignored configuration from disagreeing with Terraform state. Cache type is creation-only; changing it is rejected without proposing replacement.
+EBS is the creation default when cache_type is omitted. Capacity values must be positive integers; package sizing, cache steps and stock remain server-validated. For local NVMe, `node_cache` is computed from the selected package and cannot be configured, even if it matches the current size. The API ignores supplied local cache sizes; the provider rejects them to prevent an ignored configuration from disagreeing with Terraform state. Cache type is creation-only; changing it is rejected without proposing replacement.
 
 ```terraform
 resource "velodb_cluster" "analytics" {
@@ -47,7 +47,9 @@ Cluster creation saves the returned ID before waiting for `Running` or pausing. 
 
 ## Update
 
-Change `node_vcpu` and, when required by the selected package, `node_cache` together. Change `node_count` in a separate apply. The provider rejects a single apply that changes both count and node size/cache. Cache-only shrinking is unsupported. For local NVMe, changing node_vcpu selects a new package and the provider reads the resulting node_cache; no cache size or cache_type is sent in update requests. Node count can be changed independently. Resizing preserves the existing memory-to-vCPU ratio.
+For EBS, change `node_vcpu` and, when required by the selected package, `node_cache` together. Change `node_count` in a separate apply. The provider rejects a single apply that changes both count and node size/cache. Cache-only shrinking is unsupported.
+
+For Local storage (`cache_type = 1`), omit `node_cache`, even if it matches the current size. Cache capacity is determined automatically by the node package. For vertical scaling, change only `node_vcpu` and leave `node_count` unchanged; change `node_count` in a separate apply. The provider reads the resulting `node_cache` from the API; no cache size or cache type is sent in Local-storage update requests. Resizing preserves the existing memory-to-vCPU ratio.
 
 The provider waits for both a stable status and the requested geometry, so an old `Running` response cannot prematurely complete a resize. On timeout, refresh before retrying: an accepted operation can still finish. Backend cooldowns can require waiting before the next separate apply.
 

@@ -269,7 +269,11 @@ password in error messages. Both BYOC modules require a valid password for wareh
 
 ## Node-based capacity
 
-Requires a provider build with node-capacity support and the corresponding Formation API deployment. For an EBS initial cluster, set `node_vcpu`, `node_count`, and `node_cache` together and omit `compute_vcpu`/`cache_gb`. Cache is GB per node. Select local NVMe with `cache_type = 1` and omit `node_cache`; its capacity is package-defined. The same fields apply within each `additional_clusters` entry. Initial-cluster capacity can be resized for Terraform-created warehouses with a saved initial_cluster_id. Change node_count in a separate apply from node_vcpu/node_cache. Ratio, cache type, zone and auto-pause stay creation-only. Refresh reads actual capacity; API failures and timeouts retain confirmed progress. Warehouse import does not adopt the initial cluster. Do not also manage its capacity in a separate velodb_cluster resource. Without node inputs, the original defaults of 4 vCPUs and 100 GB remain in effect.
+Requires a provider build with node-capacity support and the corresponding Formation API deployment. For an EBS initial cluster, set `node_vcpu`, `node_count`, and `node_cache` together and omit `compute_vcpu`/`cache_gb`. Cache is GB per node.
+
+For Local storage (`cache_type = 1`), omit `node_cache`, even if it matches the current size. Cache capacity is determined automatically by the node package. For vertical scaling, change only `node_vcpu` and leave `node_count` unchanged; change `node_count` in a separate apply. The same fields apply within each `additional_clusters` entry.
+
+Initial-cluster capacity can be resized for Terraform-created warehouses with a saved initial_cluster_id. For EBS, change `node_count` in a separate apply from `node_vcpu`/`node_cache`. Ratio, cache type, zone and auto-pause stay creation-only. Refresh reads actual capacity; API failures and timeouts retain confirmed progress. Warehouse import does not adopt the initial cluster. Do not also manage its capacity in a separate velodb_cluster resource. Without node inputs, the original defaults of 4 vCPUs and 100 GB remain in effect.
 
 ```hcl
 # Inputs to this module:
@@ -282,7 +286,7 @@ additional_clusters = {
 }
 ```
 
-Additional clusters accept either legacy or node inputs. Change node count separately from CPU/cache, and keep initial-cluster settings unchanged after warehouse creation. Initial-cluster resizing requires importing the independently verified cluster ID into a separate `velodb_cluster` resource. Explicit `scaling_mode = "MANUAL"` is available for supported additional-cluster node CPU/count updates. Mixed-billing resizing is not supported by this first version.
+Additional clusters accept either legacy or node inputs. Change node count separately from CPU/cache. Initial-cluster capacity is managed through the warehouse block when its creation-time cluster ID is saved; do not also manage that cluster in a separate `velodb_cluster` resource. Explicit `scaling_mode = "MANUAL"` is available for supported additional-cluster node CPU/count updates. Mixed-billing resizing is not supported by this first version.
 
 The legacy module inputs `compute_vcpu` and `cache_gb` now default to null; effective legacy defaults are selected internally when node inputs are absent. Explicitly supplying legacy and node inputs together is rejected.
 

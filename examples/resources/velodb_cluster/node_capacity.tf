@@ -11,10 +11,11 @@ resource "velodb_cluster" "nodes" {
   node_count   = 3
   node_cache   = 200
 
-  # Resize node_vcpu/node_cache in one apply; node_count in a separate apply.
+  # EBS: resize node_vcpu/node_cache in one apply; node_count in a separate apply.
 }
 
-# Local NVMe: fixed per-node cache is computed from the selected package.
+# Local NVMe: omit node_cache even if it matches the current size.
+# For vertical scaling, change only node_vcpu; change node_count separately.
 resource "velodb_cluster" "local_nvme" {
   warehouse_id = var.node_example_warehouse_id
   name         = "local_worker"

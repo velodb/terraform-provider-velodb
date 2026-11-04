@@ -46,7 +46,7 @@ func validateCapacity(diags *diag.Diagnostics, cpu, cache, nodeCPU, count, nodeC
 	}
 	local := localCache(cacheType)
 	if local && !nodeCache.IsNull() {
-		diags.AddError("Local cache is package-defined", "Omit node_cache when cache_type is 1. Its applied value is read from the API and changes with the node package.")
+		diags.AddError("node_cache conflicts with Local storage", "Omit node_cache when cache_type = 1; cache size is determined automatically. For vertical scaling, change only node_vcpu.")
 	}
 	if local || nodeCapacityConfigured(nodeCPU, count, nodeCache) {
 		if !cpu.IsNull() || !cache.IsNull() {
@@ -120,7 +120,7 @@ func (r *ClusterResource) updateNodeCapacity(ctx context.Context, warehouseID, c
 		return false
 	}
 	if local && !config.NodeCache.IsNull() {
-		diags.AddError("Local cache is package-defined", "Omit node_cache before updating a local NVMe cluster.")
+		diags.AddError("node_cache conflicts with Local storage", "Omit node_cache when cache_type = 1; cache size is determined automatically. For vertical scaling, change only node_vcpu.")
 		return false
 	}
 	countChanged := int64(cl.NodeCount) != plan.NodeCount.ValueInt64()

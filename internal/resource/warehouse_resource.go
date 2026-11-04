@@ -386,7 +386,7 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 						"cache_type":     schema.Int64Attribute{Optional: true, Description: "Cache type: 0 for EBS (default), 1 for local NVMe. Creation-only; omit node_cache for local storage.", Validators: []validator.Int64{int64validator.OneOf(0, 1)}},
 						"node_vcpu":      schema.Int64Attribute{Optional: true, Description: "vCPUs per node. Change separately from node_count.", Validators: []validator.Int64{int64validator.Between(1, 2147483647)}},
 						"node_count":     schema.Int64Attribute{Optional: true, Description: "Node count. Change separately from node_vcpu/node_cache.", Validators: []validator.Int64{int64validator.Between(1, 2147483647)}},
-						"node_cache":     schema.Int64Attribute{Optional: true, Computed: true, Description: "Cache GB per node; required for EBS node creation. Omit for package-defined local cache.", Validators: []validator.Int64{int64validator.Between(1, 2147483647)}},
+						"node_cache":     schema.Int64Attribute{Optional: true, Computed: true, Description: "Cache GB per node; required for EBS node creation. For Local storage (cache_type = 1), omit even if it matches the current size; capacity is determined automatically. For vertical scaling, change only node_vcpu.", Validators: []validator.Int64{int64validator.Between(1, 2147483647)}},
 						"zone": schema.StringAttribute{
 							Description:   "Availability zone.",
 							Required:      true,
