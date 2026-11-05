@@ -1,6 +1,6 @@
 # Node-based cluster capacity
 
-Requires a provider build with node-capacity support and the corresponding Formation API deployment. Older API versions do not return `nodeVcpu`/`nodeCache`/`cacheType`; the provider reports this when a node-managed update cannot be verified.
+Requires a provider build with node-capacity support and the corresponding Formation API deployment. Older API versions do not return `nodeVcpu`/`nodeCache`/`cacheStorageType`; the provider reports this when a node-managed update cannot be verified.
 
 A node is one compute machine. `node_vcpu` and `node_cache` describe each machine; `node_count` is the whole-cluster machine count. For example, three nodes with 8 vCPUs and 200 GB cache each have 24 total vCPUs and 600 GB total cache.
 

@@ -50,7 +50,7 @@ func TestAccNodeCapacityLifecycle(t *testing.T) {
 						if body["nodeVcpu"] != float64(8) || body["nodeCount"] != float64(3) || !local && body["nodeCache"] != float64(200) {
 							t.Errorf("node create: %v", body)
 						}
-						if local && (body["cacheType"] != float64(1) || body["nodeCache"] != nil) {
+						if local && (body["cacheStorageType"] != float64(1) || body["nodeCache"] != nil) {
 							t.Errorf("local create must omit cache: %v", body)
 						}
 						if _, ok := body["computeVcpu"]; ok {
@@ -71,7 +71,7 @@ func TestAccNodeCapacityLifecycle(t *testing.T) {
 					if local && body["nodeCache"] != nil {
 						t.Errorf("local update must omit cache: %v", body)
 					}
-					for _, field := range []string{"computeVcpu", "cacheGb", "ratio", "cacheType"} {
+					for _, field := range []string{"computeVcpu", "cacheGb", "ratio", "cacheStorageType"} {
 						if _, ok := body[field]; ok {
 							t.Errorf("unexpected field %s: %v", field, body)
 						}
@@ -103,7 +103,7 @@ func TestAccNodeCapacityLifecycle(t *testing.T) {
 					writeJSONResponse(t, w, map[string]any{"code": "ClusterNotFound"})
 					return
 				}
-				data := map[string]any{"clusterId": "c-nodes", "warehouseId": "w-nodes", "name": "analytics", "clusterType": "COMPUTE", "zone": "us-east-1a", "status": "Running", "cacheType": cacheStorageType, "nodeVcpu": cpu, "nodeCount": count, "nodeCache": cache, "billingModel": "on_demand", "onDemandNodeCount": count, "capacityModel": model, "billingSummary": map[string]any{"nodeCount": count, "totalCpu": cpu * count, "totalDiskSizeGb": cache * count}, "billingPools": map[string]any{"onDemand": map[string]any{"nodeCount": count, "cpu": cpu * count, "diskSizeGb": cache * count}}}
+				data := map[string]any{"clusterId": "c-nodes", "warehouseId": "w-nodes", "name": "analytics", "clusterType": "COMPUTE", "zone": "us-east-1a", "status": "Running", "cacheStorageType": cacheStorageType, "nodeVcpu": cpu, "nodeCount": count, "nodeCache": cache, "billingModel": "on_demand", "onDemandNodeCount": count, "capacityModel": model, "billingSummary": map[string]any{"nodeCount": count, "totalCpu": cpu * count, "totalDiskSizeGb": cache * count}, "billingPools": map[string]any{"onDemand": map[string]any{"nodeCount": count, "cpu": cpu * count, "diskSizeGb": cache * count}}}
 				writeJSONResponse(t, w, map[string]any{"success": true, "data": data})
 			}))
 			defer server.Close()
@@ -190,7 +190,7 @@ func TestAccWarehouseNodeInitialCluster(t *testing.T) {
 						}
 					}
 					if local {
-						if body.Initial["cacheType"] != float64(1) || body.Initial["nodeCache"] != nil {
+						if body.Initial["cacheStorageType"] != float64(1) || body.Initial["nodeCache"] != nil {
 							t.Errorf("local request: %s", raw)
 						}
 					} else if body.Initial["nodeCache"] != float64(200) {
@@ -250,8 +250,8 @@ func TestAccNodeCapacityDataSource(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		writeJSONResponse(t, w, map[string]any{"success": true, "total": 3, "data": []any{
-			map[string]any{"clusterId": "ebs", "warehouseId": "w", "name": "ebs", "status": "Running", "cacheType": 0, "nodeVcpu": 8, "nodeCount": 2, "nodeCache": 200, "capacityModel": "NODE_SPEC"},
-			map[string]any{"clusterId": "local", "warehouseId": "w", "name": "local", "status": "Running", "cacheType": 1, "nodeVcpu": 4, "nodeCount": 2, "nodeCache": 237, "capacityModel": "NODE_SPEC"},
+			map[string]any{"clusterId": "ebs", "warehouseId": "w", "name": "ebs", "status": "Running", "cacheStorageType": 0, "nodeVcpu": 8, "nodeCount": 2, "nodeCache": 200, "capacityModel": "NODE_SPEC"},
+			map[string]any{"clusterId": "local", "warehouseId": "w", "name": "local", "status": "Running", "cacheStorageType": 1, "nodeVcpu": 4, "nodeCount": 2, "nodeCache": 237, "capacityModel": "NODE_SPEC"},
 			map[string]any{"clusterId": "older", "warehouseId": "w", "name": "older", "status": "Running", "nodeCount": 1},
 		}})
 	}))

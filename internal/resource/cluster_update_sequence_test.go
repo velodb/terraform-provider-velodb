@@ -86,7 +86,7 @@ func TestNodeUpdatePreservesCompletedOperations(t *testing.T) {
 					}
 					_ = json.NewEncoder(w).Encode(map[string]any{"success": true, "data": map[string]any{
 						"clusterId": "c", "warehouseId": "w", "name": name, "clusterType": "COMPUTE", "status": status,
-						"cacheType": 0, "nodeVcpu": 8, "nodeCount": count, "nodeCache": 200, "capacityModel": "NODE_SPEC",
+						"cacheStorageType": 0, "nodeVcpu": 8, "nodeCount": count, "nodeCache": 200, "capacityModel": "NODE_SPEC",
 					}})
 				}
 			}))

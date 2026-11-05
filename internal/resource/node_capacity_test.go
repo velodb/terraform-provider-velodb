@@ -139,7 +139,7 @@ func TestNodeUpdateFailureRefreshesAppliedCapacity(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]any{"code": "ResizeFailed", "message": "partial progress"})
 			return
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"success": true, "data": map[string]any{"clusterId": "c", "warehouseId": "w", "name": "analytics", "clusterType": "COMPUTE", "status": "Running", "cacheType": 0, "nodeVcpu": 8, "nodeCount": 3, "nodeCache": applied, "capacityModel": "NODE_SPEC"}})
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": true, "data": map[string]any{"clusterId": "c", "warehouseId": "w", "name": "analytics", "clusterType": "COMPUTE", "status": "Running", "cacheStorageType": 0, "nodeVcpu": 8, "nodeCount": 3, "nodeCache": applied, "capacityModel": "NODE_SPEC"}})
 	}))
 	defer server.Close()
 	r := &ClusterResource{client: client.NewFormationClient(strings.TrimPrefix(server.URL, "http://"), "test-key", 0, time.Second)}
@@ -245,7 +245,7 @@ func TestNodeUpdateStateTransitionOrdering(t *testing.T) {
 						}
 						_ = json.NewEncoder(w).Encode(map[string]any{"success": true, "data": map[string]any{
 							"clusterId": "c", "warehouseId": "w", "name": "analytics", "clusterType": "COMPUTE",
-							"status": status, "cacheType": 0, "nodeVcpu": cpu, "nodeCount": count,
+							"status": status, "cacheStorageType": 0, "nodeVcpu": cpu, "nodeCount": count,
 							"nodeCache": cache, "capacityModel": "NODE_SPEC",
 						}})
 					}

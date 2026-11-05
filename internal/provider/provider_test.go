@@ -564,7 +564,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 				for key, value := range update {
 					initialCapacity[key] = value
 				}
-				if initialCapacity["cacheType"] == float64(1) && update["nodeVcpu"] != nil {
+				if initialCapacity["cacheStorageType"] == float64(1) && update["nodeVcpu"] != nil {
 					initialCapacity["nodeCache"] = 777
 				}
 				writeJSONResponse(t, w, map[string]any{"success": true})
@@ -573,15 +573,15 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 
 			parts := strings.Split(req.URL.Path, "/")
 			data := map[string]any{"clusterId": parts[5], "warehouseId": parts[3], "clusterType": "COMPUTE", "status": "Running"}
-			for _, key := range []string{"nodeVcpu", "nodeCount", "nodeCache", "cacheType"} {
+			for _, key := range []string{"nodeVcpu", "nodeCount", "nodeCache", "cacheStorageType"} {
 				if value, ok := initialCapacity[key]; ok {
 					data[key] = value
 				}
 			}
 			if data["nodeVcpu"] != nil {
 				data["capacityModel"] = "NODE_SPEC"
-				if data["cacheType"] == nil {
-					data["cacheType"] = 0
+				if data["cacheStorageType"] == nil {
+					data["cacheStorageType"] = 0
 				}
 				if data["nodeCache"] == nil {
 					data["nodeCache"] = 474

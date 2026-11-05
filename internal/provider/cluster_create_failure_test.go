@@ -50,7 +50,7 @@ func TestAccClusterCreateFailureRetainsIdentity(t *testing.T) {
 					}
 					writeJSONResponse(t, w, map[string]any{"success": true, "data": map[string]any{
 						"clusterId": "c-created", "warehouseId": "w", "name": "analytics", "clusterType": "COMPUTE", "status": status,
-						"cacheType": 0, "nodeVcpu": 8, "nodeCount": 2, "nodeCache": 200, "capacityModel": "NODE_SPEC",
+						"cacheStorageType": 0, "nodeVcpu": 8, "nodeCount": 2, "nodeCache": 200, "capacityModel": "NODE_SPEC",
 						"billingSummary": map[string]any{"nodeCount": 2, "totalCpu": 16, "totalDiskSizeGb": 400},
 					}})
 				}
