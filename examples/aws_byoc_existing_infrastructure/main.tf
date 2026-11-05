@@ -34,7 +34,7 @@ module "velodb_byoc" {
   deployment_credential_arn = var.deployment_credential_arn
   compute_vcpu              = var.compute_vcpu
   cache_gb                  = var.cache_gb
-  cache_type                = var.cache_type
+  cache_storage_type        = var.cache_storage_type
   ratio                     = var.ratio
   node_vcpu                 = var.node_vcpu
   node_count                = var.node_count

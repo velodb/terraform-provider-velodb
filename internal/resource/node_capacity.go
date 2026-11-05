@@ -24,29 +24,29 @@ func optionalNodeValue(value *int) types.Int64 {
 	return types.Int64Value(int64(*value))
 }
 
-func localCache(cacheType types.Int64) bool {
-	return knownInt(cacheType) && cacheType.ValueInt64() == 1
+func localCache(cacheStorageType types.Int64) bool {
+	return knownInt(cacheStorageType) && cacheStorageType.ValueInt64() == 1
 }
 
-func validateCacheTypeChange(diags *diag.Diagnostics, configured, prior types.Int64) {
+func validateCacheStorageTypeChange(diags *diag.Diagnostics, configured, prior types.Int64) {
 	if knownInt(configured) && !configured.Equal(prior) {
-		diags.AddError("cache_type is creation-only", "Cache type cannot be changed on an existing cluster. If the API does not return cacheType, deploy the cache-type API before configuring this field.")
+		diags.AddError("cache_storage_type is creation-only", "Cache storage type cannot be changed on an existing cluster. If the API does not return cacheType, deploy the cache-storage-type API before configuring this field.")
 	}
 }
 
-func validateCapacity(diags *diag.Diagnostics, cpu, cache, nodeCPU, count, nodeCache, cacheType types.Int64) {
+func validateCapacity(diags *diag.Diagnostics, cpu, cache, nodeCPU, count, nodeCache, cacheStorageType types.Int64) {
 	// Module expressions can be unknown during initial configuration validation.
-	for _, value := range []types.Int64{cpu, cache, nodeCPU, count, nodeCache, cacheType} {
+	for _, value := range []types.Int64{cpu, cache, nodeCPU, count, nodeCache, cacheStorageType} {
 		if value.IsUnknown() {
 			return
 		}
 	}
-	if knownInt(cacheType) && cacheType.ValueInt64() != 0 && cacheType.ValueInt64() != 1 {
-		diags.AddError("Invalid cache_type", "cache_type must be 0 (EBS) or 1 (local NVMe).")
+	if knownInt(cacheStorageType) && cacheStorageType.ValueInt64() != 0 && cacheStorageType.ValueInt64() != 1 {
+		diags.AddError("Invalid cache_storage_type", "cache_storage_type must be 0 (EBS) or 1 (local NVMe).")
 	}
-	local := localCache(cacheType)
+	local := localCache(cacheStorageType)
 	if local && !nodeCache.IsNull() {
-		diags.AddError("Local cache is package-defined", "Omit node_cache when cache_type is 1. Its applied value is read from the API and changes with the node package.")
+		diags.AddError("node_cache conflicts with Local storage", "Omit node_cache when cache_storage_type = 1; cache size is determined automatically. For vertical scaling, change only node_vcpu.")
 	}
 	if local || nodeCapacityConfigured(nodeCPU, count, nodeCache) {
 		if !cpu.IsNull() || !cache.IsNull() {
@@ -81,8 +81,8 @@ func (r *ClusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 		return
 	}
 	validateCreateOnlyRatio(&resp.Diagnostics, plan.Ratio, state.Ratio)
-	validateCacheTypeChange(&resp.Diagnostics, config.CacheType, state.CacheType)
-	if localCache(state.CacheType) && config.NodeCache.IsNull() && !plan.NodeVcpu.Equal(state.NodeVcpu) {
+	validateCacheStorageTypeChange(&resp.Diagnostics, config.CacheStorageType, state.CacheStorageType)
+	if localCache(state.CacheStorageType) && config.NodeCache.IsNull() && !plan.NodeVcpu.Equal(state.NodeVcpu) {
 		resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("node_cache"), types.Int64Unknown())...)
 	}
 	if nodeCapacityConfigured(config.NodeVcpu, config.NodeCount, config.NodeCache) {
@@ -100,7 +100,7 @@ func (r *ClusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 }
 
 func (r *ClusterResource) updateNodeCapacity(ctx context.Context, warehouseID, clusterID string, config ClusterResourceModel, plan *ClusterResourceModel, state *ClusterResourceModel, timeout time.Duration, diags *diag.Diagnostics) bool {
-	validateCapacity(diags, config.ComputeVcpu, config.CacheGb, config.NodeVcpu, config.NodeCount, config.NodeCache, config.CacheType)
+	validateCapacity(diags, config.ComputeVcpu, config.CacheGb, config.NodeVcpu, config.NodeCount, config.NodeCache, config.CacheStorageType)
 	validateCreateOnlyRatio(diags, plan.Ratio, state.Ratio)
 	if diags.HasError() {
 		return false
@@ -114,13 +114,13 @@ func (r *ClusterResource) updateNodeCapacity(ctx context.Context, warehouseID, c
 		diags.AddError("Node capacity API unavailable", "The deployed API must return nodeVcpu and nodeCache. Deploy the Formation node-capacity API before managing node settings.")
 		return false
 	}
-	local := cl.CacheType != nil && *cl.CacheType == 1
-	if knownInt(config.CacheType) && (cl.CacheType == nil || int64(*cl.CacheType) != config.CacheType.ValueInt64()) {
-		diags.AddError("Cache type unavailable or changed", "Refresh the cluster and verify the deployed API returns the configured cacheType before resizing.")
+	local := cl.CacheStorageType != nil && *cl.CacheStorageType == 1
+	if knownInt(config.CacheStorageType) && (cl.CacheStorageType == nil || int64(*cl.CacheStorageType) != config.CacheStorageType.ValueInt64()) {
+		diags.AddError("Cache storage type unavailable or changed", "Refresh the cluster and verify the deployed API returns the configured cacheType before resizing.")
 		return false
 	}
 	if local && !config.NodeCache.IsNull() {
-		diags.AddError("Local cache is package-defined", "Omit node_cache before updating a local NVMe cluster.")
+		diags.AddError("node_cache conflicts with Local storage", "Omit node_cache when cache_storage_type = 1; cache size is determined automatically. For vertical scaling, change only node_vcpu.")
 		return false
 	}
 	countChanged := int64(cl.NodeCount) != plan.NodeCount.ValueInt64()
@@ -189,7 +189,7 @@ func nodeCapacityStatus(cl *client.ClusterDetail, plan ClusterResourceModel) str
 			return cl.Status
 		}
 	}
-	if knownInt(plan.CacheType) && (cl.CacheType == nil || int64(*cl.CacheType) != plan.CacheType.ValueInt64()) {
+	if knownInt(plan.CacheStorageType) && (cl.CacheStorageType == nil || int64(*cl.CacheStorageType) != plan.CacheStorageType.ValueInt64()) {
 		return "CapacityPending"
 	}
 	if cl.CapacityModel != "NODE_SPEC" || cl.NodeVcpu == nil || cl.NodeCache == nil || int64(*cl.NodeVcpu) != plan.NodeVcpu.ValueInt64() || *cl.NodeCache <= 0 || knownInt(plan.NodeCache) && int64(*cl.NodeCache) != plan.NodeCache.ValueInt64() || int64(cl.NodeCount) != plan.NodeCount.ValueInt64() {

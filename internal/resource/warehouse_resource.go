@@ -86,16 +86,16 @@ type WarehouseResourceModel struct {
 }
 
 type InitialClusterModel struct {
-	CapacityModel types.String `tfsdk:"capacity_model"`
-	CacheType     types.Int64  `tfsdk:"cache_type"`
-	NodeVcpu      types.Int64  `tfsdk:"node_vcpu"`
-	NodeCount     types.Int64  `tfsdk:"node_count"`
-	NodeCache     types.Int64  `tfsdk:"node_cache"`
-	Zone          types.String `tfsdk:"zone"`
-	ComputeVcpu   types.Int64  `tfsdk:"compute_vcpu"`
-	Ratio         types.Int64  `tfsdk:"ratio"`
-	CacheGb       types.Int64  `tfsdk:"cache_gb"`
-	AutoPause     types.List   `tfsdk:"auto_pause"`
+	CapacityModel    types.String `tfsdk:"capacity_model"`
+	CacheStorageType types.Int64  `tfsdk:"cache_storage_type"`
+	NodeVcpu         types.Int64  `tfsdk:"node_vcpu"`
+	NodeCount        types.Int64  `tfsdk:"node_count"`
+	NodeCache        types.Int64  `tfsdk:"node_cache"`
+	Zone             types.String `tfsdk:"zone"`
+	ComputeVcpu      types.Int64  `tfsdk:"compute_vcpu"`
+	Ratio            types.Int64  `tfsdk:"ratio"`
+	CacheGb          types.Int64  `tfsdk:"cache_gb"`
+	AutoPause        types.List   `tfsdk:"auto_pause"`
 }
 
 type AutoPauseModel struct {
@@ -382,11 +382,11 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 				Description: "Initial cluster created with the warehouse. Capacity is managed through its creation-time ID; omit after warehouse import.",
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
-						"capacity_model": schema.StringAttribute{Computed: true, Description: "Applied capacity model returned by the API."},
-						"cache_type":     schema.Int64Attribute{Optional: true, Description: "Cache type: 0 for EBS (default), 1 for local NVMe. Creation-only; omit node_cache for local storage.", Validators: []validator.Int64{int64validator.OneOf(0, 1)}},
-						"node_vcpu":      schema.Int64Attribute{Optional: true, Description: "vCPUs per node. Change separately from node_count.", Validators: []validator.Int64{int64validator.Between(1, 2147483647)}},
-						"node_count":     schema.Int64Attribute{Optional: true, Description: "Node count. Change separately from node_vcpu/node_cache.", Validators: []validator.Int64{int64validator.Between(1, 2147483647)}},
-						"node_cache":     schema.Int64Attribute{Optional: true, Computed: true, Description: "Cache GB per node; required for EBS node creation. Omit for package-defined local cache.", Validators: []validator.Int64{int64validator.Between(1, 2147483647)}},
+						"capacity_model":     schema.StringAttribute{Computed: true, Description: "Applied capacity model returned by the API."},
+						"cache_storage_type": schema.Int64Attribute{Optional: true, Description: "Cache storage type: 0 for EBS (default), 1 for local NVMe. Creation-only; omit node_cache for local storage.", Validators: []validator.Int64{int64validator.OneOf(0, 1)}},
+						"node_vcpu":          schema.Int64Attribute{Optional: true, Description: "vCPUs per node. Change separately from node_count.", Validators: []validator.Int64{int64validator.Between(1, 2147483647)}},
+						"node_count":         schema.Int64Attribute{Optional: true, Description: "Node count. Change separately from node_vcpu/node_cache.", Validators: []validator.Int64{int64validator.Between(1, 2147483647)}},
+						"node_cache":         schema.Int64Attribute{Optional: true, Computed: true, Description: "Cache GB per node; required for EBS node creation. For Local storage (cache_storage_type = 1), omit even if it matches the current size; capacity is determined automatically. For vertical scaling, change only node_vcpu.", Validators: []validator.Int64{int64validator.Between(1, 2147483647)}},
 						"zone": schema.StringAttribute{
 							Description:   "Availability zone.",
 							Required:      true,
@@ -524,7 +524,7 @@ func (r *WarehouseResource) ValidateConfig(ctx context.Context, req resource.Val
 		if resp.Diagnostics.HasError() {
 			return
 		}
-		validateCapacity(&resp.Diagnostics, clusters[0].ComputeVcpu, clusters[0].CacheGb, clusters[0].NodeVcpu, clusters[0].NodeCount, clusters[0].NodeCache, clusters[0].CacheType)
+		validateCapacity(&resp.Diagnostics, clusters[0].ComputeVcpu, clusters[0].CacheGb, clusters[0].NodeVcpu, clusters[0].NodeCount, clusters[0].NodeCache, clusters[0].CacheStorageType)
 		validateAutoPauseRequiresTimeout(ctx, &resp.Diagnostics, "initial_cluster", clusters[0].AutoPause)
 	}
 
@@ -565,7 +565,7 @@ func (r *WarehouseResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 		var localDiags diag.Diagnostics
 		next := initialCapacity(ctx, plan.InitialCluster, &localDiags)
 		prior := initialCapacity(ctx, state.InitialCluster, &localDiags)
-		if next != nil && prior != nil && localCache(prior.CacheType) && !next.NodeVcpu.Equal(prior.NodeVcpu) {
+		if next != nil && prior != nil && localCache(prior.CacheStorageType) && !next.NodeVcpu.Equal(prior.NodeVcpu) {
 			resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("initial_cluster").AtListIndex(0).AtName("node_cache"), types.Int64Unknown())...)
 		}
 		configured := initialCapacity(ctx, configuredInitial, &localDiags)
@@ -705,7 +705,7 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 			clReq := &client.InitialClusterRequest{
 				Zone: ic.Zone.ValueString(),
 			}
-			validateCapacity(&resp.Diagnostics, ic.ComputeVcpu, ic.CacheGb, ic.NodeVcpu, ic.NodeCount, ic.NodeCache, ic.CacheType)
+			validateCapacity(&resp.Diagnostics, ic.ComputeVcpu, ic.CacheGb, ic.NodeVcpu, ic.NodeCount, ic.NodeCache, ic.CacheStorageType)
 			if resp.Diagnostics.HasError() {
 				return
 			}
@@ -713,8 +713,8 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 			setOptionalIntFromInt64(&clReq.CacheGb, ic.CacheGb)
 			setOptionalIntFromInt64(&clReq.NodeVcpu, ic.NodeVcpu)
 			setOptionalIntFromInt64(&clReq.NodeCount, ic.NodeCount)
-			setOptionalIntFromInt64(&clReq.CacheType, ic.CacheType)
-			if !localCache(ic.CacheType) {
+			setOptionalIntFromInt64(&clReq.CacheStorageType, ic.CacheStorageType)
+			if !localCache(ic.CacheStorageType) {
 				setOptionalIntFromInt64(&clReq.NodeCache, ic.NodeCache)
 			}
 			setOptionalIntFromInt64(&clReq.Ratio, ic.Ratio)

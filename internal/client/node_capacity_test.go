@@ -47,9 +47,9 @@ func TestNodeCapacityJSON(t *testing.T) {
 	}
 }
 
-func TestCacheTypeJSON(t *testing.T) {
+func TestCacheStorageTypeJSON(t *testing.T) {
 	for _, value := range []int{0, 1} {
-		for _, input := range []any{CreateClusterRequest{CacheType: &value}, InitialClusterRequest{CacheType: &value}} {
+		for _, input := range []any{CreateClusterRequest{CacheStorageType: &value}, InitialClusterRequest{CacheStorageType: &value}} {
 			raw, err := json.Marshal(input)
 			if err != nil {
 				t.Fatal(err)
@@ -59,7 +59,7 @@ func TestCacheTypeJSON(t *testing.T) {
 				t.Fatal(err)
 			}
 			if fields["cacheType"] != float64(value) {
-				t.Fatalf("explicit cache type lost: %s", raw)
+				t.Fatalf("explicit cache storage type lost: %s", raw)
 			}
 		}
 	}
@@ -72,8 +72,8 @@ func TestCacheTypeJSON(t *testing.T) {
 		if err := json.Unmarshal([]byte(raw), &expected); err != nil {
 			t.Fatal(err)
 		}
-		if v := expected["cacheType"]; (v == nil) != (cl.CacheType == nil) || v != nil && *v != *cl.CacheType {
-			t.Fatalf("cache type readback: %s", raw)
+		if v := expected["cacheType"]; (v == nil) != (cl.CacheStorageType == nil) || v != nil && *v != *cl.CacheStorageType {
+			t.Fatalf("cache storage type readback: %s", raw)
 		}
 	}
 }

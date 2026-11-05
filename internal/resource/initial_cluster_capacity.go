@@ -29,7 +29,7 @@ func initialCapacity(ctx context.Context, list types.List, diags *diag.Diagnosti
 }
 
 func initialCapacityModel(block InitialClusterModel) ClusterResourceModel {
-	return ClusterResourceModel{CapacityModel: block.CapacityModel, ComputeVcpu: block.ComputeVcpu, CacheGb: block.CacheGb, NodeVcpu: block.NodeVcpu, NodeCount: block.NodeCount, NodeCache: block.NodeCache, CacheType: block.CacheType, Ratio: block.Ratio}
+	return ClusterResourceModel{CapacityModel: block.CapacityModel, ComputeVcpu: block.ComputeVcpu, CacheGb: block.CacheGb, NodeVcpu: block.NodeVcpu, NodeCount: block.NodeCount, NodeCache: block.NodeCache, CacheStorageType: block.CacheStorageType, Ratio: block.Ratio}
 }
 
 // Compare explicit inputs only; local cache and omitted creation defaults are API-defined.
@@ -50,7 +50,7 @@ func initialCapacityMatches(ctx context.Context, config, actual types.List, diag
 		{"node_count", "node count", "", wanted.NodeCount, observed.NodeCount},
 		{"node_cache", "cache per node", " GB", wanted.NodeCache, observed.NodeCache},
 	} {
-		if field.wanted.IsNull() || field.name == "node_cache" && localCache(wanted.CacheType) {
+		if field.wanted.IsNull() || field.name == "node_cache" && localCache(wanted.CacheStorageType) {
 			continue
 		}
 		if field.wanted.IsUnknown() {
@@ -93,11 +93,11 @@ func validateInitialCapacityPlan(ctx context.Context, diags *diag.Diagnostics, p
 	if configured == nil {
 		return
 	}
-	priorCacheType := prior.CacheType
-	if priorCacheType.IsNull() {
-		priorCacheType = types.Int64Value(0)
-	} // Omitted creation cache type defaults to EBS.
-	validateCacheTypeChange(diags, configured.CacheType, priorCacheType)
+	priorCacheStorageType := prior.CacheStorageType
+	if priorCacheStorageType.IsNull() {
+		priorCacheStorageType = types.Int64Value(0)
+	} // Omitted creation cache storage type defaults to EBS.
+	validateCacheStorageTypeChange(diags, configured.CacheStorageType, priorCacheStorageType)
 	if nodeCapacityConfigured(configured.NodeVcpu, configured.NodeCount, configured.NodeCache) {
 		if knownInt(next.NodeCount) && knownInt(prior.NodeCount) && !next.NodeCount.Equal(prior.NodeCount) && (knownInt(next.NodeVcpu) && !next.NodeVcpu.Equal(prior.NodeVcpu) || knownInt(configured.NodeCache) && !configured.NodeCache.Equal(prior.NodeCache)) {
 			diags.AddError("Separate node count and size changes", "Change initial_cluster.node_count in one apply and node_vcpu/node_cache in another apply.")

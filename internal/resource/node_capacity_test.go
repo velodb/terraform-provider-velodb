@@ -47,6 +47,22 @@ func TestValidateCapacityFamilies(t *testing.T) {
 	}
 }
 
+func TestLocalCacheDiagnostic(t *testing.T) {
+	for _, cache := range []types.Int64{types.Int64Value(474), types.Int64Value(777), types.Int64Null()} {
+		var d diag.Diagnostics
+		validateCapacity(&d, types.Int64Null(), types.Int64Null(), types.Int64Value(8), types.Int64Value(3), cache, types.Int64Value(1))
+		if cache.IsNull() {
+			if d.HasError() {
+				t.Fatalf("omitted local cache rejected: %v", d)
+			}
+			continue
+		}
+		if len(d) != 1 || d[0].Summary() != "node_cache conflicts with Local storage" || d[0].Detail() != "Omit node_cache when cache_storage_type = 1; cache size is determined automatically. For vertical scaling, change only node_vcpu." {
+			t.Fatalf("unexpected local cache diagnostic: %v", d)
+		}
+	}
+}
+
 func TestNodeCapacityGuardsAndTimeout(t *testing.T) {
 	for _, tc := range []struct {
 		name                            string
@@ -146,7 +162,7 @@ func TestNodeUpdateFailureRefreshesAppliedCapacity(t *testing.T) {
 	prior.NodeVcpu = types.Int64Value(8)
 	prior.NodeCount = types.Int64Value(3)
 	prior.NodeCache = types.Int64Value(200)
-	prior.CacheType = types.Int64Value(0)
+	prior.CacheStorageType = types.Int64Value(0)
 	prior.CapacityModel = types.StringValue("NODE_SPEC")
 	if d := priorState.Set(ctx, &prior); d.HasError() {
 		t.Fatal(d)
@@ -255,7 +271,7 @@ func TestNodeUpdateStateTransitionOrdering(t *testing.T) {
 				prior.NodeVcpu = types.Int64Value(8)
 				prior.NodeCount = types.Int64Value(3)
 				prior.NodeCache = types.Int64Value(200)
-				prior.CacheType = types.Int64Value(0)
+				prior.CacheStorageType = types.Int64Value(0)
 				prior.CapacityModel = types.StringValue("NODE_SPEC")
 				prior.DesiredState = types.StringValue("paused")
 				if action == "pause" {

@@ -68,7 +68,7 @@ data "velodb_clusters" "postpaid" {
 
 Read-Only:
 
-- `cache_type` (Number) Applied cache type: 0 for EBS, 1 for local NVMe; null when unavailable.
+- `cache_storage_type` (Number) Applied cache storage type: 0 for EBS, 1 for local NVMe; null when unavailable.
 - `capacity_model` (String) Stored model, null when unavailable or unrecorded.
 - `node_vcpu` (Number) Applied vCPUs per node, null when not returned.
 - `node_count` (Number) Total node count.

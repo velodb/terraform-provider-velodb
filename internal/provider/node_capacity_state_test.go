@@ -61,11 +61,11 @@ func TestNodeCapacityConfigValidation(t *testing.T) {
 		valid    bool
 	}{
 		{`"node_vcpu":8,"node_count":3,"node_cache":200`, true},
-		{`"cache_type":0,"node_vcpu":8,"node_count":3,"node_cache":200`, true},
-		{`"cache_type":1,"node_vcpu":8,"node_count":3`, true},
-		{`"cache_type":1,"node_vcpu":8,"node_count":3,"node_cache":474`, false},
-		{`"cache_type":2,"node_vcpu":8,"node_count":3,"node_cache":200`, false},
-		{`"cache_type":1,"compute_vcpu":8,"cache_gb":200`, false},
+		{`"cache_storage_type":0,"node_vcpu":8,"node_count":3,"node_cache":200`, true},
+		{`"cache_storage_type":1,"node_vcpu":8,"node_count":3`, true},
+		{`"cache_storage_type":1,"node_vcpu":8,"node_count":3,"node_cache":474`, false},
+		{`"cache_storage_type":2,"node_vcpu":8,"node_count":3,"node_cache":200`, false},
+		{`"cache_storage_type":1,"compute_vcpu":8,"cache_gb":200`, false},
 		{`"node_vcpu":8,"node_count":3`, false},
 		{`"node_vcpu":8,"node_count":3,"node_cache":200,"compute_vcpu":0`, false},
 		{`"node_vcpu":8.5,"node_count":3,"node_cache":200`, false},

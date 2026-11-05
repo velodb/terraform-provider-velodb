@@ -142,13 +142,13 @@ variable "ratio" {
   }
 }
 
-variable "cache_type" {
-  description = "Initial cluster cache type: 0 for EBS (default), 1 for local NVMe. Creation-only; omit node_cache for local storage."
+variable "cache_storage_type" {
+  description = "Initial cluster cache storage type: 0 for EBS (default), 1 for local NVMe. Creation-only; omit node_cache for local storage."
   type        = number
   default     = null
   validation {
-    condition     = var.cache_type == null ? true : contains([0, 1], var.cache_type)
-    error_message = "cache_type must be 0 (EBS) or 1 (local NVMe)."
+    condition     = var.cache_storage_type == null ? true : contains([0, 1], var.cache_storage_type)
+    error_message = "cache_storage_type must be 0 (EBS) or 1 (local NVMe)."
   }
 }
 
@@ -196,16 +196,16 @@ variable "auto_pause" {
 variable "additional_clusters" {
   description = "Additional compute clusters keyed by a stable Terraform identifier."
   type = map(object({
-    name         = string
-    zone         = optional(string)
-    compute_vcpu = optional(number)
-    cache_gb     = optional(number)
-    node_vcpu    = optional(number)
-    node_count   = optional(number)
-    node_cache   = optional(number)
-    cache_type   = optional(number)
-    ratio        = optional(number)
-    scaling_mode = optional(string)
+    name               = string
+    zone               = optional(string)
+    compute_vcpu       = optional(number)
+    cache_gb           = optional(number)
+    node_vcpu          = optional(number)
+    node_count         = optional(number)
+    node_cache         = optional(number)
+    cache_storage_type = optional(number)
+    ratio              = optional(number)
+    scaling_mode       = optional(string)
     auto_pause = optional(object({
       enabled              = bool
       idle_timeout_minutes = optional(number)
@@ -244,8 +244,8 @@ variable "additional_clusters" {
   validation {
     condition = alltrue([
       for cluster in values(var.additional_clusters) :
-      (cluster.cache_type == 1 || cluster.node_vcpu != null || cluster.node_count != null || cluster.node_cache != null) ?
-      (cluster.compute_vcpu == null && cluster.cache_gb == null && alltrue([for v in concat([cluster.node_vcpu, cluster.node_count], cluster.cache_type == 1 ? [] : [cluster.node_cache]) : v == null ? false : v >= 1 && v <= 2147483647 && floor(v) == v]) && (cluster.cache_type == 1 ? cluster.node_cache == null : true)) :
+      (cluster.cache_storage_type == 1 || cluster.node_vcpu != null || cluster.node_count != null || cluster.node_cache != null) ?
+      (cluster.compute_vcpu == null && cluster.cache_gb == null && alltrue([for v in concat([cluster.node_vcpu, cluster.node_count], cluster.cache_storage_type == 1 ? [] : [cluster.node_cache]) : v == null ? false : v >= 1 && v <= 2147483647 && floor(v) == v]) && (cluster.cache_storage_type == 1 ? cluster.node_cache == null : true)) :
       (cluster.compute_vcpu != null && cluster.cache_gb != null)
     ])
     error_message = "Each additional cluster requires legacy compute_vcpu/cache_gb or node_vcpu/node_count with node_cache for EBS. Omit node_cache for local NVMe; do not mix formats."
@@ -255,8 +255,8 @@ variable "additional_clusters" {
     error_message = "Each additional cluster ratio must be 4 or 8."
   }
   validation {
-    condition     = alltrue([for cluster in values(var.additional_clusters) : cluster.cache_type == null ? true : contains([0, 1], cluster.cache_type)])
-    error_message = "Each additional cluster cache_type must be 0 (EBS) or 1 (local NVMe)."
+    condition     = alltrue([for cluster in values(var.additional_clusters) : cluster.cache_storage_type == null ? true : contains([0, 1], cluster.cache_storage_type)])
+    error_message = "Each additional cluster cache_storage_type must be 0 (EBS) or 1 (local NVMe)."
   }
   validation {
     condition     = alltrue([for cluster in values(var.additional_clusters) : cluster.scaling_mode == null ? true : cluster.scaling_mode == "MANUAL" && cluster.node_vcpu != null])

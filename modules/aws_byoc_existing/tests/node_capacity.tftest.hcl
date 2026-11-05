@@ -75,10 +75,10 @@ run "local_nodes" {
   command = plan
   plan_options { target = [terraform_data.warehouse_infrastructure_guard] }
   variables {
-    cache_type          = 1
+    cache_storage_type  = 1
     node_vcpu           = 4
     node_count          = 2
-    additional_clusters = { worker = { name = "worker", cache_type = 1, node_vcpu = 8, node_count = 2 } }
+    additional_clusters = { worker = { name = "worker", cache_storage_type = 1, node_vcpu = 8, node_count = 2 } }
   }
   assert {
     condition     = local.node_capacity && local.initial_compute_vcpu == null && local.initial_cache_gb == null && var.node_cache == null
@@ -87,15 +87,15 @@ run "local_nodes" {
 }
 run "local_cache_configuration_rejected" {
   command = plan
-  variables { additional_clusters = { worker = { name = "worker", cache_type = 1, node_vcpu = 8, node_count = 2, node_cache = 474 } } }
+  variables { additional_clusters = { worker = { name = "worker", cache_storage_type = 1, node_vcpu = 8, node_count = 2, node_cache = 474 } } }
   # Require capacity validation and the unrelated empty-zone mock diagnostic.
   expect_failures = [var.additional_clusters, velodb_byoc_credential.this]
 }
-run "invalid_cache_type" {
+run "invalid_cache_storage_type" {
   command = plan
   plan_options { target = [terraform_data.warehouse_infrastructure_guard] }
-  variables { cache_type = 2 }
-  expect_failures = [var.cache_type]
+  variables { cache_storage_type = 2 }
+  expect_failures = [var.cache_storage_type]
 }
 
 # Persist only the local guard so these checks exercise updates without cloud operations.
@@ -126,13 +126,13 @@ run "keep_initial_ratio_immutable" {
   variables { ratio = 4 }
   expect_failures = [terraform_data.warehouse_infrastructure_guard["initial_cluster_capacity"]]
 }
-run "keep_initial_cache_type_immutable" {
+run "keep_initial_cache_storage_type_immutable" {
   command = plan
   plan_options { target = [terraform_data.warehouse_infrastructure_guard] }
   variables {
-    cache_type = 1
-    node_vcpu  = 8
-    node_count = 2
+    cache_storage_type = 1
+    node_vcpu          = 8
+    node_count         = 2
   }
   expect_failures = [terraform_data.warehouse_infrastructure_guard["initial_cluster_capacity"]]
 }
