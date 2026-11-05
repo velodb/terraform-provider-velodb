@@ -65,7 +65,7 @@ func TestClusterCreateRetainsIdentityAndWaits(t *testing.T) {
 					}
 					_ = json.NewEncoder(w).Encode(map[string]any{"success": true, "data": map[string]any{
 						"clusterId": "c-created", "warehouseId": "w", "name": "analytics", "clusterType": "COMPUTE", "status": status,
-						"nodeVcpu": 8, "nodeCount": 2, "nodeCache": 200, "cacheType": 0, "capacityModel": "NODE_SPEC",
+						"nodeVcpu": 8, "nodeCount": 2, "nodeCache": 200, "cacheStorageType": 0, "capacityModel": "NODE_SPEC",
 					}})
 				}
 			}))

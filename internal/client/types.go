@@ -47,7 +47,7 @@ type CreateWarehouseRequest struct {
 }
 
 type InitialClusterRequest struct {
-	CacheStorageType *int             `json:"cacheType,omitempty"`
+	CacheStorageType *int             `json:"cacheStorageType,omitempty"`
 	Zone             string           `json:"zone"`
 	ComputeVcpu      *int             `json:"computeVcpu,omitempty"`
 	Ratio            *int             `json:"ratio,omitempty"`
@@ -139,7 +139,7 @@ type RegisterWarehousePrivateEndpointRequest struct {
 // --- Cluster ---
 
 type CreateClusterRequest struct {
-	CacheStorageType *int             `json:"cacheType,omitempty"`
+	CacheStorageType *int             `json:"cacheStorageType,omitempty"`
 	Name             string           `json:"name"`
 	ClusterType      string           `json:"clusterType"`
 	Zone             *string          `json:"zone,omitempty"`
@@ -170,7 +170,7 @@ type ClusterConnectionInfo struct {
 }
 
 type ClusterItem struct {
-	CacheStorageType      *int                   `json:"cacheType,omitempty"`
+	CacheStorageType      *int                   `json:"cacheStorageType,omitempty"`
 	ClusterID             string                 `json:"clusterId"`
 	WarehouseID           string                 `json:"warehouseId"`
 	Name                  string                 `json:"name"`

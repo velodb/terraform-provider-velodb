@@ -112,12 +112,12 @@ func TestInitialClusterCapacityUpdate(t *testing.T) {
 				}
 				data := map[string]any{"clusterId": "c", "warehouseId": warehouseID, "clusterType": kind, "status": "Running", "billingSummary": map[string]any{"totalCpu": cpu, "totalDiskSizeGb": cache, "nodeCount": count}}
 				if node || scenario == "legacy on NODE_SPEC" {
-					data["nodeVcpu"], data["nodeCache"], data["nodeCount"], data["capacityModel"], data["cacheType"] = cpu, cache, count, "NODE_SPEC", 0
+					data["nodeVcpu"], data["nodeCache"], data["nodeCount"], data["capacityModel"], data["cacheStorageType"] = cpu, cache, count, "NODE_SPEC", 0
 					if (scenario == "node migration" && patches == 0) || scenario == "promotion rejected" {
 						delete(data, "capacityModel")
 					}
 					if local {
-						data["cacheType"] = 1
+						data["cacheStorageType"] = 1
 					}
 					if scenario == "missing API fields" {
 						delete(data, "nodeVcpu")
@@ -326,7 +326,7 @@ func TestInitialClusterCapacityRefresh(t *testing.T) {
 						data["billingSummary"] = map[string]int{"totalCpu": 4, "totalDiskSizeGb": 100, "nodeCount": 2}
 					}
 					if scenario == "node drift" {
-						data["nodeVcpu"], data["nodeCount"], data["nodeCache"], data["cacheType"], data["capacityModel"] = 8, 2, 200, 0, "NODE_SPEC"
+						data["nodeVcpu"], data["nodeCount"], data["nodeCache"], data["cacheStorageType"], data["capacityModel"] = 8, 2, 200, 0, "NODE_SPEC"
 					}
 				}
 				_ = json.NewEncoder(w).Encode(map[string]any{"success": true, "data": data})

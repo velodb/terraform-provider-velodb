@@ -58,12 +58,15 @@ func TestCacheStorageTypeJSON(t *testing.T) {
 			if err := json.Unmarshal(raw, &fields); err != nil {
 				t.Fatal(err)
 			}
-			if fields["cacheType"] != float64(value) {
+			if _, ok := fields["cacheType"]; ok {
+				t.Fatalf("legacy cacheType key sent: %s", raw)
+			}
+			if fields["cacheStorageType"] != float64(value) {
 				t.Fatalf("explicit cache storage type lost: %s", raw)
 			}
 		}
 	}
-	for _, raw := range []string{`{}`, `{"cacheType":null}`, `{"cacheType":0}`, `{"cacheType":1}`} {
+	for _, raw := range []string{`{}`, `{"cacheStorageType":null}`, `{"cacheStorageType":0}`, `{"cacheStorageType":1}`} {
 		var cl ClusterDetail
 		if err := json.Unmarshal([]byte(raw), &cl); err != nil {
 			t.Fatal(err)
@@ -72,7 +75,7 @@ func TestCacheStorageTypeJSON(t *testing.T) {
 		if err := json.Unmarshal([]byte(raw), &expected); err != nil {
 			t.Fatal(err)
 		}
-		if v := expected["cacheType"]; (v == nil) != (cl.CacheStorageType == nil) || v != nil && *v != *cl.CacheStorageType {
+		if v := expected["cacheStorageType"]; (v == nil) != (cl.CacheStorageType == nil) || v != nil && *v != *cl.CacheStorageType {
 			t.Fatalf("cache storage type readback: %s", raw)
 		}
 	}

@@ -30,7 +30,7 @@ func localCache(cacheStorageType types.Int64) bool {
 
 func validateCacheStorageTypeChange(diags *diag.Diagnostics, configured, prior types.Int64) {
 	if knownInt(configured) && !configured.Equal(prior) {
-		diags.AddError("cache_storage_type is creation-only", "Cache storage type cannot be changed on an existing cluster. If the API does not return cacheType, deploy the cache-storage-type API before configuring this field.")
+		diags.AddError("cache_storage_type is creation-only", "Cache storage type cannot be changed on an existing cluster. If the API does not return cacheStorageType, deploy the cache-storage-type API before configuring this field.")
 	}
 }
 
@@ -116,7 +116,7 @@ func (r *ClusterResource) updateNodeCapacity(ctx context.Context, warehouseID, c
 	}
 	local := cl.CacheStorageType != nil && *cl.CacheStorageType == 1
 	if knownInt(config.CacheStorageType) && (cl.CacheStorageType == nil || int64(*cl.CacheStorageType) != config.CacheStorageType.ValueInt64()) {
-		diags.AddError("Cache storage type unavailable or changed", "Refresh the cluster and verify the deployed API returns the configured cacheType before resizing.")
+		diags.AddError("Cache storage type unavailable or changed", "Refresh the cluster and verify the deployed API returns the configured cacheStorageType before resizing.")
 		return false
 	}
 	if local && !config.NodeCache.IsNull() {
