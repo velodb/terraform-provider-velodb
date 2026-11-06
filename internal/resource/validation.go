@@ -37,6 +37,14 @@ func configuredMemoryPerVcpu(memoryPerVcpu, ratio types.Int64) types.Int64 {
 	return memoryPerVcpu
 }
 
+// A planned memory_per_vcpu can be copied from state while ratio is configured.
+func plannedMemoryPerVcpu(memoryPerVcpu, ratio types.Int64) types.Int64 {
+	if !ratio.IsNull() {
+		return ratio
+	}
+	return memoryPerVcpu
+}
+
 func validateCreateOnlyRatio(diags *diag.Diagnostics, planRatio, stateRatio types.Int64) {
 	if planRatio.IsUnknown() || stateRatio.IsUnknown() || planRatio.Equal(stateRatio) {
 		return
@@ -48,15 +56,15 @@ func validateCreateOnlyRatio(diags *diag.Diagnostics, planRatio, stateRatio type
 }
 
 func validateInitialClusterCreateOnlyRatio(ctx context.Context, diags *diag.Diagnostics, plan, state types.List) {
-	planRatio := initialClusterRatio(ctx, diags, plan)
-	stateRatio := initialClusterRatio(ctx, diags, state)
+	planRatio := initialClusterRatio(ctx, diags, plan, true)
+	stateRatio := initialClusterRatio(ctx, diags, state, false)
 	if diags.HasError() {
 		return
 	}
 	validateCreateOnlyRatio(diags, planRatio, stateRatio)
 }
 
-func initialClusterRatio(ctx context.Context, diags *diag.Diagnostics, initialCluster types.List) types.Int64 {
+func initialClusterRatio(ctx context.Context, diags *diag.Diagnostics, initialCluster types.List, isPlan bool) types.Int64 {
 	if initialCluster.IsNull() {
 		return types.Int64Null()
 	}
@@ -68,6 +76,9 @@ func initialClusterRatio(ctx context.Context, diags *diag.Diagnostics, initialCl
 	diags.Append(initialCluster.ElementsAs(ctx, &clusters, false)...)
 	if diags.HasError() || len(clusters) == 0 {
 		return types.Int64Null()
+	}
+	if isPlan {
+		return plannedMemoryPerVcpu(clusters[0].MemoryPerVcpu, clusters[0].Ratio)
 	}
 	return configuredMemoryPerVcpu(clusters[0].MemoryPerVcpu, clusters[0].Ratio)
 }

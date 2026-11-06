@@ -95,7 +95,7 @@ func (r *ClusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	validateCreateOnlyRatio(&resp.Diagnostics, configuredMemoryPerVcpu(plan.MemoryPerVcpu, plan.Ratio), configuredMemoryPerVcpu(state.MemoryPerVcpu, state.Ratio))
+	validateCreateOnlyRatio(&resp.Diagnostics, plannedMemoryPerVcpu(plan.MemoryPerVcpu, plan.Ratio), configuredMemoryPerVcpu(state.MemoryPerVcpu, state.Ratio))
 	validateCacheStorageTypeChange(&resp.Diagnostics, config.CacheStorageType, state.CacheStorageType)
 	validateLocalNodeCache(&resp.Diagnostics, state.CacheStorageType, config.NodeCache, plan.NodeVcpu, state.NodeVcpu)
 	if resp.Diagnostics.HasError() {
@@ -120,7 +120,7 @@ func (r *ClusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 
 func (r *ClusterResource) updateNodeCapacity(ctx context.Context, warehouseID, clusterID string, config ClusterResourceModel, plan *ClusterResourceModel, state *ClusterResourceModel, timeout time.Duration, diags *diag.Diagnostics) bool {
 	validateCapacity(diags, config.ComputeVcpu, config.CacheGb, config.NodeVcpu, config.NodeCount, config.NodeCache, config.CacheStorageType)
-	validateCreateOnlyRatio(diags, configuredMemoryPerVcpu(plan.MemoryPerVcpu, plan.Ratio), configuredMemoryPerVcpu(state.MemoryPerVcpu, state.Ratio))
+	validateCreateOnlyRatio(diags, plannedMemoryPerVcpu(plan.MemoryPerVcpu, plan.Ratio), configuredMemoryPerVcpu(state.MemoryPerVcpu, state.Ratio))
 	if diags.HasError() {
 		return false
 	}

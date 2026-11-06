@@ -389,7 +389,7 @@ Optional:
 
 - `capacity_model` (String, Computed) Applied API capacity model. A pending node-model promotion remains visible in the next plan after a failed apply.
 - `auto_pause` (Block List, Max: 1) Auto-pause configuration. (see [below for nested schema](#nestedblock--initial_cluster--auto_pause))
-- `memory_per_vcpu` (Number) GB of memory per vCPU. Set `4` or `8` at creation. Omission uses the API default of `8`.
+- `memory_per_vcpu` (Number, Optional/Computed) GB of memory per vCPU. Set `4` or `8` at creation. Omission uses the API default of `8`. The provider reads the applied value from the saved initial cluster when the API returns it.
 - `ratio` (Number) Deprecated alias for `memory_per_vcpu`. Set only one of these fields.
 
 <a id="nestedblock--initial_cluster--auto_pause"></a>

@@ -573,7 +573,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 
 			parts := strings.Split(req.URL.Path, "/")
 			data := map[string]any{"clusterId": parts[5], "warehouseId": parts[3], "clusterType": "COMPUTE", "status": "Running"}
-			for _, key := range []string{"nodeVcpu", "nodeCount", "nodeCache", "cacheStorageType"} {
+			for _, key := range []string{"nodeVcpu", "nodeCount", "nodeCache", "cacheStorageType", "ratio"} {
 				if value, ok := initialCapacity[key]; ok {
 					data[key] = value
 				}
@@ -652,6 +652,7 @@ resource "velodb_warehouse" "test" {
 					resource.TestCheckResourceAttr("velodb_warehouse.test", "name", "mock-warehouse"),
 					resource.TestCheckResourceAttr("velodb_warehouse.test", "status", "Running"),
 					resource.TestCheckResourceAttr("velodb_warehouse.test", "initial_cluster.0.ratio", "8"),
+					resource.TestCheckResourceAttr("velodb_warehouse.test", "initial_cluster.0.memory_per_vcpu", "8"),
 					resource.TestCheckResourceAttr("velodb_warehouse.test", "cloud_provider", "aws"),
 					resource.TestCheckResourceAttr("velodb_warehouse.test", "region", "us-east-1"),
 					resource.TestCheckResourceAttr("velodb_warehouse.test", "deployment_mode", "SaaS"),
