@@ -98,6 +98,10 @@ func validateInitialCapacityPlan(ctx context.Context, diags *diag.Diagnostics, p
 		priorCacheStorageType = types.Int64Value(0)
 	} // Omitted creation cache storage type defaults to EBS.
 	validateCacheStorageTypeChange(diags, configured.CacheStorageType, priorCacheStorageType)
+	validateLocalNodeCache(diags, prior.CacheStorageType, configured.NodeCache, next.NodeVcpu, prior.NodeVcpu)
+	if diags.HasError() {
+		return
+	}
 	if nodeCapacityConfigured(configured.NodeVcpu, configured.NodeCount, configured.NodeCache) {
 		if knownInt(next.NodeCount) && knownInt(prior.NodeCount) && !next.NodeCount.Equal(prior.NodeCount) && (knownInt(next.NodeVcpu) && !next.NodeVcpu.Equal(prior.NodeVcpu) || knownInt(configured.NodeCache) && !configured.NodeCache.Equal(prior.NodeCache)) {
 			diags.AddError("Separate node count and size changes", "Change initial_cluster.node_count in one apply and node_vcpu/node_cache in another apply.")

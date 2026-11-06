@@ -444,8 +444,8 @@ resource "velodb_warehouse" "this" {
     # precondition rather than a variable validation because it references two
     # variables, which variable validation cannot do before Terraform 1.9.
     precondition {
-      condition     = local.node_capacity ? (var.compute_vcpu == null && var.cache_gb == null && var.node_vcpu != null && var.node_count != null && (var.cache_storage_type == 1 ? var.node_cache == null : var.node_cache != null)) : true
-      error_message = "Set node_vcpu/node_count and omit compute_vcpu/cache_gb for node capacity. EBS requires node_cache; local NVMe requires cache_storage_type=1 and node_cache omitted."
+      condition     = local.node_capacity ? (var.compute_vcpu == null && var.cache_gb == null && var.node_vcpu != null && var.node_count != null && (var.cache_storage_type == 1 || var.node_cache != null)) : true
+      error_message = "Set node_vcpu/node_count and omit compute_vcpu/cache_gb for node capacity. EBS requires node_cache."
     }
     precondition {
       condition     = local.node_capacity ? true : local.initial_cache_gb >= max(100, local.initial_compute_vcpu * 25)

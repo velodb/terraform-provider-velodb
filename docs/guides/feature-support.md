@@ -95,15 +95,20 @@ Provision a separate warehouse for a migration.
 
 ## Initial cluster
 
-Set on the warehouse at creation; resize or add clusters afterward with the
-`velodb_cluster` resource (modules expose `additional_clusters`).
+For Terraform-created warehouses with a saved `initial_cluster_id`, resize
+the initial cluster through `velodb_warehouse.initial_cluster`. Existing
+states must first adopt matching capacity without resizing. Warehouse import
+does not adopt the initial cluster. Give each cluster one Terraform owner.
+Use `velodb_cluster` or the modules' `additional_clusters` input for
+additional clusters. See [initial-cluster capacity](node-capacity.md#warehouse-and-module-inputs).
 
 | Attribute | Creation | Update | Modes | Modules |
 |---|---|---|---|---|
-| `initial_cluster.compute_vcpu` | ✅ | — (via `velodb_cluster`) | Both | ✅ `compute_vcpu` |
-| `initial_cluster.cache_gb` | ✅ | — (via `velodb_cluster`) | Both | ✅ `cache_gb` |
-| `initial_cluster.auto_pause` | ✅ | — (via `velodb_cluster`) | Both | ✅ `auto_pause` |
-| `initial_cluster.ratio` | ✅ | — (via `velodb_cluster`) | Both | ❌ (modules use explicit sizes) |
+| `initial_cluster.compute_vcpu` and `cache_gb` | ✅ | ✅ Saved cluster ID and adopted capacity | Both | ✅ `compute_vcpu`, `cache_gb` |
+| `initial_cluster.node_vcpu`, `node_count`, and `node_cache` | ✅ | ✅ Saved cluster ID and adopted capacity, subject to node resize rules | Both | ✅ `node_vcpu`, `node_count`, `node_cache` |
+| `initial_cluster.cache_storage_type` | ✅ | Creation only | Both | ✅ `cache_storage_type` |
+| `initial_cluster.auto_pause` | ✅ | Creation only in this block | Both | ✅ `auto_pause` |
+| `initial_cluster.ratio` | ✅ | Creation only | Both | ❌ (modules use explicit sizes) |
 | additional clusters | — | ✅ `velodb_cluster` | Both | ✅ `additional_clusters` (incl. `auto_pause`) |
 
 ## Virtual clusters

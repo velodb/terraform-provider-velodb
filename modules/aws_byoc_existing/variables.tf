@@ -293,10 +293,10 @@ variable "additional_clusters" {
     condition = alltrue([
       for cluster in values(var.additional_clusters) :
       (cluster.cache_storage_type == 1 || cluster.node_vcpu != null || cluster.node_count != null || cluster.node_cache != null) ?
-      (cluster.compute_vcpu == null && cluster.cache_gb == null && alltrue([for v in concat([cluster.node_vcpu, cluster.node_count], cluster.cache_storage_type == 1 ? [] : [cluster.node_cache]) : v == null ? false : v >= 1 && v <= 2147483647 && floor(v) == v]) && (cluster.cache_storage_type == 1 ? cluster.node_cache == null : true)) :
+      (cluster.compute_vcpu == null && cluster.cache_gb == null && alltrue([for v in concat([cluster.node_vcpu, cluster.node_count], cluster.cache_storage_type == 1 ? [] : [cluster.node_cache]) : v == null ? false : v >= 1 && v <= 2147483647 && floor(v) == v])) :
       (cluster.compute_vcpu != null && cluster.cache_gb != null)
     ])
-    error_message = "Each additional cluster requires legacy compute_vcpu/cache_gb or node_vcpu/node_count with node_cache for EBS. Omit node_cache for local NVMe; do not mix formats."
+    error_message = "Each additional cluster requires legacy compute_vcpu/cache_gb or node_vcpu/node_count with node_cache for EBS. Do not mix formats."
   }
   validation {
     condition     = alltrue([for cluster in values(var.additional_clusters) : cluster.ratio == null ? true : contains([4, 8], cluster.ratio)])

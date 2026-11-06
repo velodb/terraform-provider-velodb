@@ -617,6 +617,11 @@ func (r *WarehouseResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 		return
 	}
 	validateWarehouseCreation(&resp.Diagnostics, &plan, true)
+	var configuredInitial types.List
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("initial_cluster"), &configuredInitial)...)
+	if configured := initialCapacity(ctx, configuredInitial, &resp.Diagnostics); configured != nil {
+		validateLocalNodeCache(&resp.Diagnostics, configured.CacheStorageType, configured.NodeCache, configured.NodeVcpu, types.Int64Null())
+	}
 }
 
 // rejectCreateOnlyChange errors when a create-only attribute is changed after
@@ -706,6 +711,7 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 				Zone: ic.Zone.ValueString(),
 			}
 			validateCapacity(&resp.Diagnostics, ic.ComputeVcpu, ic.CacheGb, ic.NodeVcpu, ic.NodeCount, ic.NodeCache, ic.CacheStorageType)
+			validateLocalNodeCache(&resp.Diagnostics, ic.CacheStorageType, ic.NodeCache, ic.NodeVcpu, types.Int64Null())
 			if resp.Diagnostics.HasError() {
 				return
 			}

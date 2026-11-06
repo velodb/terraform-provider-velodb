@@ -15,6 +15,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
+var (
+	localCacheCreateError = regexp.MustCompile(`Omit node_cache when cache_storage_type = 1\. The Local node package`)
+	localCacheResizeError = regexp.MustCompile(`For vertical scaling, change only node_vcpu and omit node_cache\.`)
+)
+
 func TestAccNodeCapacityLifecycle(t *testing.T) {
 	for _, tc := range []struct{ migrate, local bool }{{}, {migrate: true}, {local: true}} {
 		migrate, local := tc.migrate, tc.local
@@ -128,9 +133,20 @@ func TestAccNodeCapacityLifecycle(t *testing.T) {
 			if migrate {
 				steps = append(steps, resource.TestStep{Config: config("compute_vcpu=24\ncache_gb=600")})
 			}
+			if local {
+				steps = append(steps, resource.TestStep{Config: config("cache_storage_type=1\nnode_vcpu=8\nnode_count=3\nnode_cache=474"), PlanOnly: true, ExpectError: localCacheCreateError})
+			}
 			steps = append(steps,
 				resource.TestStep{Config: node(8, 3, 200), Check: resource.ComposeAggregateTestCheckFunc(resource.TestCheckResourceAttr("velodb_cluster.test", "capacity_model", "NODE_SPEC"), resource.TestCheckResourceAttr("velodb_cluster.test", "node_count", "3"))},
 				resource.TestStep{Config: node(8, 3, 200), PlanOnly: true},
+			)
+			if local {
+				steps = append(steps,
+					resource.TestStep{Config: config("cache_storage_type=1\nnode_vcpu=16\nnode_count=3\nnode_cache=474"), PlanOnly: true, ExpectError: localCacheResizeError},
+					resource.TestStep{Config: config("node_vcpu=16\nnode_count=3\nnode_cache=474"), PlanOnly: true, ExpectError: localCacheResizeError},
+				)
+			}
+			steps = append(steps,
 				resource.TestStep{Config: node(16, 3, 400), Check: resource.TestCheckResourceAttr("velodb_cluster.test", "total_cpu", "48")},
 				resource.TestStep{Config: node(16, 4, 400), Check: resource.TestCheckResourceAttr("velodb_cluster.test", "total_disk_gb", diskAfterCount)},
 				resource.TestStep{Config: node(16, 4, 400), PlanOnly: true},
@@ -233,15 +249,27 @@ func TestAccWarehouseNodeInitialCluster(t *testing.T) {
 }`
 			vertical := strings.Replace(config, "node_vcpu=8", "node_vcpu=16", 1)
 			horizontal := strings.Replace(vertical, "node_count=2", "node_count=3", 1)
-			resource.Test(t, resource.TestCase{ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(ts), Steps: []resource.TestStep{
-				{Config: config, Check: resource.TestCheckResourceAttr("velodb_warehouse.test", "initial_cluster.0.node_count", "2")},
-				{Config: config, PlanOnly: true},
-				{Config: horizontal, PlanOnly: true, ExpectError: regexp.MustCompile("Separate node count and size changes")},
-				{Config: vertical, Check: resource.TestCheckResourceAttr("velodb_warehouse.test", "initial_cluster.0.node_vcpu", "16")},
-				{Config: horizontal, Check: resource.TestCheckResourceAttr("velodb_warehouse.test", "initial_cluster.0.node_count", "3")},
-				{Config: horizontal, PlanOnly: true},
-				{ResourceName: "velodb_warehouse.test", ImportState: true, ImportStateVerify: true, ImportStateVerifyIgnore: []string{"admin_password", "admin_password_version", "initial_cluster", "initial_cluster_id", "timeouts"}},
-			}})
+			var steps []resource.TestStep
+			if local {
+				invalidCreate := strings.Replace(config, "node_count=2", "node_count=2\nnode_cache=474", 1)
+				steps = append(steps, resource.TestStep{Config: invalidCreate, PlanOnly: true, ExpectError: localCacheCreateError})
+			}
+			steps = append(steps,
+				resource.TestStep{Config: config, Check: resource.TestCheckResourceAttr("velodb_warehouse.test", "initial_cluster.0.node_count", "2")},
+				resource.TestStep{Config: config, PlanOnly: true},
+				resource.TestStep{Config: horizontal, PlanOnly: true, ExpectError: regexp.MustCompile("Separate node count and size changes")},
+			)
+			if local {
+				invalidResize := strings.Replace(vertical, "node_count=2", "node_count=2\nnode_cache=474", 1)
+				steps = append(steps, resource.TestStep{Config: invalidResize, PlanOnly: true, ExpectError: localCacheResizeError})
+			}
+			steps = append(steps,
+				resource.TestStep{Config: vertical, Check: resource.TestCheckResourceAttr("velodb_warehouse.test", "initial_cluster.0.node_vcpu", "16")},
+				resource.TestStep{Config: horizontal, Check: resource.TestCheckResourceAttr("velodb_warehouse.test", "initial_cluster.0.node_count", "3")},
+				resource.TestStep{Config: horizontal, PlanOnly: true},
+				resource.TestStep{ResourceName: "velodb_warehouse.test", ImportState: true, ImportStateVerify: true, ImportStateVerifyIgnore: []string{"admin_password", "admin_password_version", "initial_cluster", "initial_cluster_id", "timeouts"}},
+			)
+			resource.Test(t, resource.TestCase{ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(ts), Steps: steps})
 		})
 	}
 }

@@ -56,11 +56,11 @@ resource "velodb_cluster" "etl" {
     update = "20m"
   }
 }
-
-output "etl_endpoint" {
-  value = velodb_cluster.etl.connection_info[0].public_endpoint
-}
 ```
+
+For endpoint discovery, use the
+[`velodb_warehouse_connections` data source](../data-sources/warehouse_connections.md).
+Cluster `connection_info` is null when the API omits it from the detail response.
 
 ### Paused dev cluster (cost savings)
 
@@ -164,6 +164,11 @@ resource "velodb_cluster" "c" {
 - `status` (String) Current cluster status.
 - `total_cpu` (Number) Total CPU.
 - `total_disk_gb` (Number) Total disk GB.
+
+Refresh and import do not discover the applied `ratio`. For mixed-billing
+clusters, legacy `compute_vcpu` and `cache_gb` read back a billing pool's
+capacity. Use `total_cpu` and `total_disk_gb` for whole-cluster totals when the
+API returns a billing summary.
 
 <a id="nestedblock--auto_pause"></a>
 ### Nested Schema for `auto_pause`

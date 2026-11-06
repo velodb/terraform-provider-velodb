@@ -1,8 +1,17 @@
 # Node-based cluster capacity
 
-Requires a provider build with node-capacity support and the corresponding Formation API deployment. Older API versions do not return `nodeVcpu`/`nodeCache`/`cacheStorageType`; the provider reports this when a node-managed update cannot be verified.
+Node capacity requires a provider build and Formation API deployment that both support `nodeVcpu`, `nodeCount`, and `nodeCache`. Storage type has a separate compatibility requirement. Provider builds that send `cacheStorageType` require an API deployment that accepts and returns that name. Earlier node-capacity APIs used `cacheType`. Verify the API deployment before creating or updating clusters with explicit storage settings.
 
 A node is one compute machine. `node_vcpu` and `node_cache` describe each machine; `node_count` is the whole-cluster machine count. For example, three nodes with 8 vCPUs and 200 GB cache each have 24 total vCPUs and 600 GB total cache.
+
+## Upgrade from `cache_type`
+
+Update resource and data-source references and BYOC module inputs from
+`cache_type` to `cache_storage_type`. The values remain `0` for EBS and `1`
+for local NVMe. The provider does not automatically migrate the old state
+attribute or the module snapshot key. If existing state uses the old name,
+back it up and review the plan before applying. Resolve any proposed cluster
+replacement or storage change before proceeding.
 
 ## Create
 
@@ -12,7 +21,7 @@ Use exactly one capacity input family:
 - EBS nodes: `node_vcpu`, `node_count`, and `node_cache`; optionally set `cache_storage_type = 0`.
 - Local NVMe nodes: `cache_storage_type = 1`, `node_vcpu`, and `node_count`; omit `node_cache`.
 
-EBS is the creation default when cache_storage_type is omitted. Capacity values must be positive integers; package sizing, cache steps and stock remain server-validated. For local NVMe, `node_cache` is computed from the selected package and cannot be configured, even if it matches the current size. The API ignores supplied local cache sizes; the provider rejects them to prevent an ignored configuration from disagreeing with Terraform state. Cache storage type is creation-only; changing it is rejected without proposing replacement.
+EBS is the creation default when cache_storage_type is omitted. Capacity values must be positive integers; package sizing, cache steps and stock remain server-validated. For local NVMe, `node_cache` is computed from the selected package and cannot be configured, even if it matches the current size. The API ignores supplied local cache sizes; the provider rejects explicit values during planning to prevent an ignored configuration from disagreeing with Terraform state. Cache storage type is creation-only; changing it is rejected without proposing replacement.
 
 ```terraform
 resource "velodb_cluster" "analytics" {

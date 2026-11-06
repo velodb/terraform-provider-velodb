@@ -253,6 +253,7 @@ func (r *ClusterResource) Configure(_ context.Context, req resource.ConfigureReq
 func (r *ClusterResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan ClusterResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	validateLocalNodeCache(&resp.Diagnostics, plan.CacheStorageType, plan.NodeCache, plan.NodeVcpu, types.Int64Null())
 	if resp.Diagnostics.HasError() {
 		return
 	}
