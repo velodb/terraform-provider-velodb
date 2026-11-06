@@ -145,7 +145,8 @@ resource "velodb_cluster" "c" {
 - `auto_pause` (Block List, Max: 1) Auto-pause configuration. (see [below for nested schema](#nestedblock--auto_pause))
 - `desired_state` (String) `running` or `paused`. Changing triggers the corresponding action.
 - `reboot_trigger` (Number) Increment to trigger a cluster reboot.
-- `ratio` (Number) vCPU-to-memory ratio (`1:4` or `1:8`). Supported values are `4` and `8`. This value can be set only when creating a cluster and does not control `cache_gb`.
+- `memory_per_vcpu` (Number) GB of memory per vCPU. Set `4` or `8` at creation. Omission uses the API default of `8`.
+- `ratio` (Number) Deprecated alias for `memory_per_vcpu`. Set only one of these fields.
 - `timeouts` (Block, Optional) (see [below for nested schema](#nestedblock--timeouts))
 - `zone` (String) Availability zone. Changing this forces a new resource.
 
@@ -165,7 +166,7 @@ resource "velodb_cluster" "c" {
 - `total_cpu` (Number) Total CPU.
 - `total_disk_gb` (Number) Total disk GB.
 
-Refresh and import do not discover the applied `ratio`. For mixed-billing
+Refresh and import do not discover the applied `memory_per_vcpu`. For mixed-billing
 clusters, legacy `compute_vcpu` and `cache_gb` read back a billing pool's
 capacity. Use `total_cpu` and `total_disk_gb` for whole-cluster totals when the
 API returns a billing summary.

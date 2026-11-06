@@ -47,6 +47,9 @@ func TestAccNodeCapacityLifecycle(t *testing.T) {
 					if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 						t.Error(err)
 					}
+					if !migrate && body["ratio"] != float64(4) {
+						t.Errorf("cluster create must send ratio=4: %v", body)
+					}
 					if migrate {
 						if body["computeVcpu"] != float64(24) || body["cacheGb"] != float64(600) {
 							t.Errorf("legacy create: %v", body)
@@ -119,11 +122,15 @@ func TestAccNodeCapacityLifecycle(t *testing.T) {
  cluster_type="COMPUTE"
  ` + capacity + "\n}"
 			}
+			memory := "\nmemory_per_vcpu=4"
+			if migrate {
+				memory = ""
+			}
 			node := func(cpu, count, cache int) string {
 				if local {
-					return config(fmt.Sprintf("cache_storage_type=1\nnode_vcpu=%d\nnode_count=%d", cpu, count))
+					return config(fmt.Sprintf("cache_storage_type=1\nnode_vcpu=%d\nnode_count=%d", cpu, count) + memory)
 				}
-				return config(fmt.Sprintf("node_vcpu=%d\nnode_count=%d\nnode_cache=%d", cpu, count, cache))
+				return config(fmt.Sprintf("node_vcpu=%d\nnode_count=%d\nnode_cache=%d", cpu, count, cache) + memory)
 			}
 			diskAfterCount := "1600"
 			if local {
@@ -136,14 +143,21 @@ func TestAccNodeCapacityLifecycle(t *testing.T) {
 			if local {
 				steps = append(steps, resource.TestStep{Config: config("cache_storage_type=1\nnode_vcpu=8\nnode_count=3\nnode_cache=474"), PlanOnly: true, ExpectError: localCacheCreateError})
 			}
+			createConfig := node(8, 3, 200)
+			if local {
+				createConfig = strings.Replace(createConfig, "memory_per_vcpu=4", "ratio=4", 1)
+			}
 			steps = append(steps,
-				resource.TestStep{Config: node(8, 3, 200), Check: resource.ComposeAggregateTestCheckFunc(resource.TestCheckResourceAttr("velodb_cluster.test", "capacity_model", "NODE_SPEC"), resource.TestCheckResourceAttr("velodb_cluster.test", "node_count", "3"))},
-				resource.TestStep{Config: node(8, 3, 200), PlanOnly: true},
+				resource.TestStep{Config: createConfig, Check: resource.ComposeAggregateTestCheckFunc(resource.TestCheckResourceAttr("velodb_cluster.test", "capacity_model", "NODE_SPEC"), resource.TestCheckResourceAttr("velodb_cluster.test", "node_count", "3"))},
 			)
 			if local {
+				steps = append(steps, resource.TestStep{Config: node(8, 3, 200), Check: resource.TestCheckResourceAttr("velodb_cluster.test", "memory_per_vcpu", "4")})
+			}
+			steps = append(steps, resource.TestStep{Config: node(8, 3, 200), PlanOnly: true})
+			if local {
 				steps = append(steps,
-					resource.TestStep{Config: config("cache_storage_type=1\nnode_vcpu=16\nnode_count=3\nnode_cache=474"), PlanOnly: true, ExpectError: localCacheResizeError},
-					resource.TestStep{Config: config("node_vcpu=16\nnode_count=3\nnode_cache=474"), PlanOnly: true, ExpectError: localCacheResizeError},
+					resource.TestStep{Config: config("cache_storage_type=1\nnode_vcpu=16\nnode_count=3\nnode_cache=474" + memory), PlanOnly: true, ExpectError: localCacheResizeError},
+					resource.TestStep{Config: config("node_vcpu=16\nnode_count=3\nnode_cache=474" + memory), PlanOnly: true, ExpectError: localCacheResizeError},
 				)
 			}
 			steps = append(steps,
@@ -159,10 +173,10 @@ func TestAccNodeCapacityLifecycle(t *testing.T) {
 						cache = 474
 					}
 				}, Check: resource.TestCheckResourceAttr("velodb_cluster.test", "node_vcpu", "16")},
-				resource.TestStep{ResourceName: "velodb_cluster.test", ImportState: true, ImportStateId: "w-nodes/c-nodes", ImportStateVerify: true, ImportStateVerifyIgnore: []string{"timeouts"}},
+				resource.TestStep{ResourceName: "velodb_cluster.test", ImportState: true, ImportStateId: "w-nodes/c-nodes", ImportStateVerify: true, ImportStateVerifyIgnore: []string{"timeouts", "memory_per_vcpu"}},
 				resource.TestStep{Config: node(32, 5, 800), PlanOnly: true, ExpectError: regexp.MustCompile("Separate node count and size changes")},
 				resource.TestStep{Config: node(16, 4, 400) + "\n", PlanOnly: true},
-				resource.TestStep{Config: config("cache_storage_type=" + fmt.Sprint(1-cacheStorageType) + "\nnode_vcpu=16\nnode_count=4" + map[bool]string{true: "\nnode_cache=400", false: ""}[local]), PlanOnly: true, ExpectError: regexp.MustCompile("cache_storage_type is creation-only")},
+				resource.TestStep{Config: config("cache_storage_type=" + fmt.Sprint(1-cacheStorageType) + "\nnode_vcpu=16\nnode_count=4" + map[bool]string{true: "\nnode_cache=400", false: ""}[local] + memory), PlanOnly: true, ExpectError: regexp.MustCompile("cache_storage_type is creation-only")},
 			)
 			resource.Test(t, resource.TestCase{ProtoV6ProviderFactories: testAccProtoV6ProviderFactories(server), Steps: steps})
 			mu.Lock()
@@ -197,7 +211,7 @@ func TestAccWarehouseNodeInitialCluster(t *testing.T) {
 					if err := json.Unmarshal(raw, &body); err != nil {
 						t.Error(err)
 					}
-					if body.Initial["nodeVcpu"] != float64(8) || body.Initial["nodeCount"] != float64(2) {
+					if body.Initial["nodeVcpu"] != float64(8) || body.Initial["nodeCount"] != float64(2) || body.Initial["ratio"] != float64(4) {
 						t.Errorf("initial node request: %s", raw)
 					}
 					for _, key := range []string{"computeVcpu", "cacheGb"} {
@@ -244,6 +258,7 @@ func TestAccWarehouseNodeInitialCluster(t *testing.T) {
  admin_password="TestPass@123"
  initial_cluster {
  zone="us-east-1a"
+ memory_per_vcpu=4
  ` + capacity + `
  }
 }`
@@ -254,8 +269,13 @@ func TestAccWarehouseNodeInitialCluster(t *testing.T) {
 				invalidCreate := strings.Replace(config, "node_count=2", "node_count=2\nnode_cache=474", 1)
 				steps = append(steps, resource.TestStep{Config: invalidCreate, PlanOnly: true, ExpectError: localCacheCreateError})
 			}
+			createConfig := config
+			if local {
+				createConfig = strings.Replace(config, "memory_per_vcpu=4", "ratio=4", 1)
+			}
 			steps = append(steps,
-				resource.TestStep{Config: config, Check: resource.TestCheckResourceAttr("velodb_warehouse.test", "initial_cluster.0.node_count", "2")},
+				resource.TestStep{Config: createConfig, Check: resource.TestCheckResourceAttr("velodb_warehouse.test", "initial_cluster.0.node_count", "2")},
+				resource.TestStep{Config: config, Check: resource.TestCheckResourceAttr("velodb_warehouse.test", "initial_cluster.0.memory_per_vcpu", "4")},
 				resource.TestStep{Config: config, PlanOnly: true},
 				resource.TestStep{Config: horizontal, PlanOnly: true, ExpectError: regexp.MustCompile("Separate node count and size changes")},
 			)

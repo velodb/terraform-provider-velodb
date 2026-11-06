@@ -30,13 +30,20 @@ func parseBYOCImportID(importID, idLabel string) (string, int64, error) {
 	return parts[0], id, nil
 }
 
+func configuredMemoryPerVcpu(memoryPerVcpu, ratio types.Int64) types.Int64 {
+	if memoryPerVcpu.IsNull() {
+		return ratio
+	}
+	return memoryPerVcpu
+}
+
 func validateCreateOnlyRatio(diags *diag.Diagnostics, planRatio, stateRatio types.Int64) {
 	if planRatio.IsUnknown() || stateRatio.IsUnknown() || planRatio.Equal(stateRatio) {
 		return
 	}
 	diags.AddError(
-		"ratio cannot be updated",
-		"VeloDB accepts ratio only when creating a cluster. Keep the existing ratio value or create a new cluster with the desired ratio.",
+		"memory_per_vcpu cannot be updated",
+		"VeloDB accepts memory_per_vcpu only when creating a cluster. Keep the existing value or create a new cluster with the desired memory per vCPU.",
 	)
 }
 
@@ -62,7 +69,7 @@ func initialClusterRatio(ctx context.Context, diags *diag.Diagnostics, initialCl
 	if diags.HasError() || len(clusters) == 0 {
 		return types.Int64Null()
 	}
-	return clusters[0].Ratio
+	return configuredMemoryPerVcpu(clusters[0].MemoryPerVcpu, clusters[0].Ratio)
 }
 
 func validateAutoPauseRequiresTimeout(ctx context.Context, diags *diag.Diagnostics, label string, autoPause types.List) {

@@ -29,7 +29,7 @@ func initialCapacity(ctx context.Context, list types.List, diags *diag.Diagnosti
 }
 
 func initialCapacityModel(block InitialClusterModel) ClusterResourceModel {
-	return ClusterResourceModel{CapacityModel: block.CapacityModel, ComputeVcpu: block.ComputeVcpu, CacheGb: block.CacheGb, NodeVcpu: block.NodeVcpu, NodeCount: block.NodeCount, NodeCache: block.NodeCache, CacheStorageType: block.CacheStorageType, Ratio: block.Ratio}
+	return ClusterResourceModel{CapacityModel: block.CapacityModel, ComputeVcpu: block.ComputeVcpu, CacheGb: block.CacheGb, NodeVcpu: block.NodeVcpu, NodeCount: block.NodeCount, NodeCache: block.NodeCache, CacheStorageType: block.CacheStorageType, MemoryPerVcpu: block.MemoryPerVcpu, Ratio: block.Ratio}
 }
 
 // Compare explicit inputs only; local cache and omitted creation defaults are API-defined.
@@ -176,8 +176,15 @@ func (r *WarehouseResource) updateInitialCapacity(ctx context.Context, config ty
 	if diags.HasError() || next == nil || configured == nil {
 		return
 	}
-	// Changed inputs without an ID are rejected during validation.
+	// The spelling can change without a live cluster when the value is unchanged.
 	if state.InitialClusterID.IsNull() || state.InitialClusterID.IsUnknown() || state.InitialClusterID.ValueString() == "" {
+		prior := initialCapacity(ctx, state.InitialCluster, diags)
+		if prior != nil && (!prior.MemoryPerVcpu.Equal(next.MemoryPerVcpu) || !prior.Ratio.Equal(next.Ratio)) {
+			prior.MemoryPerVcpu, prior.Ratio = next.MemoryPerVcpu, next.Ratio
+			var stateDiags diag.Diagnostics
+			state.InitialCluster, stateDiags = types.ListValueFrom(ctx, state.InitialCluster.ElementType(ctx), []InitialClusterModel{*prior})
+			diags.Append(stateDiags...)
+		}
 		return
 	}
 	cl, err := r.initialClusterDetail(ctx, *state)
@@ -194,7 +201,7 @@ func (r *WarehouseResource) updateInitialCapacity(ctx context.Context, config ty
 	nodeManaged := nodeCapacityConfigured(configured.NodeVcpu, configured.NodeCount, configured.NodeCache)
 	target := initialCapacityModel(*next)
 	// Ratio is creation-only and cannot be read from the API; plan validation retained it.
-	observed.Ratio = target.Ratio
+	observed.MemoryPerVcpu, observed.Ratio = target.MemoryPerVcpu, target.Ratio
 	saveInitialCapacity(ctx, state, *configured, observed, diags)
 	if diags.HasError() {
 		return

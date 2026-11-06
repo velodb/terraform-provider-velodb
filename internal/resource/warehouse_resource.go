@@ -93,6 +93,7 @@ type InitialClusterModel struct {
 	NodeCache        types.Int64  `tfsdk:"node_cache"`
 	Zone             types.String `tfsdk:"zone"`
 	ComputeVcpu      types.Int64  `tfsdk:"compute_vcpu"`
+	MemoryPerVcpu    types.Int64  `tfsdk:"memory_per_vcpu"`
 	Ratio            types.Int64  `tfsdk:"ratio"`
 	CacheGb          types.Int64  `tfsdk:"cache_gb"`
 	AutoPause        types.List   `tfsdk:"auto_pause"`
@@ -399,12 +400,19 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 								int64validator.AtLeast(4),
 							},
 						},
-						"ratio": schema.Int64Attribute{
-							Description: "vCPU-to-memory ratio (1:4 or 1:8). Create-only; omit to use the Manager default (1:8).",
+						"memory_per_vcpu": schema.Int64Attribute{
+							Description: "GB of memory per vCPU. Set 4 or 8 when creating the cluster. Omit to use the API default of 8.",
 							Optional:    true,
 							Validators: []validator.Int64{
 								int64validator.OneOf(4, 8),
+								int64validator.ConflictsWith(path.MatchRelative().AtParent().AtName("ratio")),
 							},
+						},
+						"ratio": schema.Int64Attribute{
+							Description:        "Deprecated alias for memory_per_vcpu.",
+							DeprecationMessage: "Use memory_per_vcpu with the same value.",
+							Optional:           true,
+							Validators:         []validator.Int64{int64validator.OneOf(4, 8)},
 						},
 						"cache_gb": schema.Int64Attribute{
 							Description: "Cache capacity in GB.",
@@ -723,7 +731,7 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 			if !localCache(ic.CacheStorageType) {
 				setOptionalIntFromInt64(&clReq.NodeCache, ic.NodeCache)
 			}
-			setOptionalIntFromInt64(&clReq.Ratio, ic.Ratio)
+			setOptionalIntFromInt64(&clReq.Ratio, configuredMemoryPerVcpu(ic.MemoryPerVcpu, ic.Ratio))
 
 			if !ic.AutoPause.IsNull() && !ic.AutoPause.IsUnknown() {
 				var apModels []AutoPauseModel

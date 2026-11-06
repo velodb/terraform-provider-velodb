@@ -108,7 +108,7 @@ additional clusters. See [initial-cluster capacity](node-capacity.md#warehouse-a
 | `initial_cluster.node_vcpu`, `node_count`, and `node_cache` | ✅ | ✅ Saved cluster ID and adopted capacity, subject to node resize rules | Both | ✅ `node_vcpu`, `node_count`, `node_cache` |
 | `initial_cluster.cache_storage_type` | ✅ | Creation only | Both | ✅ `cache_storage_type` |
 | `initial_cluster.auto_pause` | ✅ | Creation only in this block | Both | ✅ `auto_pause` |
-| `initial_cluster.ratio` | ✅ | Creation only | Both | ❌ (modules use explicit sizes) |
+| `initial_cluster.memory_per_vcpu` | ✅ | Creation only | Both | ✅ `memory_per_vcpu` |
 | additional clusters | — | ✅ `velodb_cluster` | Both | ✅ `additional_clusters` (incl. `auto_pause`) |
 
 ## Virtual clusters

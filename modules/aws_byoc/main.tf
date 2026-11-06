@@ -427,6 +427,7 @@ resource "velodb_warehouse" "this" {
     node_count         = var.node_count
     node_cache         = var.node_cache
     cache_storage_type = var.cache_storage_type
+    memory_per_vcpu    = var.memory_per_vcpu
     ratio              = var.ratio
     auto_pause {
       enabled              = var.auto_pause.enabled
@@ -467,6 +468,7 @@ resource "velodb_cluster" "additional" {
   node_count         = each.value.node_count
   node_cache         = each.value.node_cache
   cache_storage_type = each.value.cache_storage_type
+  memory_per_vcpu    = each.value.memory_per_vcpu
   ratio              = each.value.ratio
   scaling_mode       = each.value.scaling_mode
 
