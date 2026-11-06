@@ -138,6 +138,9 @@ func saveInitialCapacity(ctx context.Context, state *WarehouseResourceModel, blo
 		block.ComputeVcpu, block.CacheGb = observed.ComputeVcpu, observed.CacheGb
 		block.NodeCache = types.Int64Null()
 	}
+	if knownInt(observed.MemoryPerVcpu) || block.MemoryPerVcpu.IsUnknown() {
+		block.MemoryPerVcpu = observed.MemoryPerVcpu
+	}
 	block.CapacityModel = observed.CapacityModel
 	var d diag.Diagnostics
 	state.InitialCluster, d = types.ListValueFrom(ctx, state.InitialCluster.ElementType(ctx), []InitialClusterModel{block})
@@ -200,8 +203,11 @@ func (r *WarehouseResource) updateInitialCapacity(ctx context.Context, config ty
 	setClusterState(cl, &observed, diags)
 	nodeManaged := nodeCapacityConfigured(configured.NodeVcpu, configured.NodeCount, configured.NodeCache)
 	target := initialCapacityModel(*next)
-	// Ratio is creation-only and cannot be read from the API; plan validation retained it.
-	observed.MemoryPerVcpu, observed.Ratio = target.MemoryPerVcpu, target.Ratio
+	// Older APIs omit ratio. In that case retain the value already checked by planning.
+	if observed.MemoryPerVcpu.IsNull() && knownInt(target.MemoryPerVcpu) {
+		observed.MemoryPerVcpu = target.MemoryPerVcpu
+	}
+	observed.Ratio = target.Ratio
 	saveInitialCapacity(ctx, state, *configured, observed, diags)
 	if diags.HasError() {
 		return

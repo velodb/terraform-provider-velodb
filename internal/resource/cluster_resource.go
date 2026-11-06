@@ -140,8 +140,10 @@ func (r *ClusterResource) Schema(ctx context.Context, _ resource.SchemaRequest, 
 				Validators:  []validator.Int64{int64validator.AtLeast(4)},
 			},
 			"memory_per_vcpu": schema.Int64Attribute{
-				Description: "GB of memory per vCPU. Set 4 or 8 when creating the cluster. Omit to use the API default of 8.",
-				Optional:    true,
+				Description:   "GB of memory per vCPU. Set 4 or 8 at creation, or omit to use the API default. Read back when returned by the API.",
+				Optional:      true,
+				Computed:      true,
+				PlanModifiers: []planmodifier.Int64{int64planmodifier.UseNonNullStateForUnknown()},
 				Validators: []validator.Int64{
 					int64validator.OneOf(4, 8),
 					int64validator.ConflictsWith(path.MatchRelative().AtParent().AtName("ratio")),
@@ -371,7 +373,7 @@ func buildCreateClusterRequest(plan ClusterResourceModel) *client.CreateClusterR
 		setOptionalIntFromInt64(&request.ComputeVcpu, plan.ComputeVcpu)
 		setOptionalIntFromInt64(&request.CacheGb, plan.CacheGb)
 	}
-	setOptionalIntFromInt64(&request.Ratio, configuredMemoryPerVcpu(plan.MemoryPerVcpu, plan.Ratio))
+	setOptionalIntFromInt64(&request.Ratio, plannedMemoryPerVcpu(plan.MemoryPerVcpu, plan.Ratio))
 	return request
 }
 
@@ -422,7 +424,7 @@ func (r *ClusterResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 	validateCacheStorageTypeChange(&resp.Diagnostics, config.CacheStorageType, state.CacheStorageType)
-	validateCreateOnlyRatio(&resp.Diagnostics, configuredMemoryPerVcpu(plan.MemoryPerVcpu, plan.Ratio), configuredMemoryPerVcpu(state.MemoryPerVcpu, state.Ratio))
+	validateCreateOnlyRatio(&resp.Diagnostics, plannedMemoryPerVcpu(plan.MemoryPerVcpu, plan.Ratio), configuredMemoryPerVcpu(state.MemoryPerVcpu, state.Ratio))
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -732,6 +734,9 @@ func setClusterState(cl *client.ClusterDetail, state *ClusterResourceModel, diag
 	state.Zone = stringOrNull(cl.Zone)
 	state.BillingMethod = stringOrNull(cl.BillingModel)
 	state.CapacityModel = stringOrNull(cl.CapacityModel)
+	if cl.Ratio != nil || state.MemoryPerVcpu.IsUnknown() {
+		state.MemoryPerVcpu = optionalNodeValue(cl.Ratio)
+	}
 	state.NodeVcpu = optionalNodeValue(cl.NodeVcpu)
 	state.NodeCache = optionalNodeValue(cl.NodeCache)
 	state.CacheStorageType = optionalNodeValue(cl.CacheStorageType)
@@ -743,20 +748,24 @@ func setClusterState(cl *client.ClusterDetail, state *ClusterResourceModel, diag
 		state.NodeCount = types.Int64Value(int64(cl.BillingSummary.NodeCount))
 	} else {
 		state.NodeCount = types.Int64Value(int64(cl.NodeCount))
-		state.TotalCpu = types.Int64Null()
-		state.TotalDiskGb = types.Int64Null()
+		state.TotalCpu = optionalNodeValue(cl.ComputeVcpu)
+		state.TotalDiskGb = optionalNodeValue(cl.CacheGb)
 	}
 
-	// Flat compute_vcpu and cache_gb from billing pools or cluster-level fields
+	// Keep the existing billing-pool semantics for the legacy capacity fields.
 	if cl.BillingPools != nil && cl.BillingPools.OnDemand != nil {
 		state.ComputeVcpu = types.Int64Value(int64(cl.BillingPools.OnDemand.Cpu))
 		state.CacheGb = types.Int64Value(int64(cl.BillingPools.OnDemand.DiskSizeGb))
 	} else if cl.BillingPools != nil && cl.BillingPools.Subscription != nil {
 		state.ComputeVcpu = types.Int64Value(int64(cl.BillingPools.Subscription.Cpu))
 		state.CacheGb = types.Int64Value(int64(cl.BillingPools.Subscription.DiskSizeGb))
-	} else if cl.BillingSummary != nil {
-		state.ComputeVcpu = types.Int64Value(int64(cl.BillingSummary.TotalCpu))
-		state.CacheGb = types.Int64Value(int64(cl.BillingSummary.TotalDiskSizeGb))
+	} else {
+		if !state.TotalCpu.IsNull() {
+			state.ComputeVcpu = state.TotalCpu
+		}
+		if !state.TotalDiskGb.IsNull() {
+			state.CacheGb = state.TotalDiskGb
+		}
 	}
 
 	if cl.CreatedAt != nil {

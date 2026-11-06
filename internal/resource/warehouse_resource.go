@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -401,8 +402,10 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 							},
 						},
 						"memory_per_vcpu": schema.Int64Attribute{
-							Description: "GB of memory per vCPU. Set 4 or 8 when creating the cluster. Omit to use the API default of 8.",
-							Optional:    true,
+							Description:   "GB of memory per vCPU. Set 4 or 8 at creation, or omit to use the API default. Read back when returned by the API.",
+							Optional:      true,
+							Computed:      true,
+							PlanModifiers: []planmodifier.Int64{int64planmodifier.UseNonNullStateForUnknown()},
 							Validators: []validator.Int64{
 								int64validator.OneOf(4, 8),
 								int64validator.ConflictsWith(path.MatchRelative().AtParent().AtName("ratio")),
@@ -731,7 +734,7 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 			if !localCache(ic.CacheStorageType) {
 				setOptionalIntFromInt64(&clReq.NodeCache, ic.NodeCache)
 			}
-			setOptionalIntFromInt64(&clReq.Ratio, configuredMemoryPerVcpu(ic.MemoryPerVcpu, ic.Ratio))
+			setOptionalIntFromInt64(&clReq.Ratio, plannedMemoryPerVcpu(ic.MemoryPerVcpu, ic.Ratio))
 
 			if !ic.AutoPause.IsNull() && !ic.AutoPause.IsUnknown() {
 				var apModels []AutoPauseModel
@@ -817,6 +820,9 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 	}
 
 	if block := initialCapacity(ctx, plan.InitialCluster, &resp.Diagnostics); block != nil {
+		if block.MemoryPerVcpu.IsUnknown() {
+			block.MemoryPerVcpu = types.Int64Null()
+		}
 		if block.NodeCache.IsUnknown() {
 			block.NodeCache = types.Int64Null()
 		}

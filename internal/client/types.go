@@ -179,6 +179,9 @@ type ClusterItem struct {
 	CloudProvider         string                 `json:"cloudProvider,omitempty"`
 	Region                string                 `json:"region,omitempty"`
 	Zone                  string                 `json:"zone,omitempty"`
+	ComputeVcpu           *int                   `json:"computeVcpu,omitempty"`
+	CacheGb               *int                   `json:"cacheGb,omitempty"`
+	Ratio                 *int                   `json:"ratio,omitempty"`
 	DiskSumSize           int                    `json:"diskSumSize,omitempty"`
 	BillingModel          string                 `json:"billingModel,omitempty"`
 	Period                int                    `json:"period,omitempty"`
