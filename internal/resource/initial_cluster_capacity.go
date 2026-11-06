@@ -29,7 +29,7 @@ func initialCapacity(ctx context.Context, list types.List, diags *diag.Diagnosti
 }
 
 func initialCapacityModel(block InitialClusterModel) ClusterResourceModel {
-	return ClusterResourceModel{CapacityModel: block.CapacityModel, ComputeVcpu: block.ComputeVcpu, CacheGb: block.CacheGb, NodeVcpu: block.NodeVcpu, NodeCount: block.NodeCount, NodeCache: block.NodeCache, CacheStorageType: block.CacheStorageType, Ratio: block.Ratio}
+	return ClusterResourceModel{CapacityModel: block.CapacityModel, ComputeVcpu: block.ComputeVcpu, CacheGb: block.CacheGb, NodeVcpu: block.NodeVcpu, NodeCount: block.NodeCount, NodeCache: block.NodeCache, CacheStorageType: block.CacheStorageType, MemoryPerVcpu: block.MemoryPerVcpu, Ratio: block.Ratio}
 }
 
 // Compare explicit inputs only; local cache and omitted creation defaults are API-defined.
@@ -98,6 +98,10 @@ func validateInitialCapacityPlan(ctx context.Context, diags *diag.Diagnostics, p
 		priorCacheStorageType = types.Int64Value(0)
 	} // Omitted creation cache storage type defaults to EBS.
 	validateCacheStorageTypeChange(diags, configured.CacheStorageType, priorCacheStorageType)
+	validateLocalNodeCache(diags, prior.CacheStorageType, configured.NodeCache, next.NodeVcpu, prior.NodeVcpu)
+	if diags.HasError() {
+		return
+	}
 	if nodeCapacityConfigured(configured.NodeVcpu, configured.NodeCount, configured.NodeCache) {
 		if knownInt(next.NodeCount) && knownInt(prior.NodeCount) && !next.NodeCount.Equal(prior.NodeCount) && (knownInt(next.NodeVcpu) && !next.NodeVcpu.Equal(prior.NodeVcpu) || knownInt(configured.NodeCache) && !configured.NodeCache.Equal(prior.NodeCache)) {
 			diags.AddError("Separate node count and size changes", "Change initial_cluster.node_count in one apply and node_vcpu/node_cache in another apply.")
@@ -133,6 +137,9 @@ func saveInitialCapacity(ctx context.Context, state *WarehouseResourceModel, blo
 		}
 		block.ComputeVcpu, block.CacheGb = observed.ComputeVcpu, observed.CacheGb
 		block.NodeCache = types.Int64Null()
+	}
+	if knownInt(observed.MemoryPerVcpu) || block.MemoryPerVcpu.IsUnknown() {
+		block.MemoryPerVcpu = observed.MemoryPerVcpu
 	}
 	block.CapacityModel = observed.CapacityModel
 	var d diag.Diagnostics
@@ -172,8 +179,15 @@ func (r *WarehouseResource) updateInitialCapacity(ctx context.Context, config ty
 	if diags.HasError() || next == nil || configured == nil {
 		return
 	}
-	// Changed inputs without an ID are rejected during validation.
+	// The spelling can change without a live cluster when the value is unchanged.
 	if state.InitialClusterID.IsNull() || state.InitialClusterID.IsUnknown() || state.InitialClusterID.ValueString() == "" {
+		prior := initialCapacity(ctx, state.InitialCluster, diags)
+		if prior != nil && (!prior.MemoryPerVcpu.Equal(next.MemoryPerVcpu) || !prior.Ratio.Equal(next.Ratio)) {
+			prior.MemoryPerVcpu, prior.Ratio = next.MemoryPerVcpu, next.Ratio
+			var stateDiags diag.Diagnostics
+			state.InitialCluster, stateDiags = types.ListValueFrom(ctx, state.InitialCluster.ElementType(ctx), []InitialClusterModel{*prior})
+			diags.Append(stateDiags...)
+		}
 		return
 	}
 	cl, err := r.initialClusterDetail(ctx, *state)
@@ -189,7 +203,10 @@ func (r *WarehouseResource) updateInitialCapacity(ctx context.Context, config ty
 	setClusterState(cl, &observed, diags)
 	nodeManaged := nodeCapacityConfigured(configured.NodeVcpu, configured.NodeCount, configured.NodeCache)
 	target := initialCapacityModel(*next)
-	// Ratio is creation-only and cannot be read from the API; plan validation retained it.
+	// Older APIs omit ratio. In that case retain the value already checked by planning.
+	if observed.MemoryPerVcpu.IsNull() && knownInt(target.MemoryPerVcpu) {
+		observed.MemoryPerVcpu = target.MemoryPerVcpu
+	}
 	observed.Ratio = target.Ratio
 	saveInitialCapacity(ctx, state, *configured, observed, diags)
 	if diags.HasError() {

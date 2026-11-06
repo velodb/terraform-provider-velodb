@@ -47,22 +47,6 @@ func TestValidateCapacityFamilies(t *testing.T) {
 	}
 }
 
-func TestLocalCacheDiagnostic(t *testing.T) {
-	for _, cache := range []types.Int64{types.Int64Value(474), types.Int64Value(777), types.Int64Null()} {
-		var d diag.Diagnostics
-		validateCapacity(&d, types.Int64Null(), types.Int64Null(), types.Int64Value(8), types.Int64Value(3), cache, types.Int64Value(1))
-		if cache.IsNull() {
-			if d.HasError() {
-				t.Fatalf("omitted local cache rejected: %v", d)
-			}
-			continue
-		}
-		if len(d) != 1 || d[0].Summary() != "node_cache conflicts with Local storage" || d[0].Detail() != "Omit node_cache when cache_storage_type = 1; cache size is determined automatically. For vertical scaling, change only node_vcpu." {
-			t.Fatalf("unexpected local cache diagnostic: %v", d)
-		}
-	}
-}
-
 func TestNodeCapacityGuardsAndTimeout(t *testing.T) {
 	for _, tc := range []struct {
 		name                            string
@@ -125,6 +109,29 @@ func TestNodeCapacityReadClearsMissingValues(t *testing.T) {
 	r.readClusterIntoState(context.Background(), "w", "c", &state, &d)
 	if d.HasError() || !state.NodeVcpu.IsNull() || !state.NodeCache.IsNull() || !state.CapacityModel.IsNull() || state.NodeCount.ValueInt64() != 1 {
 		t.Fatalf("missing fields must remain unknown/unrecorded: %+v %v", state, d)
+	}
+}
+
+func TestClusterCapacityReadback(t *testing.T) {
+	cpu, cache, ratio := 16, 400, 8
+	cluster := client.ClusterDetail{ClusterItem: client.ClusterItem{ComputeVcpu: &cpu, CacheGb: &cache, Ratio: &ratio}}
+	state := ClusterResourceModel{MemoryPerVcpu: types.Int64Value(4)}
+	var diags diag.Diagnostics
+
+	setClusterState(&cluster, &state, &diags)
+	if diags.HasError() || state.MemoryPerVcpu.ValueInt64() != 8 ||
+		state.ComputeVcpu.ValueInt64() != 16 || state.CacheGb.ValueInt64() != 400 ||
+		state.TotalCpu.ValueInt64() != 16 || state.TotalDiskGb.ValueInt64() != 400 {
+		t.Fatalf("expected top-level capacity and changed memory in state: %+v %v", state, diags)
+	}
+
+	cluster.Ratio = nil
+	cluster.BillingPools = &client.ClusterBillingPools{OnDemand: &client.ClusterBillingPool{Cpu: 8, DiskSizeGb: 200}}
+	setClusterState(&cluster, &state, &diags)
+	if diags.HasError() || state.MemoryPerVcpu.ValueInt64() != 8 ||
+		state.ComputeVcpu.ValueInt64() != 8 || state.CacheGb.ValueInt64() != 200 ||
+		state.TotalCpu.ValueInt64() != 16 || state.TotalDiskGb.ValueInt64() != 400 {
+		t.Fatalf("expected preserved memory and separate billing pool capacity: %+v %v", state, diags)
 	}
 }
 

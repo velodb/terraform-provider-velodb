@@ -128,8 +128,18 @@ variable "cache_gb" {
   }
 }
 
+variable "memory_per_vcpu" {
+  description = "Initial cluster memory in GB per vCPU. Set 4 or 8 at creation. Null uses the API default."
+  type        = number
+  default     = null
+  validation {
+    condition     = var.memory_per_vcpu == null ? true : contains([4, 8], var.memory_per_vcpu)
+    error_message = "memory_per_vcpu must be 4 or 8."
+  }
+}
+
 variable "ratio" {
-  description = "Initial cluster memory GB per vCPU: 4 or 8. Creation-only; null uses the API default."
+  description = "Deprecated alias for memory_per_vcpu."
   type        = number
   default     = null
   validation {
@@ -252,6 +262,7 @@ variable "additional_clusters" {
     node_count         = optional(number)
     node_cache         = optional(number)
     cache_storage_type = optional(number)
+    memory_per_vcpu    = optional(number)
     ratio              = optional(number)
     scaling_mode       = optional(string)
     auto_pause = optional(object({
@@ -293,10 +304,14 @@ variable "additional_clusters" {
     condition = alltrue([
       for cluster in values(var.additional_clusters) :
       (cluster.cache_storage_type == 1 || cluster.node_vcpu != null || cluster.node_count != null || cluster.node_cache != null) ?
-      (cluster.compute_vcpu == null && cluster.cache_gb == null && alltrue([for v in concat([cluster.node_vcpu, cluster.node_count], cluster.cache_storage_type == 1 ? [] : [cluster.node_cache]) : v == null ? false : v >= 1 && v <= 2147483647 && floor(v) == v]) && (cluster.cache_storage_type == 1 ? cluster.node_cache == null : true)) :
+      (cluster.compute_vcpu == null && cluster.cache_gb == null && alltrue([for v in concat([cluster.node_vcpu, cluster.node_count], cluster.cache_storage_type == 1 ? [] : [cluster.node_cache]) : v == null ? false : v >= 1 && v <= 2147483647 && floor(v) == v])) :
       (cluster.compute_vcpu != null && cluster.cache_gb != null)
     ])
-    error_message = "Each additional cluster requires legacy compute_vcpu/cache_gb or node_vcpu/node_count with node_cache for EBS. Omit node_cache for local NVMe; do not mix formats."
+    error_message = "Each additional cluster requires legacy compute_vcpu/cache_gb or node_vcpu/node_count with node_cache for EBS. Do not mix formats."
+  }
+  validation {
+    condition     = alltrue([for cluster in values(var.additional_clusters) : cluster.memory_per_vcpu == null ? true : contains([4, 8], cluster.memory_per_vcpu)])
+    error_message = "Each additional cluster memory_per_vcpu must be 4 or 8."
   }
   validation {
     condition     = alltrue([for cluster in values(var.additional_clusters) : cluster.ratio == null ? true : contains([4, 8], cluster.ratio)])

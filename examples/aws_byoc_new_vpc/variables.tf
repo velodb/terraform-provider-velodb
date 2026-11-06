@@ -51,6 +51,7 @@ variable "additional_clusters" {
     compute_vcpu       = optional(number)
     cache_gb           = optional(number)
     cache_storage_type = optional(number)
+    memory_per_vcpu    = optional(number)
     ratio              = optional(number)
     node_vcpu          = optional(number)
     node_count         = optional(number)
@@ -141,8 +142,14 @@ variable "cache_storage_type" {
   default     = null
 }
 
+variable "memory_per_vcpu" {
+  description = "Initial cluster memory in GB per vCPU. Set 4 or 8 at creation. Null uses the API default."
+  type        = number
+  default     = null
+}
+
 variable "ratio" {
-  description = "Initial-cluster RAM GB per vCPU: 4 or 8. Creation-only; null uses the API default."
+  description = "Deprecated alias for memory_per_vcpu."
   type        = number
   default     = null
 }

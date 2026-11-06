@@ -21,7 +21,7 @@ resource "velodb_cluster" "local_nvme" {
   name               = "local_worker"
   cluster_type       = "COMPUTE"
   cache_storage_type = 1
-  ratio              = 4
+  memory_per_vcpu    = 4
   node_vcpu          = 4
   node_count         = 2
 }

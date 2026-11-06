@@ -110,7 +110,7 @@ run "allow_initial_node_resize" {
 run "keep_initial_ratio_immutable" {
   command = plan
   plan_options { target = [terraform_data.warehouse_infrastructure_guard] }
-  variables { ratio = 4 }
+  variables { memory_per_vcpu = 4 }
   expect_failures = [terraform_data.warehouse_infrastructure_guard["initial_cluster_capacity"]]
 }
 run "keep_initial_cache_storage_type_immutable" {

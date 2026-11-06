@@ -110,18 +110,18 @@ ebs_kms_key_arn           = null
 # Initial cluster cache storage (choose before creation):
 #   cache_storage_type = 0 -> EBS: set node_cache to the cache GB per node.
 #   cache_storage_type = 1 -> Local NVMe: OMIT node_cache; capacity is fixed by the package.
-# For either option, set node_vcpu and node_count; ratio selects RAM GB per vCPU.
+# For either option, set node_vcpu and node_count; memory_per_vcpu selects RAM GB per vCPU.
 # The commented example below selects EBS. For NVMe, change cache_storage_type to 1
 # and leave node_cache unset. Cache storage type cannot be changed after creation.
 # Leave all capacity fields unset to retain the legacy default of 4 vCPUs
 # and 100 GB of EBS cache.
 # cache_storage_type = 0
-# ratio      = 4
-# node_vcpu  = 4
-# node_count = 1
-# node_cache = 100
+# memory_per_vcpu = 4
+# node_vcpu       = 4
+# node_count      = 1
+# node_cache      = 100
 
-# For a local NVMe initial cluster instead, set cache_storage_type = 1 with ratio,
+# For a local NVMe initial cluster instead, set cache_storage_type = 1 with memory_per_vcpu,
 # node_vcpu and node_count above, and OMIT node_cache. Manager selects its size.
 # Never combine node fields with legacy compute_vcpu/cache_gb.
 
@@ -131,8 +131,8 @@ ebs_kms_key_arn           = null
 #   local_worker = {
 #     name       = "local_worker"
 #     cache_storage_type = 1
-#     ratio      = 4
-#     node_vcpu  = 4
-#     node_count = 1
+#     memory_per_vcpu = 4
+#     node_vcpu       = 4
+#     node_count      = 1
 #   }
 # }

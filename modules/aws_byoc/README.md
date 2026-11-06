@@ -273,7 +273,7 @@ Requires a provider build with node-capacity support and the corresponding Forma
 
 For Local storage (`cache_storage_type = 1`), omit `node_cache`, even if it matches the current size. Cache capacity is determined automatically by the node package. For vertical scaling, change only `node_vcpu` and leave `node_count` unchanged; change `node_count` in a separate apply. The same fields apply within each `additional_clusters` entry.
 
-Initial-cluster capacity can be resized for Terraform-created warehouses with a saved initial_cluster_id. For EBS, change `node_count` in a separate apply from `node_vcpu`/`node_cache`. Ratio, cache storage type, zone and auto-pause stay creation-only. Refresh reads actual capacity; API failures and timeouts retain confirmed progress. Warehouse import does not adopt the initial cluster. Do not also manage its capacity in a separate velodb_cluster resource. Without node inputs, the original defaults of 4 vCPUs and 100 GB remain in effect.
+Initial-cluster capacity can be resized for Terraform-created warehouses with a saved initial_cluster_id. For EBS, change `node_count` in a separate apply from `node_vcpu`/`node_cache`. Memory per vCPU, cache storage type, zone and auto-pause stay creation-only. Refresh reads actual capacity; API failures and timeouts retain confirmed progress. Warehouse import does not adopt the initial cluster. Do not also manage its capacity in a separate velodb_cluster resource. Without node inputs, the original defaults of 4 vCPUs and 100 GB remain in effect.
 
 ```hcl
 # Inputs to this module:
@@ -290,6 +290,6 @@ Additional clusters accept either legacy or node inputs. Change node count separ
 
 The legacy module inputs `compute_vcpu` and `cache_gb` now default to null; effective legacy defaults are selected internally when node inputs are absent. Explicitly supplying legacy and node inputs together is rejected.
 
-`ratio` selects 4 or 8 GB RAM per vCPU at creation for both initial and additional clusters; omission uses the API default. Resizing preserves the ratio.
+`memory_per_vcpu` selects 4 or 8 GB RAM per vCPU at creation for both initial and additional clusters; omission uses the API default. Resizing preserves the configured value. Existing configurations can use the deprecated `ratio` alias or switch to `memory_per_vcpu` with the same value.
 
 Before an existing warehouse starts managing initial-cluster capacity, its configured capacity must match the API. A mismatch stops the plan; align the values and apply once to record adoption without resizing. Later capacity edits resize normally. This is automatic provider state tracking, with no configuration flag. If a separate `velodb_cluster` owns that cluster, remove the warehouse's `initial_cluster` block instead; competing owners cannot be detected across Terraform states. See [the warehouse resource](../../docs/resources/warehouse.md) for creation-time read failures and missing IDs.

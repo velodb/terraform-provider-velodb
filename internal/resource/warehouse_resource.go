@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -93,6 +94,7 @@ type InitialClusterModel struct {
 	NodeCache        types.Int64  `tfsdk:"node_cache"`
 	Zone             types.String `tfsdk:"zone"`
 	ComputeVcpu      types.Int64  `tfsdk:"compute_vcpu"`
+	MemoryPerVcpu    types.Int64  `tfsdk:"memory_per_vcpu"`
 	Ratio            types.Int64  `tfsdk:"ratio"`
 	CacheGb          types.Int64  `tfsdk:"cache_gb"`
 	AutoPause        types.List   `tfsdk:"auto_pause"`
@@ -399,12 +401,21 @@ func (r *WarehouseResource) Schema(ctx context.Context, _ resource.SchemaRequest
 								int64validator.AtLeast(4),
 							},
 						},
-						"ratio": schema.Int64Attribute{
-							Description: "vCPU-to-memory ratio (1:4 or 1:8). Create-only; omit to use the Manager default (1:8).",
-							Optional:    true,
+						"memory_per_vcpu": schema.Int64Attribute{
+							Description:   "GB of memory per vCPU. Set 4 or 8 at creation, or omit to use the API default. Read back when returned by the API.",
+							Optional:      true,
+							Computed:      true,
+							PlanModifiers: []planmodifier.Int64{int64planmodifier.UseNonNullStateForUnknown()},
 							Validators: []validator.Int64{
 								int64validator.OneOf(4, 8),
+								int64validator.ConflictsWith(path.MatchRelative().AtParent().AtName("ratio")),
 							},
+						},
+						"ratio": schema.Int64Attribute{
+							Description:        "Deprecated alias for memory_per_vcpu.",
+							DeprecationMessage: "Use memory_per_vcpu with the same value.",
+							Optional:           true,
+							Validators:         []validator.Int64{int64validator.OneOf(4, 8)},
 						},
 						"cache_gb": schema.Int64Attribute{
 							Description: "Cache capacity in GB.",
@@ -617,6 +628,11 @@ func (r *WarehouseResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 		return
 	}
 	validateWarehouseCreation(&resp.Diagnostics, &plan, true)
+	var configuredInitial types.List
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("initial_cluster"), &configuredInitial)...)
+	if configured := initialCapacity(ctx, configuredInitial, &resp.Diagnostics); configured != nil {
+		validateLocalNodeCache(&resp.Diagnostics, configured.CacheStorageType, configured.NodeCache, configured.NodeVcpu, types.Int64Null())
+	}
 }
 
 // rejectCreateOnlyChange errors when a create-only attribute is changed after
@@ -706,6 +722,7 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 				Zone: ic.Zone.ValueString(),
 			}
 			validateCapacity(&resp.Diagnostics, ic.ComputeVcpu, ic.CacheGb, ic.NodeVcpu, ic.NodeCount, ic.NodeCache, ic.CacheStorageType)
+			validateLocalNodeCache(&resp.Diagnostics, ic.CacheStorageType, ic.NodeCache, ic.NodeVcpu, types.Int64Null())
 			if resp.Diagnostics.HasError() {
 				return
 			}
@@ -717,7 +734,7 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 			if !localCache(ic.CacheStorageType) {
 				setOptionalIntFromInt64(&clReq.NodeCache, ic.NodeCache)
 			}
-			setOptionalIntFromInt64(&clReq.Ratio, ic.Ratio)
+			setOptionalIntFromInt64(&clReq.Ratio, plannedMemoryPerVcpu(ic.MemoryPerVcpu, ic.Ratio))
 
 			if !ic.AutoPause.IsNull() && !ic.AutoPause.IsUnknown() {
 				var apModels []AutoPauseModel
@@ -803,6 +820,9 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 	}
 
 	if block := initialCapacity(ctx, plan.InitialCluster, &resp.Diagnostics); block != nil {
+		if block.MemoryPerVcpu.IsUnknown() {
+			block.MemoryPerVcpu = types.Int64Null()
+		}
 		if block.NodeCache.IsUnknown() {
 			block.NodeCache = types.Int64Null()
 		}

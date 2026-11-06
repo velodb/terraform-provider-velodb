@@ -12,7 +12,7 @@ import (
 func legacyCapacityUpdates(plan, state ClusterResourceModel, diags *diag.Diagnostics) []client.UpdateClusterRequest {
 	cpuChanged := !plan.ComputeVcpu.Equal(state.ComputeVcpu)
 	diskChanged := !plan.CacheGb.Equal(state.CacheGb)
-	validateCreateOnlyRatio(diags, plan.Ratio, state.Ratio)
+	validateCreateOnlyRatio(diags, plannedMemoryPerVcpu(plan.MemoryPerVcpu, plan.Ratio), configuredMemoryPerVcpu(state.MemoryPerVcpu, state.Ratio))
 	if diags.HasError() {
 		return nil
 	}
