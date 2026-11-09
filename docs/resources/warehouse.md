@@ -188,7 +188,7 @@ For warehouses created by Terraform with a saved `initial_cluster_id`, this
 block manages CPU/cache capacity after creation. Change legacy `compute_vcpu`
 and `cache_gb`, or EBS node `node_vcpu`/`node_cache` at fixed `node_count`. Change
 `node_count` in a separate apply. The provider rejects a plan that changes
-both node size/cache and count. Zone, ratio, cache storage type and auto-pause remain
+both node size/cache and count. Zone, memory per vCPU, cache storage type and auto-pause remain
 creation-only in this block.
 
 For Local storage (`cache_storage_type = 1`), omit `node_cache`, even if it matches the current size. Cache capacity is determined automatically by the node package. For vertical scaling, change only `node_vcpu` and leave `node_count` unchanged; change `node_count` in a separate apply.
@@ -389,7 +389,8 @@ Optional:
 
 - `capacity_model` (String, Computed) Applied API capacity model. A pending node-model promotion remains visible in the next plan after a failed apply.
 - `auto_pause` (Block List, Max: 1) Auto-pause configuration. (see [below for nested schema](#nestedblock--initial_cluster--auto_pause))
-- `ratio` (Number) vCPU-to-memory ratio. Supported values are `4` (1:4) and `8` (1:8). This value is create-only. If omitted, Manager defaults to `8` (1:8).
+- `memory_per_vcpu` (Number, Optional/Computed) GB of memory per vCPU. Set `4` or `8` at creation. Omission uses the API default of `8`. The provider reads the applied value from the saved initial cluster when the API returns it.
+- `ratio` (Number) Deprecated alias for `memory_per_vcpu`. Set only one of these fields.
 
 <a id="nestedblock--initial_cluster--auto_pause"></a>
 ### Nested Schema for `initial_cluster.auto_pause`

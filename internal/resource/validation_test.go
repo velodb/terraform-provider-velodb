@@ -380,6 +380,7 @@ func initialClusterListForTest(ratio types.Int64) types.List {
 		"cache_storage_type": types.Int64Type,
 		"compute_vcpu":       types.Int64Type,
 		"ratio":              types.Int64Type,
+		"memory_per_vcpu":    types.Int64Type,
 		"cache_gb":           types.Int64Type,
 		"auto_pause":         types.ListType{ElemType: autoPauseType},
 	}
@@ -392,6 +393,7 @@ func initialClusterListForTest(ratio types.Int64) types.List {
 		"cache_storage_type": types.Int64Null(),
 		"compute_vcpu":       types.Int64Value(4),
 		"ratio":              ratio,
+		"memory_per_vcpu":    types.Int64Null(),
 		"cache_gb":           types.Int64Value(100),
 		"auto_pause":         types.ListNull(autoPauseType),
 	})

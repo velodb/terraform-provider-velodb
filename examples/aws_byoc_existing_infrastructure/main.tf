@@ -35,6 +35,7 @@ module "velodb_byoc" {
   compute_vcpu              = var.compute_vcpu
   cache_gb                  = var.cache_gb
   cache_storage_type        = var.cache_storage_type
+  memory_per_vcpu           = var.memory_per_vcpu
   ratio                     = var.ratio
   node_vcpu                 = var.node_vcpu
   node_count                = var.node_count

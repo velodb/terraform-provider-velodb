@@ -61,9 +61,13 @@ func TestNodeCapacityConfigValidation(t *testing.T) {
 		valid    bool
 	}{
 		{`"node_vcpu":8,"node_count":3,"node_cache":200`, true},
+		{`"node_vcpu":8,"node_count":3,"node_cache":200,"memory_per_vcpu":4`, true},
+		{`"node_vcpu":8,"node_count":3,"node_cache":200,"memory_per_vcpu":6`, false},
+		{`"node_vcpu":8,"node_count":3,"node_cache":200,"memory_per_vcpu":4,"ratio":4`, false},
 		{`"cache_storage_type":0,"node_vcpu":8,"node_count":3,"node_cache":200`, true},
 		{`"cache_storage_type":1,"node_vcpu":8,"node_count":3`, true},
-		{`"cache_storage_type":1,"node_vcpu":8,"node_count":3,"node_cache":474`, false},
+		// The plan rejects explicit Local cache using the operation-specific diagnostic.
+		{`"cache_storage_type":1,"node_vcpu":8,"node_count":3,"node_cache":474`, true},
 		{`"cache_storage_type":2,"node_vcpu":8,"node_count":3,"node_cache":200`, false},
 		{`"cache_storage_type":1,"compute_vcpu":8,"cache_gb":200`, false},
 		{`"node_vcpu":8,"node_count":3`, false},

@@ -154,7 +154,7 @@ before applying node-based settings. Copy `terraform.tfvars.example` to
 
 ```hcl
 cache_storage_type = 0
-ratio      = 4
+memory_per_vcpu      = 4
 node_vcpu  = 4
 node_count = 1
 node_cache = 100
@@ -165,7 +165,7 @@ comes from the selected package. The same fields are supported in each
 `additional_clusters` entry. Do not combine node inputs with legacy
 `compute_vcpu`/`cache_gb`. Existing configurations keep their defaults.
 
-Initial-cluster capacity supports resizing through its saved creation-time ID. Change node count separately from node size/cache. Ratio and cache storage type are creation-only. Additional
+Initial-cluster capacity supports resizing through its saved creation-time ID. Change node count separately from node size/cache. `memory_per_vcpu` and cache storage type are creation-only. Additional
 cluster node-count and node-size changes require separate applies. See the
 [node-capacity guide](../../docs/guides/node-capacity.md).
 
@@ -178,7 +178,7 @@ this example directory:
 cp cluster.tf.example cluster.tf
 ```
 
-Edit `cluster.tf` to choose the cluster name, cache storage type, ratio, CPU, node count
+Edit `cluster.tf` to choose the cluster name, cache storage type, memory_per_vcpu, CPU, node count
 and EBS cache size. The warehouse reference is already connected to this
 example's module. Local NVMe requires `cache_storage_type = 1` with `node_cache` omitted.
 Use a distinct cluster name. Each physical cluster must be managed by one
@@ -188,5 +188,5 @@ Run `terraform plan` to inspect it. Applying node capacity requires the matching
 Formation API deployment. Removing `cluster.tf` later plans deletion of this
 extra cluster while keeping the module's warehouse configuration.
 
-CPU sizes must match a package available for the region, cache storage type and ratio.
+CPU sizes must match a package available for the region, cache storage type and memory_per_vcpu.
 Change node count separately from node CPU/cache size.

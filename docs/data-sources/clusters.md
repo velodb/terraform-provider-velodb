@@ -73,6 +73,9 @@ Read-Only:
 - `node_vcpu` (Number) Applied vCPUs per node, null when not returned.
 - `node_count` (Number) Total node count.
 - `node_cache` (Number) Applied cache GB per node, null when not returned.
+- `memory_per_vcpu` (Number) Applied GB of memory per vCPU, null when not returned.
+- `compute_vcpu` (Number) Total vCPUs for the cluster, null when not returned.
+- `cache_gb` (Number) Total cache GB for the cluster, null when not returned.
 
 - `cloud_provider` (String) Cloud provider.
 - `cluster_id` (String) Cluster identifier.

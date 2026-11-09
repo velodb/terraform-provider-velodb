@@ -45,9 +45,6 @@ func validateCapacity(diags *diag.Diagnostics, cpu, cache, nodeCPU, count, nodeC
 		diags.AddError("Invalid cache_storage_type", "cache_storage_type must be 0 (EBS) or 1 (local NVMe).")
 	}
 	local := localCache(cacheStorageType)
-	if local && !nodeCache.IsNull() {
-		diags.AddError("node_cache conflicts with Local storage", "Omit node_cache when cache_storage_type = 1; cache size is determined automatically. For vertical scaling, change only node_vcpu.")
-	}
 	if local || nodeCapacityConfigured(nodeCPU, count, nodeCache) {
 		if !cpu.IsNull() || !cache.IsNull() {
 			diags.AddError("Conflicting capacity inputs", "Use either compute_vcpu/cache_gb or node_vcpu/node_count/node_cache. Do not combine them, even with zero values.")
@@ -69,19 +66,41 @@ func validateCapacity(diags *diag.Diagnostics, cpu, cache, nodeCPU, count, nodeC
 	}
 }
 
+func validateLocalNodeCache(diags *diag.Diagnostics, storage, cache, cpu, priorCPU types.Int64) {
+	if !localCache(storage) || !knownInt(cache) {
+		return
+	}
+	detail := "Omit node_cache when cache_storage_type = 1. The Local node package determines the cache size."
+	if knownInt(priorCPU) && knownInt(cpu) && !cpu.Equal(priorCPU) {
+		detail = "For vertical scaling, change only node_vcpu and omit node_cache. The new Local node package determines the cache size."
+	}
+	diags.AddError("node_cache conflicts with Local storage", detail)
+}
+
 func (r *ClusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	if req.Plan.Raw.IsNull() || req.State.Raw.IsNull() {
+	if req.Plan.Raw.IsNull() {
 		return
 	}
 	var config, plan, state ClusterResourceModel
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if req.State.Raw.IsNull() {
+		validateLocalNodeCache(&resp.Diagnostics, config.CacheStorageType, config.NodeCache, config.NodeVcpu, types.Int64Null())
+		return
+	}
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	validateCreateOnlyRatio(&resp.Diagnostics, plan.Ratio, state.Ratio)
+	validateCreateOnlyRatio(&resp.Diagnostics, plannedMemoryPerVcpu(plan.MemoryPerVcpu, plan.Ratio), configuredMemoryPerVcpu(state.MemoryPerVcpu, state.Ratio))
 	validateCacheStorageTypeChange(&resp.Diagnostics, config.CacheStorageType, state.CacheStorageType)
+	validateLocalNodeCache(&resp.Diagnostics, state.CacheStorageType, config.NodeCache, plan.NodeVcpu, state.NodeVcpu)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 	if localCache(state.CacheStorageType) && config.NodeCache.IsNull() && !plan.NodeVcpu.Equal(state.NodeVcpu) {
 		resp.Diagnostics.Append(resp.Plan.SetAttribute(ctx, path.Root("node_cache"), types.Int64Unknown())...)
 	}
@@ -101,7 +120,7 @@ func (r *ClusterResource) ModifyPlan(ctx context.Context, req resource.ModifyPla
 
 func (r *ClusterResource) updateNodeCapacity(ctx context.Context, warehouseID, clusterID string, config ClusterResourceModel, plan *ClusterResourceModel, state *ClusterResourceModel, timeout time.Duration, diags *diag.Diagnostics) bool {
 	validateCapacity(diags, config.ComputeVcpu, config.CacheGb, config.NodeVcpu, config.NodeCount, config.NodeCache, config.CacheStorageType)
-	validateCreateOnlyRatio(diags, plan.Ratio, state.Ratio)
+	validateCreateOnlyRatio(diags, plannedMemoryPerVcpu(plan.MemoryPerVcpu, plan.Ratio), configuredMemoryPerVcpu(state.MemoryPerVcpu, state.Ratio))
 	if diags.HasError() {
 		return false
 	}
@@ -119,8 +138,8 @@ func (r *ClusterResource) updateNodeCapacity(ctx context.Context, warehouseID, c
 		diags.AddError("Cache storage type unavailable or changed", "Refresh the cluster and verify the deployed API returns the configured cacheStorageType before resizing.")
 		return false
 	}
-	if local && !config.NodeCache.IsNull() {
-		diags.AddError("node_cache conflicts with Local storage", "Omit node_cache when cache_storage_type = 1; cache size is determined automatically. For vertical scaling, change only node_vcpu.")
+	validateLocalNodeCache(diags, optionalNodeValue(cl.CacheStorageType), config.NodeCache, plan.NodeVcpu, optionalNodeValue(cl.NodeVcpu))
+	if diags.HasError() {
 		return false
 	}
 	countChanged := int64(cl.NodeCount) != plan.NodeCount.ValueInt64()
