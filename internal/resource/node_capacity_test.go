@@ -113,8 +113,8 @@ func TestNodeCapacityReadClearsMissingValues(t *testing.T) {
 }
 
 func TestClusterCapacityReadback(t *testing.T) {
-	cpu, cache, ratio := 16, 400, 8
-	cluster := client.ClusterDetail{ClusterItem: client.ClusterItem{ComputeVcpu: &cpu, CacheGb: &cache, MemoryPerVcpu: &ratio}}
+	cpu, cache, memoryPerVcpu := 16, 400, 8
+	cluster := client.ClusterDetail{ClusterItem: client.ClusterItem{ComputeVcpu: &cpu, CacheGb: &cache, MemoryPerVcpu: &memoryPerVcpu}}
 	state := ClusterResourceModel{MemoryPerVcpu: types.Int64Value(4)}
 	var diags diag.Diagnostics
 

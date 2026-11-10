@@ -36,7 +36,7 @@ func TestCreateCluster(t *testing.T) {
 			t.Errorf("expected computeVcpu 4, got %v", req.ComputeVcpu)
 		}
 		if req.MemoryPerVcpu == nil || *req.MemoryPerVcpu != 4 {
-			t.Errorf("expected ratio 4, got %v", req.MemoryPerVcpu)
+			t.Errorf("expected memoryPerVcpu 4, got %v", req.MemoryPerVcpu)
 		}
 		if req.CacheGb == nil || *req.CacheGb != 100 {
 			t.Errorf("expected cacheGb 100, got %v", req.CacheGb)
@@ -55,14 +55,14 @@ func TestCreateCluster(t *testing.T) {
 	})
 
 	zone := "us-east-1a"
-	ratio := 4
+	memoryPerVcpu := 4
 	timeout := 50
 	result, err := client.CreateCluster(context.Background(), "WH-001", &CreateClusterRequest{
 		Name:          "compute-etl",
 		ClusterType:   "COMPUTE",
 		Zone:          &zone,
 		ComputeVcpu:   testInt(4),
-		MemoryPerVcpu: &ratio,
+		MemoryPerVcpu: &memoryPerVcpu,
 		CacheGb:       testInt(100),
 		AutoPause: &AutoPauseConfig{
 			Enabled:            false,
