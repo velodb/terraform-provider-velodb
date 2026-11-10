@@ -35,8 +35,8 @@ func TestCreateCluster(t *testing.T) {
 		if req.ComputeVcpu == nil || *req.ComputeVcpu != 4 {
 			t.Errorf("expected computeVcpu 4, got %v", req.ComputeVcpu)
 		}
-		if req.Ratio == nil || *req.Ratio != 4 {
-			t.Errorf("expected ratio 4, got %v", req.Ratio)
+		if req.MemoryPerVcpu == nil || *req.MemoryPerVcpu != 4 {
+			t.Errorf("expected memoryPerVcpu 4, got %v", req.MemoryPerVcpu)
 		}
 		if req.CacheGb == nil || *req.CacheGb != 100 {
 			t.Errorf("expected cacheGb 100, got %v", req.CacheGb)
@@ -55,15 +55,15 @@ func TestCreateCluster(t *testing.T) {
 	})
 
 	zone := "us-east-1a"
-	ratio := 4
+	memoryPerVcpu := 4
 	timeout := 50
 	result, err := client.CreateCluster(context.Background(), "WH-001", &CreateClusterRequest{
-		Name:        "compute-etl",
-		ClusterType: "COMPUTE",
-		Zone:        &zone,
-		ComputeVcpu: testInt(4),
-		Ratio:       &ratio,
-		CacheGb:     testInt(100),
+		Name:          "compute-etl",
+		ClusterType:   "COMPUTE",
+		Zone:          &zone,
+		ComputeVcpu:   testInt(4),
+		MemoryPerVcpu: &memoryPerVcpu,
+		CacheGb:       testInt(100),
 		AutoPause: &AutoPauseConfig{
 			Enabled:            false,
 			IdleTimeoutMinutes: &timeout,
@@ -340,5 +340,37 @@ func TestRateLimitError(t *testing.T) {
 	}
 	if !apiErr.IsRateLimited() {
 		t.Error("expected IsRateLimited=true")
+	}
+}
+
+func TestMemoryPerVcpuWireContract(t *testing.T) {
+	memory := 4
+	for _, request := range []any{
+		CreateClusterRequest{MemoryPerVcpu: &memory},
+		CreateWarehouseRequest{InitialCluster: &InitialClusterRequest{MemoryPerVcpu: &memory}},
+	} {
+		data, err := json.Marshal(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(data, &fields); err != nil {
+			t.Fatal(err)
+		}
+		if initial, ok := fields["initialCluster"]; ok {
+			if err := json.Unmarshal(initial, &fields); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if string(fields["memoryPerVcpu"]) != "4" || fields["ratio"] != nil {
+			t.Fatalf("unexpected public API memory fields: %s", data)
+		}
+	}
+	var observed ClusterItem
+	if err := json.Unmarshal([]byte(`{"memoryPerVcpu":8}`), &observed); err != nil {
+		t.Fatal(err)
+	}
+	if observed.MemoryPerVcpu == nil || *observed.MemoryPerVcpu != 8 {
+		t.Fatalf("missing applied memory: %+v", observed)
 	}
 }

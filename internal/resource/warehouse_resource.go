@@ -734,7 +734,7 @@ func (r *WarehouseResource) Create(ctx context.Context, req resource.CreateReque
 			if !localCache(ic.CacheStorageType) {
 				setOptionalIntFromInt64(&clReq.NodeCache, ic.NodeCache)
 			}
-			setOptionalIntFromInt64(&clReq.Ratio, plannedMemoryPerVcpu(ic.MemoryPerVcpu, ic.Ratio))
+			setOptionalIntFromInt64(&clReq.MemoryPerVcpu, plannedMemoryPerVcpu(ic.MemoryPerVcpu, ic.Ratio))
 
 			if !ic.AutoPause.IsNull() && !ic.AutoPause.IsUnknown() {
 				var apModels []AutoPauseModel

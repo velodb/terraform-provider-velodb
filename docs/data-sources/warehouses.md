@@ -35,6 +35,25 @@ data "velodb_warehouses" "us_saas" {
 }
 ```
 
+### Discover Warehouse Placement Zones
+
+```terraform
+data "velodb_warehouses" "selected" {
+  warehouse_id = "<warehouse-id>"
+}
+
+output "placement_zones" {
+  value = keys(coalesce(one(data.velodb_warehouses.selected.warehouses).zone_map, tomap({})))
+}
+```
+
+For SaaS and BYOC, `zone_map` contains the warehouse's configured placement zones,
+not every zone in the region. Use its keys as cluster `zone` values; its values
+are display names. Verify at least two keys are available before selecting two
+distinct zones for Virtual Cluster members. The primary `zone` field is unchanged.
+When the API omits `zoneMap` (for example, for a single-AZ warehouse), `zone_map`
+is null; the provider does not infer additional zones.
+
 ### Search by Keyword
 
 ```terraform
@@ -90,3 +109,4 @@ Read-Only:
 - `status` (String) Current warehouse status.
 - `warehouse_id` (String) Warehouse identifier.
 - `zone` (String) Primary availability zone.
+- `zone_map` (Map of String) Configured warehouse placement zone IDs mapped to display names. Null when omitted by the API.

@@ -50,7 +50,7 @@ type InitialClusterRequest struct {
 	CacheStorageType *int             `json:"cacheStorageType,omitempty"`
 	Zone             string           `json:"zone"`
 	ComputeVcpu      *int             `json:"computeVcpu,omitempty"`
-	Ratio            *int             `json:"ratio,omitempty"`
+	MemoryPerVcpu    *int             `json:"memoryPerVcpu,omitempty"`
 	CacheGb          *int             `json:"cacheGb,omitempty"`
 	AutoPause        *AutoPauseConfig `json:"autoPause,omitempty"`
 	NodeVcpu         *int             `json:"nodeVcpu,omitempty"`
@@ -89,6 +89,7 @@ type WarehouseItem struct {
 	CloudProvider              string                    `json:"cloudProvider"`
 	Region                     string                    `json:"region"`
 	Zone                       string                    `json:"zone,omitempty"`
+	ZoneMap                    map[string]string         `json:"zoneMap,omitempty"`
 	DeploymentMode             string                    `json:"deploymentMode,omitempty"`
 	CoreVersion                string                    `json:"coreVersion,omitempty"`
 	PayType                    string                    `json:"payType,omitempty"`
@@ -144,7 +145,7 @@ type CreateClusterRequest struct {
 	ClusterType      string           `json:"clusterType"`
 	Zone             *string          `json:"zone,omitempty"`
 	ComputeVcpu      *int             `json:"computeVcpu,omitempty"`
-	Ratio            *int             `json:"ratio,omitempty"`
+	MemoryPerVcpu    *int             `json:"memoryPerVcpu,omitempty"`
 	CacheGb          *int             `json:"cacheGb,omitempty"`
 	AutoPause        *AutoPauseConfig `json:"autoPause,omitempty"`
 	NodeVcpu         *int             `json:"nodeVcpu,omitempty"`
@@ -181,7 +182,7 @@ type ClusterItem struct {
 	Zone                  string                 `json:"zone,omitempty"`
 	ComputeVcpu           *int                   `json:"computeVcpu,omitempty"`
 	CacheGb               *int                   `json:"cacheGb,omitempty"`
-	Ratio                 *int                   `json:"ratio,omitempty"`
+	MemoryPerVcpu         *int                   `json:"memoryPerVcpu,omitempty"`
 	DiskSumSize           int                    `json:"diskSumSize,omitempty"`
 	BillingModel          string                 `json:"billingModel,omitempty"`
 	Period                int                    `json:"period,omitempty"`

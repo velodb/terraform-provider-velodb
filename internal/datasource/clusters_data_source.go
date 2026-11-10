@@ -229,7 +229,7 @@ func (d *ClustersDataSource) Read(ctx context.Context, req datasource.ReadReques
 			"billing_model":      stringVal(cl.BillingModel),
 			"capacity_model":     stringVal(cl.CapacityModel),
 			"node_vcpu":          nodeIntValue(cl.NodeVcpu),
-			"memory_per_vcpu":    nodeIntValue(cl.Ratio),
+			"memory_per_vcpu":    nodeIntValue(cl.MemoryPerVcpu),
 			"compute_vcpu":       nodeIntValue(cl.ComputeVcpu),
 			"cache_gb":           nodeIntValue(cl.CacheGb),
 			"node_count":         types.Int64Value(int64(cl.NodeCount)),

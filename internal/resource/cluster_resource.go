@@ -373,7 +373,7 @@ func buildCreateClusterRequest(plan ClusterResourceModel) *client.CreateClusterR
 		setOptionalIntFromInt64(&request.ComputeVcpu, plan.ComputeVcpu)
 		setOptionalIntFromInt64(&request.CacheGb, plan.CacheGb)
 	}
-	setOptionalIntFromInt64(&request.Ratio, plannedMemoryPerVcpu(plan.MemoryPerVcpu, plan.Ratio))
+	setOptionalIntFromInt64(&request.MemoryPerVcpu, plannedMemoryPerVcpu(plan.MemoryPerVcpu, plan.Ratio))
 	return request
 }
 
@@ -734,8 +734,8 @@ func setClusterState(cl *client.ClusterDetail, state *ClusterResourceModel, diag
 	state.Zone = stringOrNull(cl.Zone)
 	state.BillingMethod = stringOrNull(cl.BillingModel)
 	state.CapacityModel = stringOrNull(cl.CapacityModel)
-	if cl.Ratio != nil || state.MemoryPerVcpu.IsUnknown() {
-		state.MemoryPerVcpu = optionalNodeValue(cl.Ratio)
+	if cl.MemoryPerVcpu != nil || state.MemoryPerVcpu.IsUnknown() {
+		state.MemoryPerVcpu = optionalNodeValue(cl.MemoryPerVcpu)
 	}
 	state.NodeVcpu = optionalNodeValue(cl.NodeVcpu)
 	state.NodeCache = optionalNodeValue(cl.NodeCache)
