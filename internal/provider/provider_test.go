@@ -573,7 +573,7 @@ func mockAPIServer(t *testing.T) *httptest.Server {
 
 			parts := strings.Split(req.URL.Path, "/")
 			data := map[string]any{"clusterId": parts[5], "warehouseId": parts[3], "clusterType": "COMPUTE", "status": "Running"}
-			for _, key := range []string{"nodeVcpu", "nodeCount", "nodeCache", "cacheStorageType", "ratio"} {
+			for _, key := range []string{"nodeVcpu", "nodeCount", "nodeCache", "cacheStorageType", "memoryPerVcpu"} {
 				if value, ok := initialCapacity[key]; ok {
 					data[key] = value
 				}

@@ -48,8 +48,8 @@ func TestCreateWarehouse(t *testing.T) {
 		if req.InitialCluster.ComputeVcpu == nil || *req.InitialCluster.ComputeVcpu != 4 {
 			t.Errorf("expected computeVcpu 4, got %v", req.InitialCluster.ComputeVcpu)
 		}
-		if req.InitialCluster.Ratio == nil || *req.InitialCluster.Ratio != 8 {
-			t.Errorf("expected ratio 8, got %v", req.InitialCluster.Ratio)
+		if req.InitialCluster.MemoryPerVcpu == nil || *req.InitialCluster.MemoryPerVcpu != 8 {
+			t.Errorf("expected ratio 8, got %v", req.InitialCluster.MemoryPerVcpu)
 		}
 
 		jsonResponse(t, w, 200, APIResponse[CreateWarehouseResult]{
@@ -69,11 +69,11 @@ func TestCreateWarehouse(t *testing.T) {
 		CloudProvider:  "aws",
 		Region:         "us-east-1",
 		InitialCluster: &InitialClusterRequest{
-			Zone:        zone,
-			ComputeVcpu: testInt(4),
-			Ratio:       &ratio,
-			CacheGb:     testInt(1000),
-			AutoPause:   &AutoPauseConfig{Enabled: false},
+			Zone:          zone,
+			ComputeVcpu:   testInt(4),
+			MemoryPerVcpu: &ratio,
+			CacheGb:       testInt(1000),
+			AutoPause:     &AutoPauseConfig{Enabled: false},
 		},
 	})
 	if err != nil {

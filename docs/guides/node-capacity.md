@@ -15,7 +15,7 @@ replacement or storage change before proceeding.
 
 ## Create
 
-Use `memory_per_vcpu` for the optional creation-time memory setting in GB per vCPU. Existing configurations can replace `ratio` with `memory_per_vcpu` and keep the same value. Set only one name.
+Use `memory_per_vcpu` for the optional creation-time memory setting in GB per vCPU. The provider sends and reads the Formation API field `memoryPerVcpu`; it does not send the cloud manager field `ratio`. Existing configurations can replace `ratio` with `memory_per_vcpu` and keep the same value. Set only one name.
 
 Use exactly one capacity input family:
 

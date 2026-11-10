@@ -47,7 +47,7 @@ func TestAccNodeCapacityLifecycle(t *testing.T) {
 					if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 						t.Error(err)
 					}
-					if local && body["ratio"] != float64(4) || !local && body["ratio"] != nil {
+					if local && body["memoryPerVcpu"] != float64(4) || !local && body["memoryPerVcpu"] != nil {
 						t.Errorf("unexpected memory setting in cluster create: %v", body)
 					}
 					if migrate {
@@ -79,7 +79,7 @@ func TestAccNodeCapacityLifecycle(t *testing.T) {
 					if local && body["nodeCache"] != nil {
 						t.Errorf("local update must omit cache: %v", body)
 					}
-					for _, field := range []string{"computeVcpu", "cacheGb", "ratio", "cacheStorageType"} {
+					for _, field := range []string{"computeVcpu", "cacheGb", "memoryPerVcpu", "cacheStorageType"} {
 						if _, ok := body[field]; ok {
 							t.Errorf("unexpected field %s: %v", field, body)
 						}
@@ -113,9 +113,9 @@ func TestAccNodeCapacityLifecycle(t *testing.T) {
 				}
 				data := map[string]any{"clusterId": "c-nodes", "warehouseId": "w-nodes", "name": "analytics", "clusterType": "COMPUTE", "zone": "us-east-1a", "status": "Running", "cacheStorageType": cacheStorageType, "nodeVcpu": cpu, "nodeCount": count, "nodeCache": cache, "billingModel": "on_demand", "onDemandNodeCount": count, "capacityModel": model, "billingSummary": map[string]any{"nodeCount": count, "totalCpu": cpu * count, "totalDiskSizeGb": cache * count}, "billingPools": map[string]any{"onDemand": map[string]any{"nodeCount": count, "cpu": cpu * count, "diskSizeGb": cache * count}}}
 				if !migrate {
-					data["ratio"] = 8
+					data["memoryPerVcpu"] = 8
 					if local {
-						data["ratio"] = 4
+						data["memoryPerVcpu"] = 4
 					}
 					data["computeVcpu"], data["cacheGb"] = cpu*count, cache*count
 					delete(data, "billingSummary")
@@ -224,7 +224,7 @@ func TestAccWarehouseNodeInitialCluster(t *testing.T) {
 					if err := json.Unmarshal(raw, &body); err != nil {
 						t.Error(err)
 					}
-					if body.Initial["nodeVcpu"] != float64(8) || body.Initial["nodeCount"] != float64(2) || body.Initial["ratio"] != float64(4) {
+					if body.Initial["nodeVcpu"] != float64(8) || body.Initial["nodeCount"] != float64(2) || body.Initial["memoryPerVcpu"] != float64(4) {
 						t.Errorf("initial node request: %s", raw)
 					}
 					for _, key := range []string{"computeVcpu", "cacheGb"} {
@@ -314,9 +314,9 @@ func TestAccNodeCapacityDataSource(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		writeJSONResponse(t, w, map[string]any{"success": true, "total": 3, "data": []any{
-			map[string]any{"clusterId": "ebs", "warehouseId": "w", "name": "ebs", "status": "Running", "cacheStorageType": 0, "nodeVcpu": 8, "nodeCount": 2, "nodeCache": 200, "capacityModel": "NODE_SPEC", "ratio": 8, "computeVcpu": 16, "cacheGb": 400},
+			map[string]any{"clusterId": "ebs", "warehouseId": "w", "name": "ebs", "status": "Running", "cacheStorageType": 0, "nodeVcpu": 8, "nodeCount": 2, "nodeCache": 200, "capacityModel": "NODE_SPEC", "memoryPerVcpu": 8, "computeVcpu": 16, "cacheGb": 400},
 			map[string]any{"clusterId": "local", "warehouseId": "w", "name": "local", "status": "Running", "cacheStorageType": 1, "nodeVcpu": 4, "nodeCount": 2, "nodeCache": 237, "capacityModel": "NODE_SPEC"},
-			map[string]any{"clusterId": "older", "warehouseId": "w", "name": "older", "status": "Running", "nodeCount": 1, "ratio": nil, "cacheGb": nil},
+			map[string]any{"clusterId": "older", "warehouseId": "w", "name": "older", "status": "Running", "nodeCount": 1, "memoryPerVcpu": nil, "cacheGb": nil},
 		}})
 	}))
 	defer ts.Close()

@@ -114,7 +114,7 @@ func TestNodeCapacityReadClearsMissingValues(t *testing.T) {
 
 func TestClusterCapacityReadback(t *testing.T) {
 	cpu, cache, ratio := 16, 400, 8
-	cluster := client.ClusterDetail{ClusterItem: client.ClusterItem{ComputeVcpu: &cpu, CacheGb: &cache, Ratio: &ratio}}
+	cluster := client.ClusterDetail{ClusterItem: client.ClusterItem{ComputeVcpu: &cpu, CacheGb: &cache, MemoryPerVcpu: &ratio}}
 	state := ClusterResourceModel{MemoryPerVcpu: types.Int64Value(4)}
 	var diags diag.Diagnostics
 
@@ -125,7 +125,7 @@ func TestClusterCapacityReadback(t *testing.T) {
 		t.Fatalf("expected top-level capacity and changed memory in state: %+v %v", state, diags)
 	}
 
-	cluster.Ratio = nil
+	cluster.MemoryPerVcpu = nil
 	cluster.BillingPools = &client.ClusterBillingPools{OnDemand: &client.ClusterBillingPool{Cpu: 8, DiskSizeGb: 200}}
 	setClusterState(&cluster, &state, &diags)
 	if diags.HasError() || state.MemoryPerVcpu.ValueInt64() != 8 ||
