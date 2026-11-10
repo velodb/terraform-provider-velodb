@@ -77,12 +77,17 @@ func (d *WarehousesDataSource) Schema(_ context.Context, _ datasource.SchemaRequ
 				Computed:    true,
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
-						"warehouse_id":    schema.StringAttribute{Computed: true},
-						"name":            schema.StringAttribute{Computed: true},
-						"status":          schema.StringAttribute{Computed: true},
-						"cloud_provider":  schema.StringAttribute{Computed: true},
-						"region":          schema.StringAttribute{Computed: true},
-						"zone":            schema.StringAttribute{Computed: true},
+						"warehouse_id":   schema.StringAttribute{Computed: true},
+						"name":           schema.StringAttribute{Computed: true},
+						"status":         schema.StringAttribute{Computed: true},
+						"cloud_provider": schema.StringAttribute{Computed: true},
+						"region":         schema.StringAttribute{Computed: true},
+						"zone":           schema.StringAttribute{Computed: true},
+						"zone_map": schema.MapAttribute{
+							Computed:    true,
+							ElementType: types.StringType,
+							Description: "Configured warehouse placement zones. Keys are valid cluster zone values; values are display names. Null when omitted by the API.",
+						},
 						"deployment_mode": schema.StringAttribute{Computed: true},
 						"core_version":    schema.StringAttribute{Computed: true},
 						"pay_type":        schema.StringAttribute{Computed: true},
@@ -155,6 +160,7 @@ func (d *WarehousesDataSource) Read(ctx context.Context, req datasource.ReadRequ
 		"cloud_provider":        types.StringType,
 		"region":                types.StringType,
 		"zone":                  types.StringType,
+		"zone_map":              types.MapType{ElemType: types.StringType},
 		"deployment_mode":       types.StringType,
 		"core_version":          types.StringType,
 		"pay_type":              types.StringType,
@@ -203,6 +209,8 @@ func (d *WarehousesDataSource) Read(ctx context.Context, req datasource.ReadRequ
 		if wh.ExpireTime != nil {
 			expireTime = types.StringValue(wh.ExpireTime.Format(time.RFC3339))
 		}
+		zoneMap, diags := types.MapValueFrom(ctx, types.StringType, wh.ZoneMap)
+		resp.Diagnostics.Append(diags...)
 		obj, diags := types.ObjectValue(warehouseAttrTypes, map[string]attr.Value{
 			"warehouse_id":          types.StringValue(wh.WarehouseID),
 			"name":                  types.StringValue(wh.Name),
@@ -210,6 +218,7 @@ func (d *WarehousesDataSource) Read(ctx context.Context, req datasource.ReadRequ
 			"cloud_provider":        types.StringValue(wh.CloudProvider),
 			"region":                types.StringValue(wh.Region),
 			"zone":                  stringVal(wh.Zone),
+			"zone_map":              zoneMap,
 			"deployment_mode":       stringVal(wh.DeploymentMode),
 			"core_version":          stringVal(wh.CoreVersion),
 			"pay_type":              stringVal(wh.PayType),
@@ -251,6 +260,9 @@ func mergeWarehouseDetails(base client.WarehouseItem, detail *client.WarehouseIt
 	}
 	if base.Zone == "" {
 		base.Zone = detail.Zone
+	}
+	if base.ZoneMap == nil {
+		base.ZoneMap = detail.ZoneMap
 	}
 	if base.DeploymentMode == "" {
 		base.DeploymentMode = detail.DeploymentMode

@@ -89,6 +89,7 @@ type WarehouseItem struct {
 	CloudProvider              string                    `json:"cloudProvider"`
 	Region                     string                    `json:"region"`
 	Zone                       string                    `json:"zone,omitempty"`
+	ZoneMap                    map[string]string         `json:"zoneMap,omitempty"`
 	DeploymentMode             string                    `json:"deploymentMode,omitempty"`
 	CoreVersion                string                    `json:"coreVersion,omitempty"`
 	PayType                    string                    `json:"payType,omitempty"`
