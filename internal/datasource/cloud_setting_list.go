@@ -9,42 +9,29 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
-// cloudSettingListPageSize is the page size used when listing cloud-setting
-// objects (credentials, network configs, encryption keys).
-const cloudSettingListPageSize = 100
+// listPageSize is the page size used when a data source lists every matching
+// object from a paginated endpoint.
+const listPageSize = 100
 
-// cloudSettingPageFetcher fetches one 1-indexed page of size items, returning
-// the items, the server-reported total, and any error.
-type cloudSettingPageFetcher[T any] func(page, size int) ([]T, int64, error)
+// pageFetcher fetches one 1-indexed page of size items, returning the items,
+// the server-reported total, and any error.
+type pageFetcher[T any] func(page, size int) ([]T, int64, error)
 
-// renderCloudSettingList pages through every result from fetch, converts each
-// item with mapItem, and returns the assembled list plus the authoritative
-// total. Pagination stops when the server reports it has returned everything
-// (total reached), or returns a short/empty page -- so results are never
-// silently capped at a single page. label names the objects in error messages.
-func renderCloudSettingList[T any](
-	ctx context.Context,
-	diags *diag.Diagnostics,
-	label string,
-	attrTypes map[string]attr.Type,
-	fetch cloudSettingPageFetcher[T],
-	mapItem func(context.Context, *diag.Diagnostics, T) attr.Value,
-) (types.List, int64) {
-	objType := types.ObjectType{AttrTypes: attrTypes}
-
-	var items []attr.Value
+// fetchAllPages pages through every result from fetch and returns the items
+// plus the authoritative total. Pagination stops when the server reports it has
+// returned everything (total reached), or returns a short/empty page -- so
+// results are never silently capped at a single page.
+func fetchAllPages[T any](fetch pageFetcher[T]) ([]T, int64, error) {
+	var items []T
 	var total int64
 	for page := 1; ; page++ {
-		data, pageTotal, err := fetch(page, cloudSettingListPageSize)
+		data, pageTotal, err := fetch(page, listPageSize)
 		if err != nil {
-			diags.AddError("Error listing "+label, err.Error())
-			return types.ListNull(objType), 0
+			return nil, 0, err
 		}
 		total = pageTotal
-		for _, item := range data {
-			items = append(items, mapItem(ctx, diags, item))
-		}
-		if len(data) == 0 || (total > 0 && int64(len(items)) >= total) || len(data) < cloudSettingListPageSize {
+		items = append(items, data...)
+		if len(data) == 0 || (total > 0 && int64(len(items)) >= total) || len(data) < listPageSize {
 			break
 		}
 	}
@@ -52,6 +39,31 @@ func renderCloudSettingList[T any](
 		// The server did not report a total; fall back to what we collected
 		// (accurate because pagination above fetches every page).
 		total = int64(len(items))
+	}
+	return items, total, nil
+}
+
+// renderCloudSettingList fetches every page from fetch, converts each item
+// with mapItem, and returns the assembled list plus the authoritative total.
+// label names the objects in error messages.
+func renderCloudSettingList[T any](
+	ctx context.Context,
+	diags *diag.Diagnostics,
+	label string,
+	attrTypes map[string]attr.Type,
+	fetch pageFetcher[T],
+	mapItem func(context.Context, *diag.Diagnostics, T) attr.Value,
+) (types.List, int64) {
+	objType := types.ObjectType{AttrTypes: attrTypes}
+
+	data, total, err := fetchAllPages(fetch)
+	if err != nil {
+		diags.AddError("Error listing "+label, err.Error())
+		return types.ListNull(objType), 0
+	}
+	items := make([]attr.Value, 0, len(data))
+	for _, item := range data {
+		items = append(items, mapItem(ctx, diags, item))
 	}
 
 	list, listDiags := types.ListValue(objType, items)
