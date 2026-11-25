@@ -139,10 +139,7 @@ func (d *ClustersDataSource) Read(ctx context.Context, req datasource.ReadReques
 		return
 	}
 
-	opts := &client.ListClustersOptions{
-		Page: 1,
-		Size: 100,
-	}
+	opts := client.ListClustersOptions{}
 	if !config.ClusterID.IsNull() {
 		opts.ClusterID = config.ClusterID.ValueString()
 	}
@@ -156,7 +153,16 @@ func (d *ClustersDataSource) Read(ctx context.Context, req datasource.ReadReques
 		opts.ClusterType = config.ClusterType.ValueString()
 	}
 
-	result, err := d.client.ListClusters(ctx, config.WarehouseID.ValueString(), opts)
+	warehouseID := config.WarehouseID.ValueString()
+	listed, _, err := fetchAllPages(func(page, size int) ([]client.ClusterItem, int64, error) {
+		pageOpts := opts
+		pageOpts.Page, pageOpts.Size = page, size
+		result, err := d.client.ListClusters(ctx, warehouseID, &pageOpts)
+		if err != nil {
+			return nil, 0, err
+		}
+		return result.Data, result.Total, nil
+	})
 	if err != nil {
 		resp.Diagnostics.AddError("Error listing clusters", err.Error())
 		return
@@ -187,7 +193,7 @@ func (d *ClustersDataSource) Read(ctx context.Context, req datasource.ReadReques
 		"expire_time":        types.StringType,
 	}
 
-	filtered := result.Data
+	filtered := listed
 	if !config.Keyword.IsNull() && !config.Keyword.IsUnknown() {
 		filtered = filterClustersByKeyword(filtered, config.Keyword.ValueString())
 	}

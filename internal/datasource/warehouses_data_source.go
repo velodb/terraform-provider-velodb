@@ -127,10 +127,7 @@ func (d *WarehousesDataSource) Read(ctx context.Context, req datasource.ReadRequ
 		return
 	}
 
-	opts := &client.ListWarehousesOptions{
-		Page: 1,
-		Size: 100,
-	}
+	opts := client.ListWarehousesOptions{}
 	if !config.WarehouseID.IsNull() {
 		opts.WarehouseID = config.WarehouseID.ValueString()
 	}
@@ -147,7 +144,15 @@ func (d *WarehousesDataSource) Read(ctx context.Context, req datasource.ReadRequ
 		opts.DeploymentMode = normalizeDeploymentMode(config.DeploymentMode.ValueString())
 	}
 
-	result, err := d.client.ListWarehouses(ctx, opts)
+	listed, _, err := fetchAllPages(func(page, size int) ([]client.WarehouseItem, int64, error) {
+		pageOpts := opts
+		pageOpts.Page, pageOpts.Size = page, size
+		result, err := d.client.ListWarehouses(ctx, &pageOpts)
+		if err != nil {
+			return nil, 0, err
+		}
+		return result.Data, result.Total, nil
+	})
 	if err != nil {
 		resp.Diagnostics.AddError("Error listing warehouses", err.Error())
 		return
@@ -170,7 +175,7 @@ func (d *WarehousesDataSource) Read(ctx context.Context, req datasource.ReadRequ
 		"expire_time":           types.StringType,
 	}
 
-	warehouses := result.Data
+	warehouses := listed
 	if !config.Keyword.IsNull() && !config.Keyword.IsUnknown() {
 		warehouses = filterWarehousesByKeyword(warehouses, config.Keyword.ValueString())
 	}
